@@ -1,0 +1,23 @@
+OpoGC - despliegue en Cloudflare Workers
+
+Esta version esta preparada para un primer despliegue, sin Worker previo.
+
+Desde CMD, dentro de esta carpeta:
+
+  npm install
+  npx wrangler login
+  npm run deploy
+
+Tambien puedes ejecutar DESPLEGAR_EN_WINDOWS.bat.
+
+La configuracion declara los bindings DB (D1) y BUCKET (R2) sin IDs. Wrangler 4.45+ puede aprovisionarlos automaticamente durante el primer deploy y enlazarlos al Worker opogc-estudio.
+
+Si Wrangler indica que necesita un account_id porque tienes varias cuentas de Cloudflare, ejecuta:
+
+  npx wrangler whoami
+
+Copia el Account ID correspondiente y anadelo en wrangler.jsonc como:
+
+  "account_id": "TU_ACCOUNT_ID",
+
+No uses --force ni --legacy-peer-deps: las versiones de vinext y @vinext/cloudflare ya estan alineadas en esta version.

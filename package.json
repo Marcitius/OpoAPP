@@ -1,0 +1,47 @@
+{
+  "name": "opogc-estudio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "displayName": "OpoGC",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vinext dev",
+    "build": "vinext build",
+    "start": "wrangler dev --config dist/server/wrangler.json",
+    "deploy": "vinext-cloudflare deploy",
+    "deploy:dry": "vinext-cloudflare deploy --dry-run",
+    "cf:login": "wrangler login",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern public/pdf.min.mjs --ignore-pattern public/pdf.worker.min.mjs",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@vinext/cloudflare": "1.0.0-beta.6",
+    "drizzle-orm": "0.45.2",
+    "next": "16.2.6",
+    "pdfjs-dist": "^5.4.149",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "react-server-dom-webpack": "19.2.6",
+    "vinext": "1.0.0-beta.6"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.37.1",
+    "@tailwindcss/postcss": "4.2.1",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "@vitejs/plugin-rsc": "^0.5.26",
+    "drizzle-kit": "0.31.10",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.9.3",
+    "vite": "^8.0.13",
+    "wrangler": "^4.92.0"
+  }
+}

@@ -1,0 +1,1 @@
+async function e(){let{env:e}=await import(`cloudflare:workers`);return e}async function t(){return(await e()).DB}async function n(){return(await e()).BUCKET}function r(e){return(e.headers.get(`oai-authenticated-user-email`)??e.headers.get(`cf-access-authenticated-user-email`)??`owner`).toLowerCase()}export{t as n,r,n as t};
