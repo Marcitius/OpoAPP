@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#285943"/>
+  <path d="M256 86 406 148v104c0 96-62 154-150 180-88-26-150-84-150-180V148z" fill="#fff" opacity=".13"/>
+  <path d="M256 119 370 166v81c0 71-43 116-114 141-71-25-114-70-114-141v-81z" fill="none" stroke="#F7F2E5" stroke-width="19"/>
+  <text x="256" y="295" text-anchor="middle" font-family="Arial, sans-serif" font-size="108" font-weight="800" fill="#F7F2E5">OG</text>
+</svg>
