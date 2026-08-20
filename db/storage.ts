@@ -29,6 +29,9 @@ type Card = {
   streak: number;
   reviewCount: number;
   successCount: number;
+  attachment: Attachment | null;
+  fsrsStability: number;
+  fsrsDifficulty: number;
 };
 
 type Review = {
@@ -75,13 +78,14 @@ export type AppState = {
   cards: Card[];
   reviews: Review[];
   psychTests: PsychTest[];
-  settings: { dailyReviewGoal: number; dailyNewLimit: number };
+  settings: { dailyReviewGoal: number; dailyNewLimit: number; seedVersion?: number };
 };
 
 type SettingsRow = {
   stateVersion: number;
   dailyReviewGoal: number;
   dailyNewLimit: number;
+  seedVersion: number;
   activeSync: string;
   updatedAt: string;
 };
@@ -112,6 +116,14 @@ type CardRow = {
   streak: number;
   reviewCount: number;
   successCount: number;
+  attachmentId: string | null;
+  attachmentKey: string | null;
+  attachmentName: string | null;
+  attachmentType: string | null;
+  attachmentSize: number | null;
+  attachmentUrl: string | null;
+  fsrsStability: number;
+  fsrsDifficulty: number;
 };
 
 type ReviewRow = {
@@ -161,6 +173,7 @@ const SCHEMA_SQL = [
     state_version INTEGER NOT NULL DEFAULT 1,
     daily_review_goal INTEGER NOT NULL DEFAULT 30,
     daily_new_limit INTEGER NOT NULL DEFAULT 12,
+    content_seed_version INTEGER NOT NULL DEFAULT 0,
     active_sync TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
@@ -196,6 +209,14 @@ const SCHEMA_SQL = [
     streak INTEGER NOT NULL DEFAULT 0,
     review_count INTEGER NOT NULL DEFAULT 0,
     success_count INTEGER NOT NULL DEFAULT 0,
+    attachment_id TEXT,
+    attachment_key TEXT,
+    attachment_name TEXT,
+    attachment_type TEXT,
+    attachment_size INTEGER,
+    attachment_url TEXT,
+    fsrs_stability REAL NOT NULL DEFAULT 0,
+    fsrs_difficulty REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (owner, id, sync_token)
   )`,
   `CREATE TABLE IF NOT EXISTS reviews (
@@ -246,9 +267,34 @@ const SCHEMA_SQL = [
   `CREATE INDEX IF NOT EXISTS idx_attempts_test ON psych_attempts(owner, sync_token, psych_test_id)`,
 ];
 
+const SETTINGS_COLUMN_MIGRATIONS = [
+  "ALTER TABLE app_settings ADD COLUMN content_seed_version INTEGER NOT NULL DEFAULT 0",
+];
+
+const CARD_COLUMN_MIGRATIONS = [
+  "ALTER TABLE cards ADD COLUMN attachment_id TEXT",
+  "ALTER TABLE cards ADD COLUMN attachment_key TEXT",
+  "ALTER TABLE cards ADD COLUMN attachment_name TEXT",
+  "ALTER TABLE cards ADD COLUMN attachment_type TEXT",
+  "ALTER TABLE cards ADD COLUMN attachment_size INTEGER",
+  "ALTER TABLE cards ADD COLUMN attachment_url TEXT",
+  "ALTER TABLE cards ADD COLUMN fsrs_stability REAL NOT NULL DEFAULT 0",
+  "ALTER TABLE cards ADD COLUMN fsrs_difficulty REAL NOT NULL DEFAULT 0",
+];
+
 export async function ensureNormalizedSchema() {
   const db = await getD1();
   await db.batch(SCHEMA_SQL.map((sql) => db.prepare(sql)));
+  // D1/SQLite does not add new columns when CREATE TABLE IF NOT EXISTS runs.
+  // Apply additive migrations safely; duplicate-column errors simply mean the migration already ran.
+  for (const sql of [...SETTINGS_COLUMN_MIGRATIONS, ...CARD_COLUMN_MIGRATIONS]) {
+    try {
+      await db.prepare(sql).run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
+    }
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -283,8 +329,9 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
     db.prepare(
       `INSERT INTO cards (
         owner, id, sync_token, position, folder_id, type, front, back, options_json, correct_option,
-        due_at, created_at, last_reviewed_at, interval_days, ease, repetitions, lapses, streak, review_count, success_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        due_at, created_at, last_reviewed_at, interval_days, ease, repetitions, lapses, streak, review_count, success_count,
+        attachment_id, attachment_key, attachment_name, attachment_type, attachment_size, attachment_url, fsrs_stability, fsrs_difficulty
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       owner,
       card.id,
@@ -306,6 +353,14 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
       card.streak,
       card.reviewCount,
       card.successCount,
+      card.attachment?.id ?? null,
+      card.attachment?.key ?? null,
+      card.attachment?.name ?? null,
+      card.attachment?.type ?? null,
+      card.attachment?.size ?? null,
+      card.attachment?.url ?? null,
+      Number(card.fsrsStability ?? 0),
+      Number(card.fsrsDifficulty ?? 0),
     ),
   );
 
@@ -373,12 +428,13 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
   // If any insertion fails, the previous snapshot remains active and readable.
   await db.prepare(
     `INSERT INTO app_settings (
-      owner, state_version, daily_review_goal, daily_new_limit, active_sync, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?)
+      owner, state_version, daily_review_goal, daily_new_limit, content_seed_version, active_sync, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(owner) DO UPDATE SET
       state_version = excluded.state_version,
       daily_review_goal = excluded.daily_review_goal,
       daily_new_limit = excluded.daily_new_limit,
+      content_seed_version = excluded.content_seed_version,
       active_sync = excluded.active_sync,
       updated_at = excluded.updated_at`,
   ).bind(
@@ -386,6 +442,7 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
     state.version ?? 1,
     state.settings.dailyReviewGoal,
     state.settings.dailyNewLimit,
+    Number(state.settings.seedVersion ?? 0),
     syncToken,
     updatedAt,
   ).run();
@@ -439,6 +496,7 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
       state_version AS stateVersion,
       daily_review_goal AS dailyReviewGoal,
       daily_new_limit AS dailyNewLimit,
+      content_seed_version AS seedVersion,
       active_sync AS activeSync,
       updated_at AS updatedAt
      FROM app_settings WHERE owner = ?`,
@@ -470,6 +528,7 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
         state_version AS stateVersion,
         daily_review_goal AS dailyReviewGoal,
         daily_new_limit AS dailyNewLimit,
+        content_seed_version AS seedVersion,
         active_sync AS activeSync,
         updated_at AS updatedAt
        FROM app_settings WHERE owner = ?`,
@@ -489,7 +548,10 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
         id, folder_id AS folderId, type, front, back, options_json AS optionsJson,
         correct_option AS correctOption, due_at AS dueAt, created_at AS createdAt,
         last_reviewed_at AS lastReviewedAt, interval_days AS intervalDays, ease,
-        repetitions, lapses, streak, review_count AS reviewCount, success_count AS successCount
+        repetitions, lapses, streak, review_count AS reviewCount, success_count AS successCount,
+        attachment_id AS attachmentId, attachment_key AS attachmentKey, attachment_name AS attachmentName,
+        attachment_type AS attachmentType, attachment_size AS attachmentSize, attachment_url AS attachmentUrl,
+        fsrs_stability AS fsrsStability, fsrs_difficulty AS fsrsDifficulty
        FROM cards WHERE owner = ? AND sync_token = ? ORDER BY position`,
     ).bind(owner, sync).all<CardRow>(),
     db.prepare(
@@ -534,6 +596,7 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
     settings: {
       dailyReviewGoal: Number(settings.dailyReviewGoal),
       dailyNewLimit: Number(settings.dailyNewLimit),
+      seedVersion: Number(settings.seedVersion ?? 0),
     },
     folders: (foldersResult.results ?? []).map((row) => ({
       id: row.id,
@@ -568,6 +631,18 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
         streak: Number(row.streak),
         reviewCount: Number(row.reviewCount),
         successCount: Number(row.successCount),
+        attachment: row.attachmentKey
+          ? {
+              id: row.attachmentId ?? row.id,
+              key: row.attachmentKey,
+              name: row.attachmentName ?? "imagen",
+              type: row.attachmentType ?? "image/jpeg",
+              size: Number(row.attachmentSize ?? 0),
+              url: row.attachmentUrl ?? `/api/files?key=${encodeURIComponent(row.attachmentKey)}`,
+            }
+          : null,
+        fsrsStability: Number(row.fsrsStability ?? 0),
+        fsrsDifficulty: Number(row.fsrsDifficulty ?? 0),
       };
     }),
     reviews: (reviewsResult.results ?? []).map((row) => ({

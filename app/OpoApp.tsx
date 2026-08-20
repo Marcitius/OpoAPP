@@ -2,10 +2,14 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import PdfAnnotator from "./PdfAnnotator";
+import { AnnotatedCardImage, ImageAnnotator } from "./CardImage";
+import RichTextEditor, { plainRichText, RichContent, sanitizeRichHtml } from "./RichTextEditor";
+import { applyFsrsReview, fsrsDueLabel } from "./fsrs";
 
 type Tab = "today" | "library" | "psych" | "progress";
 type CardType = "basic" | "choice";
 type Rating = "again" | "hard" | "good" | "easy";
+type PsychSort = "oldest" | "recent" | "last-low" | "last-high" | "avg-low" | "avg-high" | "attempts-low" | "attempts-high" | "name";
 
 type Folder = {
   id: string;
@@ -33,6 +37,9 @@ type Card = {
   streak: number;
   reviewCount: number;
   successCount: number;
+  attachment: Attachment | null;
+  fsrsStability: number;
+  fsrsDifficulty: number;
 };
 
 type Review = {
@@ -79,7 +86,7 @@ type AppState = {
   cards: Card[];
   reviews: Review[];
   psychTests: PsychTest[];
-  settings: { dailyReviewGoal: number; dailyNewLimit: number };
+  settings: { dailyReviewGoal: number; dailyNewLimit: number; seedVersion?: number };
 };
 
 const colors = ["#285943", "#B66A3C", "#6F5B8C", "#2C6E8F", "#8A784D"];
@@ -88,12 +95,6 @@ const uid = () => typeof crypto !== "undefined" && "randomUUID" in crypto
   : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 const nowIso = () => new Date().toISOString();
 const todayKey = () => new Date().toISOString().slice(0, 10);
-
-function addDays(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString();
-}
 
 function initialState(): AppState {
   const vocabularyId = uid();
@@ -116,6 +117,9 @@ function initialState(): AppState {
     streak: 0,
     reviewCount: 0,
     successCount: 0,
+    attachment: null,
+    fsrsStability: 0,
+    fsrsDifficulty: 0,
   });
 
   return {
@@ -131,51 +135,108 @@ function initialState(): AppState {
     ],
     reviews: [],
     psychTests: [],
-    settings: { dailyReviewGoal: 30, dailyNewLimit: 12 },
+    settings: { dailyReviewGoal: 30, dailyNewLimit: 12, seedVersion: 0 },
   };
 }
 
 function scheduleCard(card: Card, rating: Rating): Card {
-  const reviewedAt = nowIso();
-  if (rating === "again") {
-    const due = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    return {
-      ...card,
-      dueAt: due,
-      lastReviewedAt: reviewedAt,
-      intervalDays: 0,
-      ease: Math.max(1.3, card.ease - 0.2),
-      repetitions: 0,
-      lapses: card.lapses + 1,
-      streak: 0,
-      reviewCount: card.reviewCount + 1,
-    };
-  }
-
-  let interval = 1;
-  let ease = card.ease;
-  if (rating === "hard") {
-    interval = Math.max(1, Math.round(Math.max(1, card.intervalDays) * 1.2));
-    ease = Math.max(1.3, ease - 0.08);
-  } else if (rating === "good") {
-    interval = card.repetitions === 0 ? 1 : card.repetitions === 1 ? 3 : Math.max(4, Math.round(card.intervalDays * ease));
-  } else {
-    interval = card.repetitions === 0 ? 4 : Math.max(7, Math.round(Math.max(1, card.intervalDays) * ease * 1.3));
-    ease = Math.min(3.2, ease + 0.12);
-  }
-
-  return {
-    ...card,
-    dueAt: addDays(interval),
-    lastReviewedAt: reviewedAt,
-    intervalDays: interval,
-    ease,
-    repetitions: card.repetitions + 1,
-    streak: card.streak + 1,
-    reviewCount: card.reviewCount + 1,
-    successCount: card.successCount + 1,
-  };
+  return applyFsrsReview(card, rating);
 }
+
+const CONSTITUTION_FOLDER_NAME = "Tema 1: derecho constitucional";
+const CONSTITUTION_FOLDER_ID = "seed-tema-1-derecho-constitucional";
+
+type SeedCard = { id: string; front: string; back: string; type?: CardType; options?: string[]; correctOption?: number };
+
+const constitutionSeedCards: SeedCard[] = [
+  { id: "ce-pre-01", front: "<strong>Preámbulo:</strong> ¿cuáles son los seis verbos que ordenan la voluntad de la Nación española?", back: "<ol><li><strong>Garantizar</strong></li><li><strong>Consolidar</strong></li><li><strong>Proteger</strong></li><li><strong>Promover</strong></li><li><strong>Establecer</strong></li><li><strong>Colaborar</strong></li></ol>" },
+  { id: "ce-pre-02", front: "Preámbulo · <strong>Garantizar</strong>: completa la idea.", back: "Garantizar la <strong>convivencia democrática</strong> dentro de la Constitución y de las leyes conforme a un <strong>orden económico y social justo</strong>." },
+  { id: "ce-pre-03", front: "Preámbulo · <strong>Consolidar</strong>: ¿qué se consolida y qué debe asegurar?", back: "Un <strong>Estado de Derecho</strong> que asegure el <strong>imperio de la ley</strong> como expresión de la voluntad popular." },
+  { id: "ce-pre-04", front: "Preámbulo · <strong>Proteger</strong>: ¿a quién y en qué ámbitos?", back: "A todos los españoles y pueblos de España en el ejercicio de los <strong>derechos humanos</strong>, sus <strong>culturas y tradiciones</strong>, <strong>lenguas</strong> e <strong>instituciones</strong>." },
+  { id: "ce-pre-05", front: "Preámbulo · <strong>Promover</strong>: ¿qué progreso y con qué finalidad?", back: "El progreso de la <strong>cultura y de la economía</strong> para asegurar a todos una <strong>digna calidad de vida</strong>." },
+  { id: "ce-pre-06", front: "Preámbulo · <strong>Establecer</strong> y <strong>Colaborar</strong>: ¿qué dos objetivos finales se proclaman?", back: "<ul><li>Establecer una <strong>sociedad democrática avanzada</strong>.</li><li>Colaborar en el fortalecimiento de unas <strong>relaciones pacíficas</strong> y de <strong>eficaz cooperación</strong> entre todos los pueblos de la Tierra.</li></ul>" },
+  { id: "ce-a1-01", front: "<strong>Artículo 1.1 CE:</strong> ¿cómo se constituye España y cuáles son los valores superiores?", back: "España se constituye en un <strong>Estado social y democrático de Derecho</strong>.<br><br>Valores superiores: <strong>libertad, justicia, igualdad y pluralismo político</strong>." },
+  { id: "ce-a1-02", front: "<strong>Artículo 1.2 CE:</strong> ¿dónde reside la soberanía nacional?", back: "En el <strong>pueblo español</strong>, del que emanan los poderes del Estado." },
+  { id: "ce-a1-03", front: "<strong>Artículo 1.3 CE:</strong> ¿cuál es la forma política del Estado español?", back: "La <strong>Monarquía parlamentaria</strong>." },
+  { id: "ce-a2-01", front: "<strong>Artículo 2 CE:</strong> ¿en qué tres ideas se apoya el precepto?", back: "<ul><li><strong>Indisoluble unidad</strong> de la Nación española.</li><li>Derecho a la <strong>autonomía</strong> de nacionalidades y regiones.</li><li><strong>Solidaridad</strong> entre todas ellas.</li></ul>" },
+  { id: "ce-a2-02", front: "Artículo 2 CE: completa: «Nación española, patria común e ____ de todos los españoles». ", back: "<strong>Indivisible</strong>." },
+  { id: "ce-a3-01", front: "<strong>Artículo 3.1 CE:</strong> castellano: ¿qué deber y qué derecho tienen todos los españoles?", back: "<ul><li><strong>Deber de conocerla</strong>.</li><li><strong>Derecho a usarla</strong>.</li></ul>" },
+  { id: "ce-a3-02", front: "<strong>Artículo 3.2 CE:</strong> ¿cuándo serán oficiales las demás lenguas españolas?", back: "En las respectivas <strong>Comunidades Autónomas</strong>, de acuerdo con sus <strong>Estatutos</strong>." },
+  { id: "ce-a3-03", front: "<strong>Artículo 3.3 CE:</strong> ¿cómo califica la Constitución la riqueza de las modalidades lingüísticas?", back: "Como un <strong>patrimonio cultural</strong> que será objeto de especial <strong>respeto y protección</strong>." },
+  { id: "ce-a4-01", front: "<strong>Artículo 4.1 CE:</strong> describe la bandera de España.", back: "Tres franjas horizontales: <strong>roja, amarilla y roja</strong>; la amarilla tiene <strong>doble anchura</strong> que cada una de las rojas." },
+  { id: "ce-a4-02", front: "<strong>Artículo 4.2 CE:</strong> ¿qué pueden reconocer los Estatutos y cómo se utilizan?", back: "Pueden reconocer <strong>banderas y enseñas propias</strong> de las CCAA. Se utilizarán <strong>junto a la bandera de España</strong> en sus edificios públicos y actos oficiales." },
+  { id: "ce-a5-01", front: "<strong>Artículo 5 CE:</strong> ¿cuál es la capital del Estado?", back: "La <strong>villa de Madrid</strong>." },
+  { id: "ce-a6-01", front: "<strong>Artículo 6 CE:</strong> ¿qué tres funciones cumplen los partidos políticos?", back: "<ul><li>Expresan el <strong>pluralismo político</strong>.</li><li>Concurren a la <strong>formación y manifestación de la voluntad popular</strong>.</li><li>Son instrumento fundamental para la <strong>participación política</strong>.</li></ul>" },
+  { id: "ce-a6-02", front: "Artículo 6 CE: creación, actividad, estructura y funcionamiento de los partidos.", back: "Creación y actividad: <strong>libres</strong> dentro del respeto a la Constitución y a la ley.<br>Estructura interna y funcionamiento: deberán ser <strong>democráticos</strong>." },
+  { id: "ce-a7-01", front: "<strong>Artículo 7 CE:</strong> ¿a qué contribuyen sindicatos y asociaciones empresariales?", back: "A la <strong>defensa y promoción de los intereses económicos y sociales</strong> que les son propios." },
+  { id: "ce-a7-02", front: "Artículo 7 CE: ¿qué exige sobre su creación, actividad y organización interna?", back: "Creación y actividad <strong>libres</strong> dentro del respeto a la Constitución y a la ley; estructura interna y funcionamiento <strong>democráticos</strong>." },
+  { id: "ce-a8-01", front: "<strong>Artículo 8.1 CE:</strong> ¿qué cuerpos constituyen las Fuerzas Armadas?", back: "<ul><li>Ejército de Tierra.</li><li>Armada.</li><li>Ejército del Aire.</li></ul>" },
+  { id: "ce-a8-02", front: "<strong>Artículo 8.1 CE:</strong> ¿cuáles son las tres misiones de las Fuerzas Armadas?", back: "<ul><li>Garantizar la <strong>soberanía e independencia</strong> de España.</li><li>Defender su <strong>integridad territorial</strong>.</li><li>Defender el <strong>ordenamiento constitucional</strong>.</li></ul>" },
+  { id: "ce-a8-03", front: "<strong>Artículo 8.2 CE:</strong> ¿qué norma regula las bases de la organización militar?", back: "Una <strong>ley orgánica</strong>, conforme a los principios de la Constitución." },
+  { id: "ce-a9-01", front: "<strong>Artículo 9.1 CE:</strong> ¿quiénes están sujetos a la Constitución y al resto del ordenamiento jurídico?", back: "Los <strong>ciudadanos</strong> y los <strong>poderes públicos</strong>." },
+  { id: "ce-a9-02", front: "<strong>Artículo 9.2 CE:</strong> ¿qué corresponde promover a los poderes públicos?", back: "Las condiciones para que la <strong>libertad y la igualdad</strong> del individuo y de los grupos en que se integra sean <strong>reales y efectivas</strong>." },
+  { id: "ce-a9-03", front: "Artículo 9.2 CE: además de promover condiciones, ¿qué dos actuaciones deben realizar los poderes públicos?", back: "<ul><li><strong>Remover los obstáculos</strong> que impidan o dificulten la plenitud de libertad e igualdad.</li><li><strong>Facilitar la participación</strong> de todos los ciudadanos en la vida política, económica, cultural y social.</li></ul>" },
+  { id: "ce-a9-04", front: "<strong>Artículo 9.3 CE:</strong> enumera los principios y garantías constitucionales.", back: "<ul><li>Legalidad.</li><li>Jerarquía normativa.</li><li>Publicidad de las normas.</li><li>Irretroactividad de disposiciones sancionadoras no favorables o restrictivas de derechos individuales.</li><li>Seguridad jurídica.</li><li>Responsabilidad.</li><li>Interdicción de la arbitrariedad de los poderes públicos.</li></ul>" },
+  { id: "ce-a9-05", front: "Artículo 9.3 CE: ¿qué tipo de disposiciones tienen garantizada la <strong>irretroactividad</strong>?", back: "Las disposiciones <strong>sancionadoras no favorables</strong> o <strong>restrictivas de derechos individuales</strong>." },
+];
+
+function normalizeAndSeed(state: AppState) {
+  let changed = false;
+  const normalizedCards = state.cards.map((card) => {
+    const normalized = {
+      ...card,
+      attachment: card.attachment ?? null,
+      fsrsStability: Number(card.fsrsStability ?? (card.reviewCount > 0 ? Math.max(1, card.intervalDays || 1) : 0)),
+      fsrsDifficulty: Number(card.fsrsDifficulty ?? (card.reviewCount > 0 ? 5 : 0)),
+    };
+    if (card.attachment === undefined || card.fsrsStability === undefined || card.fsrsDifficulty === undefined) changed = true;
+    return normalized;
+  });
+
+  if (Number(state.settings.seedVersion ?? 0) >= 1) {
+    return { state: { ...state, cards: normalizedCards }, changed };
+  }
+
+  let folders = [...state.folders];
+  let folder = folders.find((item) => item.name.trim().toLocaleLowerCase("es") === CONSTITUTION_FOLDER_NAME.toLocaleLowerCase("es"));
+  if (!folder) {
+    folder = { id: CONSTITUTION_FOLDER_ID, name: CONSTITUTION_FOLDER_NAME, color: "#2C6E8F", parentId: null, createdAt: nowIso() };
+    folders.push(folder);
+    changed = true;
+  }
+
+  const existing = new Set(normalizedCards.map((card) => card.id));
+  const cards = [...normalizedCards];
+  for (const seed of constitutionSeedCards) {
+    if (existing.has(seed.id)) continue;
+    cards.push({
+      id: seed.id,
+      folderId: folder.id,
+      type: seed.type ?? "basic",
+      front: seed.front,
+      back: seed.back,
+      options: seed.options ?? [],
+      correctOption: seed.correctOption ?? 0,
+      dueAt: nowIso(),
+      createdAt: nowIso(),
+      lastReviewedAt: null,
+      intervalDays: 0,
+      ease: 0,
+      repetitions: 0,
+      lapses: 0,
+      streak: 0,
+      reviewCount: 0,
+      successCount: 0,
+      attachment: null,
+      fsrsStability: 0,
+      fsrsDifficulty: 0,
+    });
+    changed = true;
+  }
+
+  return { state: { ...state, folders, cards, settings: { ...state.settings, seedVersion: 1 } }, changed: true };
+}
+
 
 function isStudyableCard(card: Card) {
   return Boolean(card.front.trim() || card.back.trim() || card.options.some((option) => option.trim()));
@@ -183,6 +244,50 @@ function isStudyableCard(card: Card) {
 
 function scoreLabel(value: number) {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(value);
+}
+
+function dateLabel(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+}
+
+function psychStats(test: PsychTest) {
+  const attempts = [...test.attempts].sort((a, b) => b.date.localeCompare(a.date));
+  const last = attempts[0] ?? null;
+  const best = attempts.length ? Math.max(...attempts.map((attempt) => attempt.score)) : null;
+  const average = attempts.length ? attempts.reduce((sum, attempt) => sum + attempt.score, 0) / attempts.length : null;
+  return { attempts, last, best, average };
+}
+
+function sortPsychTests(tests: PsychTest[], sort: PsychSort) {
+  const result = [...tests];
+  const stats = (test: PsychTest) => psychStats(test);
+  result.sort((a, b) => {
+    const aStats = stats(a);
+    const bStats = stats(b);
+    if (sort === "name") return (a.name || "Sin nombre").localeCompare(b.name || "Sin nombre", "es", { sensitivity: "base" });
+    if (sort === "attempts-low") return a.attempts.length - b.attempts.length || a.createdAt.localeCompare(b.createdAt);
+    if (sort === "attempts-high") return b.attempts.length - a.attempts.length || a.createdAt.localeCompare(b.createdAt);
+    if (sort === "oldest") {
+      if (!aStats.last && bStats.last) return -1;
+      if (aStats.last && !bStats.last) return 1;
+      return (aStats.last?.date ?? a.createdAt).localeCompare(bStats.last?.date ?? b.createdAt);
+    }
+    if (sort === "recent") {
+      if (!aStats.last && bStats.last) return 1;
+      if (aStats.last && !bStats.last) return -1;
+      return (bStats.last?.date ?? b.createdAt).localeCompare(aStats.last?.date ?? a.createdAt);
+    }
+    const aValue = sort.startsWith("avg") ? aStats.average : aStats.last?.score ?? null;
+    const bValue = sort.startsWith("avg") ? bStats.average : bStats.last?.score ?? null;
+    if (aValue === null && bValue !== null) return 1;
+    if (aValue !== null && bValue === null) return -1;
+    if (aValue === null || bValue === null) return 0;
+    return sort.endsWith("low") ? aValue - bValue : bValue - aValue;
+  });
+  return result;
 }
 
 export default function OpoApp() {
@@ -193,6 +298,12 @@ export default function OpoApp() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedPsych, setSelectedPsych] = useState<string | null>(null);
   const [editingPsych, setEditingPsych] = useState<string | null>(null);
+  const [editingPsychTest, setEditingPsychTest] = useState<string | null>(null);
+  const [editingAttempt, setEditingAttempt] = useState<string | null>(null);
+  const [psychDetail, setPsychDetail] = useState<string | null>(null);
+  const [psychQuery, setPsychQuery] = useState("");
+  const [psychCategory, setPsychCategory] = useState("all");
+  const [psychSort, setPsychSort] = useState<PsychSort>("oldest");
   const [editingCard, setEditingCard] = useState<string | null>(null);
   const [reviewQueue, setReviewQueue] = useState<string[]>([]);
   const [reviewIndex, setReviewIndex] = useState(0);
@@ -216,10 +327,11 @@ export default function OpoApp() {
         return response.json() as Promise<{ state: AppState | null }>;
       })
       .then(({ state: remote }) => {
-        const loaded = remote ?? initialState();
+        const upgraded = normalizeAndSeed(remote ?? initialState());
+        const loaded = upgraded.state;
         setState(loaded);
         setSync("saved");
-        if (!remote) saveNow(loaded);
+        if (!remote || upgraded.changed) saveNow(loaded);
       })
       .catch(() => {
         setState(initialState());
@@ -273,6 +385,9 @@ export default function OpoApp() {
   const activeFolder = state?.folders.find((folder) => folder.id === selectedFolder) ?? null;
   const activePsych = state?.psychTests.find((test) => test.id === selectedPsych) ?? null;
   const openPsych = state?.psychTests.find((test) => test.id === editingPsych) ?? null;
+  const openPsychTest = state?.psychTests.find((test) => test.id === editingPsychTest) ?? null;
+  const detailPsych = state?.psychTests.find((test) => test.id === psychDetail) ?? null;
+  const openAttempt = activePsych?.attempts.find((attempt) => attempt.id === editingAttempt) ?? null;
   const openCard = state?.cards.find((card) => card.id === editingCard) ?? null;
 
   function startReview(folderId?: string, includeAll = false) {
@@ -319,6 +434,30 @@ export default function OpoApp() {
     setSelectedOption(null);
   }
 
+  function openAttemptEditor(testId: string, attemptId: string | null = null) {
+    setSelectedPsych(testId);
+    setEditingAttempt(attemptId);
+    setModal("attempt");
+  }
+
+  function deleteAttempt(testId: string, attemptId: string) {
+    if (!confirm("¿Eliminar este intento? La puntuación dejará de contar en las estadísticas.")) return;
+    updateState((current) => ({
+      ...current,
+      psychTests: current.psychTests.map((test) =>
+        test.id === testId ? { ...test, attempts: test.attempts.filter((attempt) => attempt.id !== attemptId) } : test,
+      ),
+    }));
+    notify("Intento eliminado");
+  }
+
+  function deletePsychTest(testId: string) {
+    if (!confirm("¿Eliminar este psicotécnico y todo su historial de intentos? El PDF no se borrará automáticamente de R2 por seguridad.")) return;
+    updateState((current) => ({ ...current, psychTests: current.psychTests.filter((test) => test.id !== testId) }));
+    if (psychDetail === testId) setPsychDetail(null);
+    notify("Psicotécnico eliminado");
+  }
+
   function deleteFolder(folderId: string) {
     if (!confirm("¿Eliminar esta carpeta y todas sus tarjetas?")) return;
     updateState((current) => ({
@@ -341,6 +480,20 @@ export default function OpoApp() {
 
   const accuracy = state.reviews.length ? Math.round((state.reviews.filter((review) => review.correct).length / state.reviews.length) * 100) : 0;
   const mastered = state.cards.filter((card) => card.intervalDays >= 21 && card.streak >= 3).length;
+  const psychCategories = Array.from(new Set(state.psychTests.map((test) => test.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "es"));
+  const filteredPsychTests = sortPsychTests(
+    state.psychTests.filter((test) => {
+      const query = psychQuery.trim().toLocaleLowerCase("es");
+      const matchesQuery = !query || `${test.name} ${test.category}`.toLocaleLowerCase("es").includes(query);
+      const matchesCategory = psychCategory === "all" || test.category === psychCategory;
+      return matchesQuery && matchesCategory;
+    }),
+    psychSort,
+  );
+  const psychAttemptCount = state.psychTests.reduce((sum, test) => sum + test.attempts.length, 0);
+  const psychAttemptedCount = state.psychTests.filter((test) => test.attempts.length > 0).length;
+  const latestPsychScores = state.psychTests.map((test) => psychStats(test).last?.score).filter((score): score is number => score !== undefined);
+  const latestPsychAverage = latestPsychScores.length ? latestPsychScores.reduce((sum, score) => sum + score, 0) / latestPsychScores.length : null;
 
   return (
     <div className="app-shell">
@@ -370,7 +523,7 @@ export default function OpoApp() {
           <section className="page today-page">
             <div className="hero-card">
               <div className="hero-copy">
-                <span className="pill">REPASO RECOMENDADO</span>
+                <span className="pill">REPASO RECOMENDADO · FSRS-6</span>
                 <h2>{dueCards.length ? `${dueCards.length} tarjetas esperan hoy` : "Tu memoria está al día"}</h2>
                 <p>{dueCards.length ? "Empezaremos por lo que más riesgo tiene de olvidarse y mezclaremos algunos conceptos ya dominados." : "Puedes hacer una sesión mixta para reforzar lo aprendido o añadir nuevas tarjetas."}</p>
                 <button className="primary-button light" onClick={() => startReview()}>{dueCards.length ? "Empezar repaso" : "Repaso libre"}<span>→</span></button>
@@ -395,7 +548,7 @@ export default function OpoApp() {
                   {(dueCards.length ? dueCards.slice(0, 4) : state.cards.slice(0, 4)).map((card) => {
                     const folder = state.folders.find((item) => item.id === card.folderId);
                     const success = card.reviewCount ? Math.round((card.successCount / card.reviewCount) * 100) : 0;
-                    return <button className="review-row" key={card.id} onClick={() => startReview(card.folderId)}><span className="folder-swatch" style={{ background: folder?.color }} /><span className="review-row-copy"><strong>{card.front}</strong><small>{folder?.name ?? "Sin carpeta"}</small></span><span className={`strength ${success >= 80 ? "high" : success >= 50 ? "mid" : "low"}`}>{card.reviewCount ? `${success}%` : "Nueva"}</span></button>;
+                    return <button className="review-row" key={card.id} onClick={() => startReview(card.folderId)}><span className="folder-swatch" style={{ background: folder?.color }} /><span className="review-row-copy"><strong>{plainRichText(card.front)}</strong><small>{folder?.name ?? "Sin carpeta"}</small></span><span className={`strength ${success >= 80 ? "high" : success >= 50 ? "mid" : "low"}`}>{card.reviewCount ? `${success}%` : "Nueva"}</span></button>;
                   })}
                 </div>
               </section>
@@ -429,7 +582,7 @@ export default function OpoApp() {
                 <button className="back-button" onClick={() => setSelectedFolder(null)}>← Todas las carpetas</button>
                 <div className="folder-title"><div><span className="folder-icon large" style={{ background: `${activeFolder.color}18`, color: activeFolder.color }}>▰</span><div><span className="section-label">CARPETA</span><h2>{activeFolder.name}</h2><p>{state.cards.filter((card) => card.folderId === activeFolder.id).length} tarjetas</p></div></div><div><button className="secondary-button danger" onClick={() => deleteFolder(activeFolder.id)}>Eliminar</button><button className="primary-button" onClick={() => startReview(activeFolder.id, true)}>Estudiar todas</button></div></div>
                 <div className="card-table">
-                  {state.cards.filter((card) => card.folderId === activeFolder.id).map((card) => <div className="card-row" key={card.id}><span className="card-kind">{card.type === "choice" ? "TEST" : "TARJETA"}</span><div><strong>{card.front || "Sin pregunta"}</strong><p>{card.back || (card.type === "choice" ? "Sin explicación añadida" : "Sin respuesta añadida")}</p></div><span>{card.reviewCount ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos` : "Sin estudiar"}</span><div className="card-actions"><button aria-label="Editar tarjeta" title="Editar tarjeta" onClick={() => { setEditingCard(card.id); setModal("card"); }}>✎</button><button aria-label="Eliminar tarjeta" title="Eliminar tarjeta" onClick={() => updateState((current) => ({ ...current, cards: current.cards.filter((item) => item.id !== card.id) }))}>×</button></div></div>)}
+                  {state.cards.filter((card) => card.folderId === activeFolder.id).map((card) => <div className="card-row" key={card.id}><span className="card-kind">{card.type === "choice" ? "TEST" : "TARJETA"}</span><div><strong>{plainRichText(card.front) || "Sin pregunta"}{card.attachment ? " · 🖼️" : ""}</strong><p>{plainRichText(card.back) || (card.type === "choice" ? "Sin explicación añadida" : "Sin respuesta añadida")}</p></div><span>{card.reviewCount ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos` : "Sin estudiar"}</span><div className="card-actions"><button aria-label="Editar tarjeta" title="Editar tarjeta" onClick={() => { setEditingCard(card.id); setModal("card"); }}>✎</button><button aria-label="Eliminar tarjeta" title="Eliminar tarjeta" onClick={() => updateState((current) => ({ ...current, cards: current.cards.filter((item) => item.id !== card.id) }))}>×</button></div></div>)}
                   {!state.cards.some((card) => card.folderId === activeFolder.id) && <Empty icon="□" title="Esta carpeta está vacía" copy="Añade tu primera tarjeta para empezar a estudiarla." action="Crear tarjeta" onAction={() => { setEditingCard(null); setModal("card"); }} />}
                 </div>
               </div>
@@ -438,18 +591,116 @@ export default function OpoApp() {
         )}
 
         {tab === "psych" && (
-          <section className="page">
-            <div className="section-heading psych-heading"><div><span className="section-label">PRÁCTICA Y EVOLUCIÓN</span><h2>Mis psicotécnicos</h2><p>Guarda tus cuadernillos y compara cada intento.</p></div><button className="primary-button" onClick={() => setModal("psych")}>＋ Añadir psicotécnico</button></div>
-            {state.psychTests.length ? (
-              <div className="psych-grid">
-                {state.psychTests.map((test) => {
-                  const attempts = [...test.attempts].sort((a, b) => b.date.localeCompare(a.date));
-                  const last = attempts[0];
-                  const best = attempts.length ? Math.max(...attempts.map((attempt) => attempt.score)) : null;
-                  return <article className="psych-card" key={test.id}><div className="psych-doc"><span>{test.attachment?.type === "application/pdf" ? "PDF" : test.attachment ? "IMG" : "TEST"}</span></div><div className="psych-body"><span className="category-chip">{test.category}</span><h3>{test.name}</h3><p>{test.totalQuestions} preguntas · {attempts.length} {attempts.length === 1 ? "intento" : "intentos"}</p><div className="psych-metrics"><div><small>Última</small><strong>{last ? scoreLabel(last.score) : "—"}</strong></div><div><small>Mejor</small><strong>{best === null ? "—" : scoreLabel(best)}</strong></div><div><small>Tiempo</small><strong>{last ? `${last.minutes}m` : "—"}</strong></div></div><div className="psych-actions">{test.attachment?.type === "application/pdf" ? <button onClick={() => setEditingPsych(test.id)}>✎ Abrir y escribir</button> : test.attachment ? <a href={test.attachment.url} target="_blank" rel="noreferrer">Abrir documento</a> : null}<button onClick={() => { setSelectedPsych(test.id); setModal("attempt"); }}>Registrar intento</button></div></div></article>;
-                })}
-              </div>
-            ) : <Empty icon="▧" title="Añade tu primer psicotécnico" copy="Sube un PDF o una fotografía y empieza a registrar puntuaciones, tiempos y errores." action="Añadir psicotécnico" onAction={() => setModal("psych")} />}
+          <section className="page psych-page">
+            {detailPsych ? (() => {
+              const stats = psychStats(detailPsych);
+              return (
+                <div className="psych-detail">
+                  <button className="back-button" onClick={() => setPsychDetail(null)}>← Volver a psicotécnicos</button>
+                  <div className="psych-detail-head">
+                    <div>
+                      <span className="category-chip">{detailPsych.category || "Sin categoría"}</span>
+                      <h2>{detailPsych.name || "Psicotécnico sin nombre"}</h2>
+                      <p>{detailPsych.totalQuestions || 0} preguntas · añadido el {dateLabel(detailPsych.createdAt)}</p>
+                    </div>
+                    <div className="psych-detail-actions">
+                      <button className="secondary-button" onClick={() => { setEditingPsychTest(detailPsych.id); setModal("psych"); }}>Editar ficha</button>
+                      {detailPsych.attachment?.type === "application/pdf" ? <button className="secondary-button" onClick={() => setEditingPsych(detailPsych.id)}>✎ Abrir PDF</button> : detailPsych.attachment ? <a className="secondary-button" href={detailPsych.attachment.url} target="_blank" rel="noreferrer">Abrir documento</a> : null}
+                      <button className="primary-button" onClick={() => openAttemptEditor(detailPsych.id)}>＋ Registrar intento</button>
+                    </div>
+                  </div>
+
+                  <div className="psych-summary-grid">
+                    <div><span>Última nota</span><strong>{stats.last ? scoreLabel(stats.last.score) : "—"}</strong><small>{stats.last ? dateLabel(stats.last.date) : "Sin intentos"}</small></div>
+                    <div><span>Mejor nota</span><strong>{stats.best === null ? "—" : scoreLabel(stats.best)}</strong><small>{stats.attempts.length ? `${stats.attempts.length} intentos` : "Sin intentos"}</small></div>
+                    <div><span>Nota media</span><strong>{stats.average === null ? "—" : scoreLabel(stats.average)}</strong><small>histórico completo</small></div>
+                    <div><span>Último tiempo</span><strong>{stats.last ? `${scoreLabel(stats.last.minutes)} min` : "—"}</strong><small>{stats.last ? `${stats.last.correct} ✓ · ${stats.last.wrong} ✕ · ${stats.last.blank} —` : "Sin datos"}</small></div>
+                  </div>
+
+                  <section className="panel psych-history-panel">
+                    <div className="panel-head">
+                      <div><span className="section-label">HISTORIAL</span><h3>Todos los intentos</h3></div>
+                      <span className="psych-history-count">{stats.attempts.length} {stats.attempts.length === 1 ? "registro" : "registros"}</span>
+                    </div>
+                    {stats.attempts.length ? (
+                      <div className="attempt-history">
+                        {stats.attempts.map((attempt, index) => (
+                          <div className="attempt-history-row" key={attempt.id}>
+                            <div className="attempt-rank"><span>{stats.attempts.length - index}</span></div>
+                            <div className="attempt-main"><strong>{dateLabel(attempt.date)}</strong><small>{attempt.notes || "Sin notas"}</small></div>
+                            <div className="attempt-score"><small>Nota</small><strong>{scoreLabel(attempt.score)}</strong></div>
+                            <div className="attempt-answers"><span>{attempt.correct} ✓</span><span>{attempt.wrong} ✕</span><span>{attempt.blank} —</span></div>
+                            <div className="attempt-time"><small>Tiempo</small><strong>{scoreLabel(attempt.minutes)} min</strong></div>
+                            <div className="attempt-actions">
+                              <button title="Editar intento" aria-label="Editar intento" onClick={() => openAttemptEditor(detailPsych.id, attempt.id)}>✎</button>
+                              <button title="Eliminar intento" aria-label="Eliminar intento" className="danger" onClick={() => deleteAttempt(detailPsych.id, attempt.id)}>×</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <Empty icon="◎" title="Todavía no hay intentos" copy="Cuando hagas este psicotécnico, registra la nota y la fecha para empezar a ver tu evolución." action="Registrar primer intento" onAction={() => openAttemptEditor(detailPsych.id)} />}
+                  </section>
+
+                  <div className="psych-danger-zone">
+                    <button className="text-button danger-text" onClick={() => deletePsychTest(detailPsych.id)}>Eliminar psicotécnico e historial</button>
+                  </div>
+                </div>
+              );
+            })() : (
+              <>
+                <div className="section-heading psych-heading"><div><span className="section-label">PRÁCTICA Y EVOLUCIÓN</span><h2>Mis psicotécnicos</h2><p>Guarda los PDF una sola vez y utiliza el historial para decidir cuáles conviene repetir.</p></div><button className="primary-button" onClick={() => { setEditingPsychTest(null); setModal("psych"); }}>＋ Añadir psicotécnico</button></div>
+
+                <div className="psych-overview">
+                  <div><span>Psicotécnicos</span><strong>{state.psychTests.length}</strong><small>{state.psychTests.filter((test) => test.attachment?.type === "application/pdf").length} con PDF</small></div>
+                  <div><span>Ya practicados</span><strong>{psychAttemptedCount}</strong><small>{state.psychTests.length - psychAttemptedCount} pendientes</small></div>
+                  <div><span>Intentos guardados</span><strong>{psychAttemptCount}</strong><small>histórico total</small></div>
+                  <div><span>Media última nota</span><strong>{latestPsychAverage === null ? "—" : scoreLabel(latestPsychAverage)}</strong><small>solo tests realizados</small></div>
+                </div>
+
+                <div className="psych-toolbar">
+                  <div className="search-box psych-search"><span>⌕</span><input value={psychQuery} onChange={(event) => setPsychQuery(event.target.value)} placeholder="Buscar por nombre o categoría" aria-label="Buscar psicotécnicos" /></div>
+                  <select value={psychCategory} onChange={(event) => setPsychCategory(event.target.value)} aria-label="Filtrar categoría"><option value="all">Todas las categorías</option>{psychCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
+                  <select value={psychSort} onChange={(event) => setPsychSort(event.target.value as PsychSort)} aria-label="Ordenar psicotécnicos">
+                    <option value="oldest">Pendientes / más antiguos</option>
+                    <option value="last-low">Peor última nota</option>
+                    <option value="last-high">Mejor última nota</option>
+                    <option value="avg-low">Peor nota media</option>
+                    <option value="avg-high">Mejor nota media</option>
+                    <option value="recent">Último intento más reciente</option>
+                    <option value="attempts-low">Menos intentos</option>
+                    <option value="attempts-high">Más intentos</option>
+                    <option value="name">Nombre A–Z</option>
+                  </select>
+                </div>
+
+                {state.psychTests.length ? filteredPsychTests.length ? (
+                  <div className="psych-grid">
+                    {filteredPsychTests.map((test) => {
+                      const stats = psychStats(test);
+                      return <article className="psych-card" key={test.id}>
+                        <div className="psych-doc"><span>{test.attachment?.type === "application/pdf" ? "PDF" : test.attachment ? "IMG" : "TEST"}</span></div>
+                        <div className="psych-body">
+                          <div className="psych-card-top"><span className="category-chip">{test.category || "Sin categoría"}</span><button className="psych-edit-button" title="Editar ficha" onClick={() => { setEditingPsychTest(test.id); setModal("psych"); }}>✎</button></div>
+                          <h3>{test.name || "Psicotécnico sin nombre"}</h3>
+                          <p>{test.totalQuestions || 0} preguntas · {stats.attempts.length} {stats.attempts.length === 1 ? "intento" : "intentos"}</p>
+                          <div className="psych-metrics four">
+                            <div><small>Última</small><strong>{stats.last ? scoreLabel(stats.last.score) : "—"}</strong></div>
+                            <div><small>Mejor</small><strong>{stats.best === null ? "—" : scoreLabel(stats.best)}</strong></div>
+                            <div><small>Media</small><strong>{stats.average === null ? "—" : scoreLabel(stats.average)}</strong></div>
+                            <div><small>Último día</small><strong className="metric-date">{stats.last ? dateLabel(stats.last.date) : "Pendiente"}</strong></div>
+                          </div>
+                          <div className="psych-actions psych-actions-wrap">
+                            <button onClick={() => setPsychDetail(test.id)}>Ver ficha</button>
+                            {test.attachment?.type === "application/pdf" ? <button onClick={() => setEditingPsych(test.id)}>✎ Abrir PDF</button> : test.attachment ? <a href={test.attachment.url} target="_blank" rel="noreferrer">Abrir documento</a> : null}
+                            <button className="psych-register" onClick={() => openAttemptEditor(test.id)}>＋ Intento</button>
+                          </div>
+                        </div>
+                      </article>;
+                    })}
+                  </div>
+                ) : <div className="psych-no-results"><span>⌕</span><h3>No hay coincidencias</h3><p>Cambia la búsqueda, la categoría o el criterio de ordenación.</p></div> : <Empty icon="▧" title="Añade tu primer psicotécnico" copy="Sube un PDF o una fotografía y empieza a registrar puntuaciones, tiempos y errores." action="Añadir psicotécnico" onAction={() => { setEditingPsychTest(null); setModal("psych"); }} />}
+              </>
+            )}
           </section>
         )}
 
@@ -465,7 +716,7 @@ export default function OpoApp() {
               <section className="panel"><div className="panel-head"><div><span className="section-label">ACTIVIDAD</span><h3>Últimos 7 días</h3></div></div><ActivityChart reviews={state.reviews} /></section>
               <section className="panel"><div className="panel-head"><div><span className="section-label">MEMORIA</span><h3>Estado de tarjetas</h3></div></div><MemoryBreakdown cards={state.cards} /></section>
             </div>
-            <section className="panel weak-panel"><div className="panel-head"><div><span className="section-label">ATENCIÓN PRIORITARIA</span><h3>Conceptos más débiles</h3></div></div><div className="weak-list">{[...state.cards].filter((card) => card.reviewCount > 0).sort((a, b) => (a.successCount / a.reviewCount) - (b.successCount / b.reviewCount)).slice(0, 5).map((card) => <div key={card.id}><span>{card.front}</span><strong>{Math.round((card.successCount / card.reviewCount) * 100)}%</strong></div>)}{!state.cards.some((card) => card.reviewCount > 0) && <p className="muted">Completa algunos repasos para detectar tus puntos débiles.</p>}</div></section>
+            <section className="panel weak-panel"><div className="panel-head"><div><span className="section-label">ATENCIÓN PRIORITARIA</span><h3>Conceptos más débiles</h3></div></div><div className="weak-list">{[...state.cards].filter((card) => card.reviewCount > 0).sort((a, b) => (a.successCount / a.reviewCount) - (b.successCount / b.reviewCount)).slice(0, 5).map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{Math.round((card.successCount / card.reviewCount) * 100)}%</strong></div>)}{!state.cards.some((card) => card.reviewCount > 0) && <p className="muted">Completa algunos repasos para detectar tus puntos débiles.</p>}</div></section>
           </section>
         )}
       </main>
@@ -475,7 +726,7 @@ export default function OpoApp() {
       {reviewQueue.length > 0 && reviewIndex < reviewQueue.length && currentCard && (
         <div className="review-overlay">
           <div className="review-top"><button onClick={() => setReviewQueue([])}>×</button><div className="session-progress"><span style={{ width: `${Math.round((reviewIndex / reviewQueue.length) * 100)}%` }} /></div><span>{reviewIndex + 1}/{reviewQueue.length}</span></div>
-          <div className="review-stage"><span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span><div className={`study-card ${revealed ? "revealed" : ""}`}><span className="study-card-type">{currentCard.type === "choice" ? "ELIGE LA RESPUESTA" : "RECUERDA EL CONCEPTO"}</span><h2>{currentCard.front}</h2>{currentCard.type === "choice" && !revealed ? <div className="options-list">{currentCard.options.map((option, index) => <button key={`${index}-${option}`} className={selectedOption === index ? "selected" : ""} onClick={() => setSelectedOption(index)}><span>{String.fromCharCode(65 + index)}</span>{option}</button>)}</div> : revealed ? <div className="answer-box"><small>RESPUESTA</small><p>{currentCard.back}</p>{currentCard.type === "choice" && <strong>{String.fromCharCode(65 + currentCard.correctOption)} · {currentCard.options[currentCard.correctOption]}</strong>}</div> : <button className="reveal-button" onClick={() => setRevealed(true)}>Mostrar respuesta</button>}</div>{currentCard.type === "choice" && !revealed && <button className="check-button" disabled={selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}{revealed && <div className="rating-bar"><p>{currentCard.type === "choice" && selectedOption !== null ? selectedOption === currentCard.correctOption ? "¡Correcto! ¿Cómo te ha resultado?" : "No era esa. La repetiremos pronto." : "¿Qué tal la recordabas?"}</p><div><button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>10 min</small></button><button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>{Math.max(1, currentCard.intervalDays)} d</small></button><button className="good" onClick={() => rateCurrent(currentCard.type === "choice" && selectedOption !== currentCard.correctOption ? "again" : "good")}><strong>Bien</strong><small>{currentCard.repetitions ? Math.max(3, Math.round(Math.max(1, currentCard.intervalDays) * currentCard.ease)) : 1} d</small></button><button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{currentCard.repetitions ? Math.max(7, Math.round(Math.max(1, currentCard.intervalDays) * currentCard.ease * 1.3)) : 4} d</small></button></div></div>}</div>
+          <div className="review-stage"><span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span><div className={`study-card ${revealed ? "revealed" : ""}`}><span className="study-card-type">{currentCard.type === "choice" ? "ELIGE LA RESPUESTA" : "RECUERDA EL CONCEPTO"}</span><RichContent html={currentCard.front} className="study-front" />{currentCard.attachment && <AnnotatedCardImage attachment={currentCard.attachment} />}{currentCard.type === "choice" && !revealed ? <div className="options-list">{currentCard.options.map((option, index) => <button key={`${index}-${option}`} className={selectedOption === index ? "selected" : ""} onClick={() => setSelectedOption(index)}><span>{String.fromCharCode(65 + index)}</span>{option}</button>)}</div> : revealed ? <div className="answer-box"><small>RESPUESTA</small><RichContent html={currentCard.back} />{currentCard.type === "choice" && <strong>{String.fromCharCode(65 + currentCard.correctOption)} · {currentCard.options[currentCard.correctOption]}</strong>}</div> : <button className="reveal-button" onClick={() => setRevealed(true)}>Mostrar respuesta</button>}</div>{currentCard.type === "choice" && !revealed && <button className="check-button" disabled={selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}{revealed && <div className="rating-bar"><p>{currentCard.type === "choice" && selectedOption !== null ? selectedOption === currentCard.correctOption ? "¡Correcto! ¿Cómo te ha resultado?" : "No era esa. La repetiremos pronto." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">FSRS-6 · objetivo 90%</span></p><div><button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>{fsrsDueLabel(currentCard, "again")}</small></button><button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>{fsrsDueLabel(currentCard, "hard")}</small></button><button className="good" onClick={() => rateCurrent(currentCard.type === "choice" && selectedOption !== currentCard.correctOption ? "again" : "good")}><strong>Bien</strong><small>{fsrsDueLabel(currentCard, "good")}</small></button><button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{fsrsDueLabel(currentCard, "easy")}</small></button></div></div>}</div>
         </div>
       )}
 
@@ -485,8 +736,8 @@ export default function OpoApp() {
 
       {modal === "folder" && <FolderModal onClose={() => setModal(null)} onCreate={(folder) => { updateState((current) => ({ ...current, folders: [...current.folders, folder] })); setModal(null); notify("Carpeta creada"); }} />}
       {modal === "card" && <CardModal folders={state.folders} defaultFolder={selectedFolder} initialCard={openCard} onClose={() => { setModal(null); setEditingCard(null); }} onSave={(card) => { updateState((current) => ({ ...current, cards: openCard ? current.cards.map((item) => item.id === card.id ? card : item) : [...current.cards, card] })); setModal(null); setEditingCard(null); notify(openCard ? "Tarjeta actualizada" : "Tarjeta guardada"); }} />}
-      {modal === "psych" && <PsychModal onClose={() => setModal(null)} onCreate={(test) => { updateState((current) => ({ ...current, psychTests: [...current.psychTests, test] })); setModal(null); notify("Psicotécnico guardado"); }} />}
-      {modal === "attempt" && activePsych && <AttemptModal test={activePsych} onClose={() => { setModal(null); setSelectedPsych(null); }} onCreate={(attempt) => { updateState((current) => ({ ...current, psychTests: current.psychTests.map((test) => test.id === activePsych.id ? { ...test, attempts: [...test.attempts, attempt] } : test) })); setModal(null); setSelectedPsych(null); notify("Intento registrado"); }} />}
+      {modal === "psych" && <PsychModal initialTest={openPsychTest} onClose={() => { setModal(null); setEditingPsychTest(null); }} onSave={(test) => { updateState((current) => ({ ...current, psychTests: openPsychTest ? current.psychTests.map((item) => item.id === test.id ? test : item) : [...current.psychTests, test] })); setModal(null); setEditingPsychTest(null); setPsychDetail(test.id); notify(openPsychTest ? "Psicotécnico actualizado" : "Psicotécnico guardado"); }} />}
+      {modal === "attempt" && activePsych && <AttemptModal test={activePsych} initialAttempt={openAttempt} onClose={() => { setModal(null); setSelectedPsych(null); setEditingAttempt(null); }} onSave={(attempt) => { updateState((current) => ({ ...current, psychTests: current.psychTests.map((test) => test.id === activePsych.id ? { ...test, attempts: openAttempt ? test.attempts.map((item) => item.id === attempt.id ? attempt : item) : [...test.attempts, attempt] } : test) })); setModal(null); setSelectedPsych(null); setEditingAttempt(null); setPsychDetail(activePsych.id); notify(openAttempt ? "Intento actualizado" : "Intento registrado"); }} />}
       {openPsych?.attachment?.type === "application/pdf" && <PdfAnnotator attachment={openPsych.attachment} title={openPsych.name} onClose={() => setEditingPsych(null)} />}
       {toast && <div className="toast">✓ {toast}</div>}
     </div>
@@ -537,6 +788,55 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
     return Array.from({ length: Math.max(4, existing.length) }, (_, index) => existing[index] ?? "");
   });
   const [correctOption, setCorrectOption] = useState(initialCard?.correctOption ?? 0);
+  const [attachment, setAttachment] = useState<Attachment | null>(initialCard?.attachment ?? null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const [editingImage, setEditingImage] = useState(false);
+
+  async function compressIfNeeded(file: File) {
+    if (file.size <= 5.5 * 1024 * 1024) return file;
+    const url = URL.createObjectURL(file);
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const element = new Image();
+        element.onload = () => resolve(element);
+        element.onerror = () => reject(new Error("No se pudo preparar la imagen"));
+        element.src = url;
+      });
+      const maxSide = 2200;
+      const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("No se pudo preparar la imagen");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
+      if (!blob) throw new Error("No se pudo comprimir la imagen");
+      return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function uploadImage(file: File) {
+    if (!file.type.startsWith("image/")) return setImageError("Selecciona una imagen");
+    setUploadingImage(true);
+    setImageError("");
+    try {
+      const prepared = await compressIfNeeded(file);
+      const form = new FormData();
+      form.append("file", prepared);
+      const response = await fetch("/api/files", { method: "POST", body: form });
+      const payload = await response.json() as { attachment?: Attachment; error?: string };
+      if (!response.ok || !payload.attachment) throw new Error(payload.error ?? "No se pudo subir la imagen");
+      setAttachment(payload.attachment);
+    } catch (reason) {
+      setImageError(reason instanceof Error ? reason.message : "No se pudo subir la imagen");
+    } finally {
+      setUploadingImage(false);
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -552,31 +852,50 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
       createdAt: nowIso(),
       lastReviewedAt: null,
       intervalDays: 0,
-      ease: 2.35,
+      ease: 0,
       repetitions: 0,
       lapses: 0,
       streak: 0,
       reviewCount: 0,
       successCount: 0,
+      attachment: null,
+      fsrsStability: 0,
+      fsrsDifficulty: 0,
     };
     onSave({
       ...base,
       folderId,
       type,
-      front: front.trim(),
-      back: back.trim(),
+      front: sanitizeRichHtml(front),
+      back: sanitizeRichHtml(back),
       options: type === "choice" ? options.map((option) => option.trim()) : [],
       correctOption: type === "choice" ? Math.min(correctOption, Math.max(0, options.length - 1)) : 0,
+      attachment,
     });
   }
 
-  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle={initialCard ? "Modifica cualquier campo y conserva todo el historial de estudio de la tarjeta." : "Puedes guardarla aunque todavía quieras completar algún campo más adelante."} label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}><form onSubmit={submit}><div className="segmented"><button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Pregunta y respuesta</button><button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Elección múltiple</button></div><label>Carpeta<select value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Sin carpeta</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><label>Pregunta<textarea value={front} onChange={(event) => setFront(event.target.value)} placeholder="Escribe el anverso de la tarjeta" /></label>{type === "choice" && <fieldset><legend>Opciones · marca la correcta si quieres</legend>{options.map((option, index) => <label className="option-input" key={index}><input type="radio" name="correct" checked={correctOption === index} onChange={() => setCorrectOption(index)} /><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Opción ${index + 1}`} /></label>)}</fieldset>}<label>Respuesta o explicación <small>(opcional)</small><textarea value={back} onChange={(event) => setBack(event.target.value)} placeholder="Qué debes recordar" /></label><button className="primary-button full">{initialCard ? "Guardar cambios" : "Guardar tarjeta"}</button></form></ModalShell>;
+  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="Texto con formato, imágenes y anotaciones con Apple Pencil o dedo." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
+    <form onSubmit={submit}>
+      <div className="segmented"><button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Pregunta y respuesta</button><button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Elección múltiple</button></div>
+      <label>Carpeta<select value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Sin carpeta</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
+      <label>Pregunta</label><RichTextEditor value={front} onChange={setFront} placeholder="Escribe el anverso de la tarjeta" />
+      {type === "choice" && <fieldset><legend>Opciones · marca la correcta si quieres</legend>{options.map((option, index) => <label className="option-input" key={index}><input type="radio" name="correct" checked={correctOption === index} onChange={() => setCorrectOption(index)} /><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Opción ${index + 1}`} /></label>)}</fieldset>}
+      <label>Respuesta o explicación <small>(opcional)</small></label><RichTextEditor value={back} onChange={setBack} placeholder="Qué debes recordar" />
+      <div className="card-media-field">
+        <span className="card-media-label">Imagen <small>(opcional)</small></span>
+        {!attachment ? <label className="file-drop compact"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /><span>🖼</span><strong>{uploadingImage ? "Subiendo imagen…" : "Añadir imagen"}</strong><small>Fotos, capturas y esquemas</small></label> : <div className="card-media-preview"><AnnotatedCardImage attachment={attachment} /><div><button type="button" className="secondary-button" onClick={() => setEditingImage(true)}>✎ Dibujar sobre imagen</button><button type="button" className="secondary-button danger" onClick={() => setAttachment(null)}>Quitar</button></div></div>}
+        {imageError && <p className="form-error">{imageError}</p>}
+      </div>
+      <button className="primary-button full" disabled={uploadingImage}>{initialCard ? "Guardar cambios" : "Guardar tarjeta"}</button>
+    </form>
+    {editingImage && attachment && <ImageAnnotator attachment={attachment} title={plainRichText(front) || attachment.name} onClose={() => setEditingImage(false)} />}
+  </ModalShell>;
 }
 
-function PsychModal({ onClose, onCreate }: { onClose: () => void; onCreate: (test: PsychTest) => void }) {
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState("Razonamiento verbal");
-  const [total, setTotal] = useState(80);
+function PsychModal({ initialTest, onClose, onSave }: { initialTest: PsychTest | null; onClose: () => void; onSave: (test: PsychTest) => void }) {
+  const [name, setName] = useState(initialTest?.name ?? "");
+  const [category, setCategory] = useState(initialTest?.category ?? "Razonamiento verbal");
+  const [total, setTotal] = useState(initialTest?.totalQuestions ?? 0);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -609,9 +928,7 @@ function PsychModal({ onClose, onCreate }: { onClose: () => void; onCreate: (tes
       body: JSON.stringify({ name: selectedFile.name, type: selectedFile.type || "application/pdf", size: selectedFile.size }),
     });
     const init = await readJson(initResponse) as { id?: string; key?: string; uploadId?: string; error?: string };
-    if (!initResponse.ok || !init.id || !init.key || !init.uploadId) {
-      throw new Error(init.error ?? "No se pudo iniciar la subida");
-    }
+    if (!initResponse.ok || !init.id || !init.key || !init.uploadId) throw new Error(init.error ?? "No se pudo iniciar la subida");
 
     const chunkSize = 5 * 1024 * 1024;
     const totalParts = Math.ceil(selectedFile.size / chunkSize);
@@ -628,9 +945,7 @@ function PsychModal({ onClose, onCreate }: { onClose: () => void; onCreate: (tes
           body: chunk,
         });
         const part = await readJson(partResponse) as { partNumber?: number; etag?: string; error?: string };
-        if (!partResponse.ok || !part.partNumber || !part.etag) {
-          throw new Error(part.error ?? `No se pudo subir la parte ${partNumber}`);
-        }
+        if (!partResponse.ok || !part.partNumber || !part.etag) throw new Error(part.error ?? `No se pudo subir la parte ${partNumber}`);
         parts.push({ partNumber: part.partNumber, etag: part.etag });
         setUploadProgress(Math.round((partNumber / (totalParts + 1)) * 100));
       }
@@ -638,20 +953,10 @@ function PsychModal({ onClose, onCreate }: { onClose: () => void; onCreate: (tes
       const completeResponse = await fetch("/api/files/multipart?action=complete", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id: init.id,
-          key: init.key,
-          uploadId: init.uploadId,
-          name: selectedFile.name,
-          type: selectedFile.type || "application/pdf",
-          size: selectedFile.size,
-          parts,
-        }),
+        body: JSON.stringify({ id: init.id, key: init.key, uploadId: init.uploadId, name: selectedFile.name, type: selectedFile.type || "application/pdf", size: selectedFile.size, parts }),
       });
       const completed = await readJson(completeResponse) as { attachment?: Attachment; error?: string };
-      if (!completeResponse.ok || !completed.attachment) {
-        throw new Error(completed.error ?? "No se pudo completar la subida");
-      }
+      if (!completeResponse.ok || !completed.attachment) throw new Error(completed.error ?? "No se pudo completar la subida");
       setUploadProgress(100);
       return completed.attachment;
     } catch (reason) {
@@ -663,33 +968,37 @@ function PsychModal({ onClose, onCreate }: { onClose: () => void; onCreate: (tes
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!name.trim()) return;
     setUploading(true);
     setUploadProgress(0);
     setError("");
-    let attachment: Attachment | null = null;
     try {
+      let attachment = initialTest?.attachment ?? null;
       if (file) {
         if (file.size > 100 * 1024 * 1024) throw new Error("El archivo no puede superar 100 MB");
         attachment = file.size <= 6 * 1024 * 1024 ? await uploadDirect(file) : await uploadInParts(file);
       }
-      onCreate({ id: uid(), name: name.trim(), category, totalQuestions: total, attachment, attempts: [], createdAt: nowIso() });
+      const base = initialTest ?? { id: uid(), attempts: [], createdAt: nowIso(), attachment: null, name: "", category: "", totalQuestions: 0 };
+      onSave({ ...base, name: name.trim(), category: category.trim(), totalQuestions: Math.max(0, total), attachment });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo guardar");
       setUploading(false);
     }
   }
-  return <ModalShell title="Añadir psicotécnico" subtitle="Guarda el documento y registra todos tus intentos." onClose={onClose}><form onSubmit={submit}><label>Nombre<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Cuadernillo verbal 01" /></label><div className="form-grid"><label>Categoría<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Razonamiento verbal</option><option>Razonamiento numérico</option><option>Razonamiento abstracto</option><option>Atención y percepción</option><option>Memoria</option><option>Mixto</option></select></label><label>Preguntas<input type="number" min="1" value={total} onChange={(event) => setTotal(Number(event.target.value))} /></label></div><label className="file-drop"><input type="file" accept="application/pdf,image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><span>⇧</span><strong>{file ? file.name : "Seleccionar PDF o imagen"}</strong><small>Máximo 100 MB</small></label>{uploading && <div className="upload-progress"><span style={{ width: `${uploadProgress}%` }} /><small>{uploadProgress}%</small></div>}{error && <p className="form-error">{error}</p>}<button className="primary-button full" disabled={!name.trim() || uploading}>{uploading ? `Subiendo… ${uploadProgress}%` : "Guardar psicotécnico"}</button></form></ModalShell>;
+
+  return <ModalShell title={initialTest ? "Editar psicotécnico" : "Añadir psicotécnico"} subtitle={initialTest ? "Cambia los datos de la ficha sin perder el historial de intentos." : "Guarda el documento y registra todos tus intentos. Ningún campo es obligatorio."} label={initialTest ? "EDITAR" : "NUEVO"} onClose={onClose}><form onSubmit={submit}><label>Nombre <small>(opcional)</small><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Cuadernillo verbal 01" /></label><div className="form-grid"><label>Categoría<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Razonamiento verbal</option><option>Razonamiento numérico</option><option>Razonamiento abstracto</option><option>Atención y percepción</option><option>Memoria</option><option>Mixto</option><option>Otro</option></select></label><label>Preguntas<input type="number" min="0" value={total} onChange={(event) => setTotal(Number(event.target.value))} /></label></div><label className="file-drop"><input type="file" accept="application/pdf,image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><span>⇧</span><strong>{file ? file.name : initialTest?.attachment?.name ? `Actual: ${initialTest.attachment.name}` : "Seleccionar PDF o imagen"}</strong><small>{initialTest?.attachment && !file ? "Selecciona otro archivo solo si quieres sustituirlo · " : ""}Máximo 100 MB</small></label>{uploading && <div className="upload-progress"><span style={{ width: `${uploadProgress}%` }} /><small>{uploadProgress}%</small></div>}{error && <p className="form-error">{error}</p>}<button className="primary-button full" disabled={uploading}>{uploading ? `Subiendo… ${uploadProgress}%` : initialTest ? "Guardar cambios" : "Guardar psicotécnico"}</button></form></ModalShell>;
 }
 
-function AttemptModal({ test, onClose, onCreate }: { test: PsychTest; onClose: () => void; onCreate: (attempt: Attempt) => void }) {
-  const [correct, setCorrect] = useState(0);
-  const [wrong, setWrong] = useState(0);
-  const [blank, setBlank] = useState(0);
-  const [minutes, setMinutes] = useState(0);
-  const [score, setScore] = useState(0);
-  const [notes, setNotes] = useState("");
-  return <ModalShell title="Registrar intento" subtitle={test.name} onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onCreate({ id: uid(), date: nowIso(), correct, wrong, blank, score, minutes, notes: notes.trim() }); }}><div className="form-grid three"><label>Aciertos<input type="number" min="0" value={correct} onChange={(event) => setCorrect(Number(event.target.value))} /></label><label>Fallos<input type="number" min="0" value={wrong} onChange={(event) => setWrong(Number(event.target.value))} /></label><label>Blancas<input type="number" min="0" value={blank} onChange={(event) => setBlank(Number(event.target.value))} /></label></div><div className="form-grid"><label>Puntuación<input type="number" step="0.01" value={score} onChange={(event) => setScore(Number(event.target.value))} /></label><label>Tiempo (min)<input type="number" min="0" value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} /></label></div><label>Notas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Qué te ha costado, errores repetidos…" /></label><p className="attempt-total">Registradas: <strong>{correct + wrong + blank}</strong> de {test.totalQuestions} preguntas</p><button className="primary-button full">Guardar intento</button></form></ModalShell>;
+function AttemptModal({ test, initialAttempt, onClose, onSave }: { test: PsychTest; initialAttempt: Attempt | null; onClose: () => void; onSave: (attempt: Attempt) => void }) {
+  const [date, setDate] = useState(initialAttempt?.date.slice(0, 10) ?? todayKey());
+  const [correct, setCorrect] = useState(initialAttempt?.correct ?? 0);
+  const [wrong, setWrong] = useState(initialAttempt?.wrong ?? 0);
+  const [blank, setBlank] = useState(initialAttempt?.blank ?? 0);
+  const [minutes, setMinutes] = useState(initialAttempt?.minutes ?? 0);
+  const [score, setScore] = useState(initialAttempt?.score ?? 0);
+  const [notes, setNotes] = useState(initialAttempt?.notes ?? "");
+  const registered = correct + wrong + blank;
+  const expected = test.totalQuestions || 0;
+  return <ModalShell title={initialAttempt ? "Editar intento" : "Registrar intento"} subtitle={test.name || "Psicotécnico sin nombre"} label={initialAttempt ? "EDITAR" : "NUEVO"} onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); const attemptDate = date ? new Date(`${date}T12:00:00`).toISOString() : nowIso(); onSave({ id: initialAttempt?.id ?? uid(), date: attemptDate, correct, wrong, blank, score, minutes, notes: notes.trim() }); }}><label>Fecha<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><div className="form-grid three"><label>Aciertos<input type="number" min="0" value={correct} onChange={(event) => setCorrect(Number(event.target.value))} /></label><label>Fallos<input type="number" min="0" value={wrong} onChange={(event) => setWrong(Number(event.target.value))} /></label><label>Blancas<input type="number" min="0" value={blank} onChange={(event) => setBlank(Number(event.target.value))} /></label></div><div className="form-grid"><label>Puntuación<input type="number" step="0.01" value={score} onChange={(event) => setScore(Number(event.target.value))} /></label><label>Tiempo (min)<input type="number" min="0" step="0.1" value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} /></label></div><label>Notas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Qué te ha costado, errores repetidos…" /></label><p className={`attempt-total ${expected && registered !== expected ? "warning" : ""}`}>Registradas: <strong>{registered}</strong>{expected ? ` de ${expected} preguntas` : " preguntas"}{expected && registered !== expected ? " · comprueba el total si procede" : ""}</p><button className="primary-button full">{initialAttempt ? "Guardar cambios" : "Guardar intento"}</button></form></ModalShell>;
 }
 
 function ActivityChart({ reviews }: { reviews: Review[] }) {

@@ -9,12 +9,7 @@ import {
 } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 
-type Attachment = {
-  key: string;
-  name: string;
-  url: string;
-};
-
+type Attachment = { key: string; name: string; url: string };
 type InkPoint = { x: number; y: number; pressure: number };
 type InkStroke = {
   id: string;
@@ -23,15 +18,12 @@ type InkStroke = {
   width: number;
   points: InkPoint[];
 };
-type AnnotationDocument = {
-  version: 1;
-  pages: Record<string, InkStroke[]>;
-};
+type AnnotationDocument = { version: 1; pages: Record<string, InkStroke[]> };
 type Tool = "hand" | "pen" | "eraser";
 type SaveStatus = "loading" | "saved" | "saving" | "error";
 type FitMode = "page" | "width" | "custom";
-const PDFJS_CLIENT_PATH = "/pdf.min.mjs";
 
+const PDFJS_CLIENT_PATH = "/pdf.min.mjs";
 const emptyAnnotations = (): AnnotationDocument => ({ version: 1, pages: {} });
 const strokeId = () => typeof crypto !== "undefined" && "randomUUID" in crypto
   ? crypto.randomUUID()
@@ -73,6 +65,20 @@ function drawStroke(context: CanvasRenderingContext2D, stroke: InkStroke, width:
   context.restore();
 }
 
+async function fetchWithTimeout(url: string, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      cache: "no-store",
+      signal: controller.signal,
+      headers: { "cache-control": "no-cache", pragma: "no-cache" },
+    });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 export default function PdfAnnotator({
   attachment,
   title,
@@ -94,6 +100,8 @@ export default function PdfAnnotator({
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [annotations, setAnnotations] = useState<AnnotationDocument>(emptyAnnotations);
+  const [reloadToken, setReloadToken] = useState(0);
+
   const stageRef = useRef<HTMLDivElement>(null);
   const pdfCanvasRef = useRef<HTMLCanvasElement>(null);
   const inkCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -109,51 +117,99 @@ export default function PdfAnnotator({
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const update = () => setStageSize({ width: stage.clientWidth, height: stage.clientHeight });
+
+    const update = () => {
+      const rect = stage.getBoundingClientRect();
+      const visualWidth = window.visualViewport?.width ?? window.innerWidth;
+      const visualHeight = window.visualViewport?.height ?? window.innerHeight;
+      setStageSize({
+        width: Math.max(1, Math.min(rect.width || visualWidth, visualWidth)),
+        height: Math.max(1, Math.min(rect.height || visualHeight, Math.max(1, visualHeight - rect.top))),
+      });
+    };
+
     update();
     const observer = new ResizeObserver(update);
     observer.observe(stage);
-    return () => observer.disconnect();
+    window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("scroll", update);
+    };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    let loadedDocument: PDFDocumentProxy | null = null;
 
-    Promise.all([
-      import(/* @vite-ignore */ PDFJS_CLIENT_PATH) as Promise<typeof import("pdfjs-dist")>,
-      fetch(attachment.url).then(async (response) => {
-        if (!response.ok) throw new Error("No se pudo abrir el PDF");
-        return response.arrayBuffer();
-      }),
-      fetch(`/api/annotations?key=${encodeURIComponent(attachment.key)}`).then(async (response) => {
-        if (!response.ok) throw new Error("No se pudieron abrir tus anotaciones");
-        return response.json() as Promise<{ annotations?: AnnotationDocument }>;
-      }),
-    ])
-      .then(async ([pdfjs, data, saved]) => {
+    setPdf(null);
+    setCanvasSize({ width: 0, height: 0 });
+    setPageNumber(1);
+    setStatus("loading");
+    setMessage("Descargando PDF…");
+
+    (async () => {
+      try {
+        const cacheBust = `${attachment.url}${attachment.url.includes("?") ? "&" : "?"}_=${Date.now()}`;
+        const [pdfjs, response] = await Promise.all([
+          import(/* @vite-ignore */ PDFJS_CLIENT_PATH) as Promise<typeof import("pdfjs-dist")>,
+          fetchWithTimeout(cacheBust, 30000),
+        ]);
+
+        if (!response.ok) throw new Error(`No se pudo abrir el PDF (${response.status})`);
+        const data = await response.arrayBuffer();
+        if (!data.byteLength) throw new Error("El PDF está vacío");
+        if (cancelled) return;
+
+        setMessage("Procesando PDF…");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-        const document = await pdfjs.getDocument({ data }).promise;
+        loadedDocument = await pdfjs.getDocument({ data }).promise;
         if (cancelled) {
-          document.destroy();
+          void loadedDocument.destroy();
           return;
         }
-        const loaded = saved.annotations?.pages ? saved.annotations : emptyAnnotations();
-        annotationsRef.current = loaded;
-        setAnnotations(loaded);
-        setPdf(document);
+
+        setPdf(loadedDocument);
         setStatus("saved");
         setMessage("Guardado");
-      })
-      .catch((reason) => {
+
+        try {
+          const annotationResponse = await fetchWithTimeout(
+            `/api/annotations?key=${encodeURIComponent(attachment.key)}&_=${Date.now()}`,
+            12000,
+          );
+          if (annotationResponse.ok) {
+            const saved = await annotationResponse.json() as { annotations?: AnnotationDocument };
+            const loaded = saved.annotations?.pages ? saved.annotations : emptyAnnotations();
+            annotationsRef.current = loaded;
+            setAnnotations(loaded);
+          }
+        } catch {
+          // El PDF debe poder abrir aunque las anotaciones tarden o fallen temporalmente.
+        }
+      } catch (reason) {
         if (cancelled) return;
         setStatus("error");
-        setMessage(reason instanceof Error ? reason.message : "No se pudo abrir el PDF");
-      });
+        setMessage(
+          reason instanceof Error && reason.name === "AbortError"
+            ? "La carga ha tardado demasiado"
+            : reason instanceof Error
+              ? reason.message
+              : "No se pudo abrir el PDF",
+        );
+      }
+    })();
 
     return () => {
       cancelled = true;
+      if (loadedDocument) void loadedDocument.destroy();
     };
-  }, [attachment.key, attachment.url]);
+  }, [attachment.key, attachment.url, reloadToken]);
 
   const redrawInk = useCallback((document: AnnotationDocument, page = pageNumber) => {
     const canvas = inkCanvasRef.current;
@@ -171,15 +227,33 @@ export default function PdfAnnotator({
   useEffect(() => {
     if (!pdf || !stageSize.width || !stageSize.height) return;
     let cancelled = false;
+    let renderTask: { promise: Promise<unknown>; cancel: () => void } | null = null;
 
     pdf.getPage(pageNumber).then(async (page) => {
       if (cancelled) return;
+
       const base = page.getViewport({ scale: 1 });
-      const availableWidth = Math.max(240, stageSize.width - 32);
-      const availableHeight = Math.max(240, stageSize.height - 32);
+      const visualWidth = window.visualViewport?.width ?? window.innerWidth;
+      const visualHeight = window.visualViewport?.height ?? window.innerHeight;
+      const rect = stageRef.current?.getBoundingClientRect();
+
+      const measuredWidth = rect?.width || stageSize.width || visualWidth;
+      const measuredHeight = rect?.height || stageSize.height || visualHeight;
+      const availableWidth = Math.max(80, Math.min(measuredWidth, visualWidth) - 16);
+      const availableHeight = Math.max(
+        80,
+        Math.min(measuredHeight, Math.max(80, visualHeight - (rect?.top ?? 0))) - 16,
+      );
+
       const widthScale = availableWidth / base.width;
       const pageScale = Math.min(widthScale, availableHeight / base.height);
-      const scale = Math.max(0.25, fitMode === "page" ? pageScale : fitMode === "width" ? widthScale : widthScale * zoom);
+      const desiredScale = fitMode === "page"
+        ? pageScale
+        : fitMode === "width"
+          ? widthScale
+          : pageScale * zoom;
+
+      const scale = Math.max(0.05, desiredScale);
       const viewport = page.getViewport({ scale });
       const canvas = pdfCanvasRef.current;
       const inkCanvas = inkCanvasRef.current;
@@ -197,24 +271,32 @@ export default function PdfAnnotator({
 
       const context = canvas.getContext("2d");
       if (!context) return;
-      await page.render({
+
+      renderTask = page.render({
         canvas,
         canvasContext: context,
         viewport,
         transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
-      }).promise;
+      });
+
+      await renderTask.promise;
       if (cancelled) return;
+
       setCanvasSize({ width: viewport.width, height: viewport.height });
       setMessage("Guardado");
-    }).catch(() => {
-      if (!cancelled) {
-        setStatus("error");
-        setMessage("No se pudo dibujar esta página");
-      }
+    }).catch((reason) => {
+      if (cancelled || (reason instanceof Error && reason.name === "RenderingCancelledException")) return;
+      setStatus("error");
+      setMessage("No se pudo dibujar esta página");
     });
 
     return () => {
       cancelled = true;
+      try {
+        renderTask?.cancel();
+      } catch {
+        // Ya había terminado.
+      }
     };
   }, [fitMode, pageNumber, pdf, stageSize.height, stageSize.width, zoom]);
 
@@ -231,6 +313,7 @@ export default function PdfAnnotator({
       .then(async () => {
         const response = await fetch("/api/annotations", {
           method: "PUT",
+          cache: "no-store",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ key: attachment.key, annotations: next }),
         });
@@ -325,11 +408,26 @@ export default function PdfAnnotator({
     queueSave(next);
   }
 
+  function changeZoom(delta: number) {
+    setZoom((current) => {
+      const base = fitMode === "custom" ? current : 1;
+      return Math.max(0.25, Math.min(3, Math.round((base + delta) * 100) / 100));
+    });
+    setFitMode("custom");
+  }
+
   return (
-    <section className="pdf-editor" aria-label={`Editor de ${title}`}>
-      <header className="pdf-editor-head">
+    <section
+      className="pdf-editor"
+      aria-label={`Editor de ${title}`}
+      style={{ width: "100vw", maxWidth: "100vw", minWidth: 0, overflow: "hidden" }}
+    >
+      <header className="pdf-editor-head" style={{ width: "100%", minWidth: 0, maxWidth: "100vw" }}>
         <button className="pdf-close" onClick={onClose} aria-label="Cerrar editor">×</button>
-        <div className="pdf-title"><strong>{title}</strong><span className={`pdf-save ${status}`}>● {message}</span></div>
+        <div className="pdf-title">
+          <strong>{title}</strong>
+          <span className={`pdf-save ${status}`}>● {message}</span>
+        </div>
         <div className="pdf-pages">
           <button disabled={pageNumber <= 1} onClick={() => setPageNumber((page) => page - 1)} aria-label="Página anterior">‹</button>
           <span>{pageNumber} / {pdf?.numPages ?? "—"}</span>
@@ -337,27 +435,56 @@ export default function PdfAnnotator({
         </div>
       </header>
 
-      <div className="pdf-toolbar" role="toolbar" aria-label="Herramientas de escritura">
+      <div
+        className="pdf-toolbar"
+        role="toolbar"
+        aria-label="Herramientas de escritura"
+        style={{ width: "100%", minWidth: 0, maxWidth: "100vw" }}
+      >
         <div className="pdf-tool-group">
           <button className={tool === "hand" ? "active" : ""} onClick={() => setTool("hand")} title="Mover">✋ <span>Mover</span></button>
           <button className={tool === "pen" ? "active" : ""} onClick={() => setTool("pen")} title="Lápiz">✎ <span>Lápiz</span></button>
           <button className={tool === "eraser" ? "active" : ""} onClick={() => setTool("eraser")} title="Goma">⌫ <span>Goma</span></button>
           <button onClick={undo} disabled={!(annotations.pages[String(pageNumber)]?.length)} title="Deshacer">↶ <span>Deshacer</span></button>
+          <button onClick={() => setReloadToken((value) => value + 1)} title="Recargar">↻ <span>Recargar</span></button>
         </div>
+
         <div className="pdf-tool-options">
-          <label className="pdf-color" title="Color"><input type="color" value={color} onChange={(event) => setColor(event.target.value)} /><span style={{ background: color }} /></label>
-          <label className="pdf-size"><span>Trazo</span><input type="range" min="2" max="12" value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} /></label>
+          <label className="pdf-color" title="Color">
+            <input type="color" value={color} onChange={(event) => setColor(event.target.value)} />
+            <span style={{ background: color }} />
+          </label>
+          <label className="pdf-size">
+            <span>Trazo</span>
+            <input type="range" min="2" max="12" value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} />
+          </label>
           <div className="pdf-fit" aria-label="Tamaño de la hoja">
-            <button className={fitMode === "page" ? "active" : ""} onClick={() => setFitMode("page")}>Hoja completa</button>
+            <button className={fitMode === "page" ? "active" : ""} onClick={() => { setZoom(1); setFitMode("page"); }}>Hoja completa</button>
             <button className={fitMode === "width" ? "active" : ""} onClick={() => setFitMode("width")}>Al ancho</button>
           </div>
-          <div className="pdf-zoom"><button onClick={() => { setFitMode("custom"); setZoom((value) => Math.max(0.4, value - 0.15)); }}>−</button><span>{fitMode === "page" ? "Hoja" : fitMode === "width" ? "Ancho" : `${Math.round(zoom * 100)}%`}</span><button onClick={() => { setFitMode("custom"); setZoom((value) => Math.min(2.2, value + 0.15)); }}>＋</button></div>
+          <div className="pdf-zoom">
+            <button onClick={() => changeZoom(-0.15)} aria-label="Desampliar">−</button>
+            <span>{fitMode === "page" ? "Hoja" : fitMode === "width" ? "Ancho" : `${Math.round(zoom * 100)}%`}</span>
+            <button onClick={() => changeZoom(0.15)} aria-label="Ampliar">＋</button>
+          </div>
         </div>
       </div>
 
-      <div className={`pdf-stage ${tool === "hand" ? "hand" : "drawing"}`} ref={stageRef}>
+      <div
+        className={`pdf-stage ${tool === "hand" ? "hand" : "drawing"}`}
+        ref={stageRef}
+        style={{ width: "100%", maxWidth: "100vw", minWidth: 0 }}
+      >
         {!pdf && status !== "error" && <div className="pdf-loading"><span /><p>{message}</p></div>}
-        {status === "error" && !pdf && <div className="pdf-loading error"><strong>No se pudo abrir</strong><p>{message}</p><button onClick={onClose}>Volver</button></div>}
+        {status === "error" && !pdf && (
+          <div className="pdf-loading error">
+            <strong>No se pudo abrir</strong>
+            <p>{message}</p>
+            <button onClick={() => setReloadToken((value) => value + 1)}>Reintentar</button>
+            <button onClick={onClose}>Volver</button>
+          </div>
+        )}
+
         <div className="pdf-page-wrap" style={{ width: canvasSize.width || undefined, height: canvasSize.height || undefined }}>
           <canvas ref={pdfCanvasRef} className="pdf-page-canvas" />
           <canvas
