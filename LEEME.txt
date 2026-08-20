@@ -1,0 +1,39 @@
+OpoGC v4 — FSRS-6 + imágenes + formato + Tema 1
+
+IMPORTANTE
+Este parche sustituye el scheduler anterior por una implementación directa del núcleo FSRS-6 con los parámetros oficiales publicados y retención objetivo del 90%. No usa la librería npm ts-fsrs para evitar introducir ahora una dependencia/lockfile adicional; sí cambia realmente el cálculo de dificultad, estabilidad, retrievability e intervalos respecto al scheduler anterior.
+
+ARCHIVOS A SUBIR/SUSTITUIR EN GITHUB
+- app/OpoApp.tsx
+- app/CardImage.tsx (nuevo)
+- app/RichTextEditor.tsx (nuevo)
+- app/fsrs.ts (nuevo)
+- app/PdfAnnotator.tsx
+- app/globals.css
+- app/api/files/route.ts
+- db/storage.ts
+- drizzle/0002_card_media_fsrs.sql (nuevo)
+- public/sw.js
+- public/version.json (nuevo)
+
+FUNCIONES
+1. FSRS-6, retención objetivo 90%.
+2. Imágenes en flashcards, guardadas en R2.
+3. Anotación de imágenes con dedo o Apple Pencil: lápiz, goma, color, grosor y deshacer.
+4. Texto con negrita, cursiva, subrayado, listas numeradas/bullets y colores básicos.
+5. Se crea una sola vez la carpeta "Tema 1: derecho constitucional" y 29 flashcards del Preámbulo y artículos 1 a 9 suministrados.
+6. El editor PDF incorpora ↻ Recargar y el service worker cambia de versión para expulsar la caché anterior.
+7. /version.json permite comprobar inequívocamente qué versión está desplegada.
+
+DESPLIEGUE
+Descomprime el ZIP y sube las carpetas app, db, drizzle y public conservando exactamente las rutas. Haz commit directamente en main. Cloudflare debería desplegar automáticamente.
+
+COMPROBACIONES DESPUÉS DEL DEPLOY
+- Abrir https://opoapp.marcdomingolopez.workers.dev/version.json y comprobar que aparece opogc-v4-fsrs6-richcards.
+- Abrir la web una vez desde Safari y después cerrar por completo/reabrir la PWA.
+- En Hoy debe aparecer "REPASO RECOMENDADO · FSRS-6".
+- En una sesión, junto a las valoraciones debe aparecer "FSRS-6 · objetivo 90%".
+- En Biblioteca debe existir "Tema 1: derecho constitucional" con 29 tarjetas.
+- Crear/editar tarjeta debe mostrar barra de formato y "Añadir imagen".
+- Al editar una imagen debe poder dibujarse con dedo/Apple Pencil.
+- El editor de PDF debe mostrar el botón ↻ Recargar.

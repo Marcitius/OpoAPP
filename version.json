@@ -1,0 +1,12 @@
+{
+  "version": "opogc-v4-fsrs6-richcards",
+  "date": "2026-08-20",
+  "features": [
+    "FSRS-6 retention 90%",
+    "flashcard images",
+    "Apple Pencil and finger image annotation",
+    "rich text formatting",
+    "Constitution seed cards Tema 1",
+    "PDF reload and cache refresh"
+  ]
+}
