@@ -4,11 +4,14 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import PdfAnnotator from "./PdfAnnotator";
 import { AnnotatedCardImage, ImageAnnotator } from "./CardImage";
 import RichTextEditor, { plainRichText, RichContent, sanitizeRichHtml } from "./RichTextEditor";
-import { applyFsrsReview, fsrsDueLabel } from "./fsrs";
+import { applyFsrsReview, fsrsCurrentRetrievability, fsrsDueLabel } from "./fsrs";
+import { fitPersonalMemoryModel, personalModelLabel, predictPersonalRecall } from "./memoryModel";
 
 type Tab = "today" | "library" | "psych" | "progress";
 type CardType = "basic" | "choice";
 type Rating = "again" | "hard" | "good" | "easy";
+type StudyMode = "recommended" | "random" | "all";
+type ReviewQueueItem = { cardId: string; reinforcement: boolean; reason: "scheduled" | "again" | "hard" };
 type PsychSort = "oldest" | "recent" | "last-low" | "last-high" | "avg-low" | "avg-high" | "attempts-low" | "attempts-high" | "name";
 
 type Folder = {
@@ -48,6 +51,11 @@ type Review = {
   rating: Rating;
   correct: boolean;
   reviewedAt: string;
+  responseMs?: number;
+  sessionMode?: StudyMode;
+  reinforcement?: boolean;
+  predictedRecall?: number;
+  fsrsRetrievability?: number;
 };
 
 type Attachment = {
@@ -290,6 +298,16 @@ function sortPsychTests(tests: PsychTest[], sort: PsychSort) {
   return result;
 }
 
+function shuffled<T>(items: T[]) {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swap]] = [result[swap], result[index]];
+  }
+  return result;
+}
+
+
 export default function OpoApp() {
   const [tab, setTab] = useState<Tab>("today");
   const [state, setState] = useState<AppState | null>(null);
@@ -305,14 +323,17 @@ export default function OpoApp() {
   const [psychCategory, setPsychCategory] = useState("all");
   const [psychSort, setPsychSort] = useState<PsychSort>("oldest");
   const [editingCard, setEditingCard] = useState<string | null>(null);
-  const [reviewQueue, setReviewQueue] = useState<string[]>([]);
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
   const [reviewIndex, setReviewIndex] = useState(0);
+  const [studyMode, setStudyMode] = useState<StudyMode>("recommended");
   const [revealed, setRevealed] = useState(false);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [sessionDone, setSessionDone] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cardShownAtRef = useRef(Date.now());
+  const reinforcementCountsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     const onOnline = () => setOnline(true);
@@ -373,15 +394,26 @@ export default function OpoApp() {
     setTimeout(() => setToast(null), 2600);
   }
 
-  const dueCards = useMemo(
-    () => state?.cards.filter((card) => new Date(card.dueAt).getTime() <= Date.now()).sort((a, b) => a.dueAt.localeCompare(b.dueAt)) ?? [],
+  const personalModel = useMemo(
+    () => fitPersonalMemoryModel(state?.cards ?? [], state?.reviews ?? []),
     [state],
   );
+  const dueCards = useMemo(() => {
+    if (!state) return [];
+    const now = new Date();
+    return state.cards
+      .filter((card) => card.reviewCount > 0 && new Date(card.dueAt).getTime() <= now.getTime())
+      .sort((a, b) =>
+        predictPersonalRecall(a, state.reviews, personalModel, now).probability
+        - predictPersonalRecall(b, state.reviews, personalModel, now).probability,
+      );
+  }, [personalModel, state]);
   const todayReviews = useMemo(
     () => state?.reviews.filter((review) => review.reviewedAt.startsWith(todayKey())) ?? [],
     [state],
   );
-  const currentCard = state?.cards.find((card) => card.id === reviewQueue[reviewIndex]) ?? null;
+  const currentQueueItem = reviewQueue[reviewIndex] ?? null;
+  const currentCard = state?.cards.find((card) => card.id === currentQueueItem?.cardId) ?? null;
   const activeFolder = state?.folders.find((folder) => folder.id === selectedFolder) ?? null;
   const activePsych = state?.psychTests.find((test) => test.id === selectedPsych) ?? null;
   const openPsych = state?.psychTests.find((test) => test.id === editingPsych) ?? null;
@@ -390,35 +422,71 @@ export default function OpoApp() {
   const openAttempt = activePsych?.attempts.find((attempt) => attempt.id === editingAttempt) ?? null;
   const openCard = state?.cards.find((card) => card.id === editingCard) ?? null;
 
-  function startReview(folderId?: string, includeAll = false) {
+  useEffect(() => {
+    if (currentCard) cardShownAtRef.current = Date.now();
+  }, [currentCard?.id, reviewIndex]);
+
+  function startReview(folderId?: string, mode: StudyMode = "recommended") {
     if (!state) return;
-    const pool = state.cards
-      .filter((card) => isStudyableCard(card) && (!folderId || card.folderId === folderId))
-      .sort((a, b) => {
-        const aDue = new Date(a.dueAt).getTime() <= Date.now() ? 0 : 1;
-        const bDue = new Date(b.dueAt).getTime() <= Date.now() ? 0 : 1;
-        if (aDue !== bDue) return aDue - bDue;
-        const aRate = a.reviewCount ? a.successCount / a.reviewCount : 0;
-        const bRate = b.reviewCount ? b.successCount / b.reviewCount : 0;
-        return aRate - bRate;
-      });
-    const selectedPool = includeAll ? pool : pool.slice(0, state.settings.dailyReviewGoal);
-    const ids = selectedPool.map((card) => card.id);
-    if (!ids.length) return notify(folderId ? "Aún no hay tarjetas en esta carpeta" : "Aún no hay tarjetas para estudiar");
-    setReviewQueue(ids);
+    const scope = state.cards.filter((card) => isStudyableCard(card) && (!folderId || card.folderId === folderId));
+    const now = new Date();
+    let selectedPool: Card[] = [];
+
+    if (mode === "random") {
+      selectedPool = shuffled(scope);
+    } else if (mode === "all") {
+      selectedPool = scope;
+    } else {
+      const due = scope
+        .filter((card) => card.reviewCount > 0 && new Date(card.dueAt).getTime() <= now.getTime())
+        .sort((a, b) =>
+          predictPersonalRecall(a, state.reviews, personalModel, now).probability
+          - predictPersonalRecall(b, state.reviews, personalModel, now).probability,
+        );
+      const dueSelected = due.slice(0, state.settings.dailyReviewGoal);
+      const remaining = Math.max(0, state.settings.dailyReviewGoal - dueSelected.length);
+      const newCards = shuffled(scope.filter((card) => card.reviewCount === 0))
+        .slice(0, Math.min(state.settings.dailyNewLimit, remaining));
+      selectedPool = [...dueSelected, ...newCards];
+    }
+
+    if (!selectedPool.length) {
+      return notify(mode === "recommended"
+        ? "No hay tarjetas programadas ahora. Usa Aleatorias o Estudiar todas si quieres seguir."
+        : folderId ? "Aún no hay tarjetas en esta carpeta" : "Aún no hay tarjetas para estudiar");
+    }
+
+    setStudyMode(mode);
+    reinforcementCountsRef.current = new Map();
+    setReviewQueue(selectedPool.map((card) => ({ cardId: card.id, reinforcement: false, reason: "scheduled" })));
     setReviewIndex(0);
     setSessionDone(0);
     setRevealed(false);
     setSelectedOption(null);
+    cardShownAtRef.current = Date.now();
   }
 
   function rateCurrent(rating: Rating) {
-    if (!state || !currentCard) return;
+    if (!state || !currentCard || !currentQueueItem) return;
+    const now = new Date();
     const choiceWasWrong = currentCard.type === "choice" && selectedOption !== null && selectedOption !== currentCard.correctOption;
     const effectiveRating: Rating = choiceWasWrong ? "again" : rating;
     const correct = effectiveRating !== "again";
+    const responseMs = Math.max(0, Date.now() - cardShownAtRef.current);
+    const recall = predictPersonalRecall(currentCard, state.reviews, personalModel, now);
     const updated = scheduleCard(currentCard, effectiveRating);
-    const review: Review = { id: uid(), cardId: currentCard.id, rating: effectiveRating, correct, reviewedAt: nowIso() };
+    const review: Review = {
+      id: uid(),
+      cardId: currentCard.id,
+      rating: effectiveRating,
+      correct,
+      reviewedAt: now.toISOString(),
+      responseMs,
+      sessionMode: studyMode,
+      reinforcement: currentQueueItem.reinforcement,
+      predictedRecall: recall.probability,
+      fsrsRetrievability: fsrsCurrentRetrievability(currentCard, now),
+    };
     updateState((current) => ({
       ...current,
       cards: current.cards.map((card) => (card.id === updated.id ? updated : card)),
@@ -426,7 +494,19 @@ export default function OpoApp() {
     }));
 
     const nextQueue = [...reviewQueue];
-    if (effectiveRating === "again" && !nextQueue.slice(reviewIndex + 1).includes(currentCard.id)) nextQueue.push(currentCard.id);
+    const counts = reinforcementCountsRef.current;
+    const previousCount = counts.get(currentCard.id) ?? 0;
+    const shouldReinforceAgain = effectiveRating === "again" && previousCount < 3;
+    const shouldReinforceHard = effectiveRating === "hard" && previousCount < 1;
+
+    if (shouldReinforceAgain || shouldReinforceHard) {
+      const gap = shouldReinforceAgain ? 2 : 4;
+      const reason = shouldReinforceAgain ? "again" : "hard";
+      const insertAt = Math.min(nextQueue.length, reviewIndex + 1 + gap);
+      nextQueue.splice(insertAt, 0, { cardId: currentCard.id, reinforcement: true, reason });
+      counts.set(currentCard.id, previousCount + 1);
+    }
+
     setReviewQueue(nextQueue);
     setSessionDone((value) => value + 1);
     setReviewIndex((value) => value + 1);
@@ -523,9 +603,9 @@ export default function OpoApp() {
           <section className="page today-page">
             <div className="hero-card">
               <div className="hero-copy">
-                <span className="pill">REPASO RECOMENDADO · FSRS-6</span>
+                <span className="pill">REPASO RECOMENDADO · FSRS-6 + MODELO PERSONAL</span>
                 <h2>{dueCards.length ? `${dueCards.length} tarjetas esperan hoy` : "Tu memoria está al día"}</h2>
-                <p>{dueCards.length ? "Empezaremos por lo que más riesgo tiene de olvidarse y mezclaremos algunos conceptos ya dominados." : "Puedes hacer una sesión mixta para reforzar lo aprendido o añadir nuevas tarjetas."}</p>
+                <p>{dueCards.length ? "Priorizamos las tarjetas vencidas con menor probabilidad estimada de recuerdo y después introducimos nuevas." : "Puedes hacer una sesión mixta para reforzar lo aprendido o añadir nuevas tarjetas."}</p>
                 <button className="primary-button light" onClick={() => startReview()}>{dueCards.length ? "Empezar repaso" : "Repaso libre"}<span>→</span></button>
               </div>
               <div className="memory-orbit" aria-hidden="true">
@@ -564,7 +644,7 @@ export default function OpoApp() {
 
         {tab === "library" && (
           <section className="page">
-            <div className="action-row"><div className="search-box"><span>⌕</span><input placeholder="Buscar carpetas o tarjetas" aria-label="Buscar" /></div><button className="secondary-button" onClick={() => startReview(undefined, true)}>▶ Estudiar todas</button><button className="secondary-button" onClick={() => setModal("folder")}>＋ Carpeta</button><button className="primary-button" onClick={() => { setEditingCard(null); setModal("card"); }}>＋ Tarjeta</button></div>
+            <div className="action-row"><div className="search-box"><span>⌕</span><input placeholder="Buscar carpetas o tarjetas" aria-label="Buscar" /></div><button className="secondary-button" onClick={() => startReview(undefined, "random")}>🎲 Aleatorias</button><button className="secondary-button" onClick={() => startReview(undefined, "all")}>▶ Estudiar todas</button><button className="secondary-button" onClick={() => setModal("folder")}>＋ Carpeta</button><button className="primary-button" onClick={() => { setEditingCard(null); setModal("card"); }}>＋ Tarjeta</button></div>
             {!activeFolder ? (
               <>
                 <div className="section-heading"><div><span className="section-label">ORGANIZACIÓN</span><h2>Tus carpetas</h2></div><span>{state.folders.length} carpetas · {state.cards.length} tarjetas</span></div>
@@ -580,7 +660,7 @@ export default function OpoApp() {
             ) : (
               <div>
                 <button className="back-button" onClick={() => setSelectedFolder(null)}>← Todas las carpetas</button>
-                <div className="folder-title"><div><span className="folder-icon large" style={{ background: `${activeFolder.color}18`, color: activeFolder.color }}>▰</span><div><span className="section-label">CARPETA</span><h2>{activeFolder.name}</h2><p>{state.cards.filter((card) => card.folderId === activeFolder.id).length} tarjetas</p></div></div><div><button className="secondary-button danger" onClick={() => deleteFolder(activeFolder.id)}>Eliminar</button><button className="primary-button" onClick={() => startReview(activeFolder.id, true)}>Estudiar todas</button></div></div>
+                <div className="folder-title"><div><span className="folder-icon large" style={{ background: `${activeFolder.color}18`, color: activeFolder.color }}>▰</span><div><span className="section-label">CARPETA</span><h2>{activeFolder.name}</h2><p>{state.cards.filter((card) => card.folderId === activeFolder.id).length} tarjetas</p></div></div><div><button className="secondary-button danger" onClick={() => deleteFolder(activeFolder.id)}>Eliminar</button><button className="secondary-button" onClick={() => startReview(activeFolder.id, "random")}>🎲 Aleatorias</button><button className="primary-button" onClick={() => startReview(activeFolder.id, "all")}>Estudiar todas</button></div></div>
                 <div className="card-table">
                   {state.cards.filter((card) => card.folderId === activeFolder.id).map((card) => <div className="card-row" key={card.id}><span className="card-kind">{card.type === "choice" ? "TEST" : "TARJETA"}</span><div><strong>{plainRichText(card.front) || "Sin pregunta"}{card.attachment ? " · 🖼️" : ""}</strong><p>{plainRichText(card.back) || (card.type === "choice" ? "Sin explicación añadida" : "Sin respuesta añadida")}</p></div><span>{card.reviewCount ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos` : "Sin estudiar"}</span><div className="card-actions"><button aria-label="Editar tarjeta" title="Editar tarjeta" onClick={() => { setEditingCard(card.id); setModal("card"); }}>✎</button><button aria-label="Eliminar tarjeta" title="Eliminar tarjeta" onClick={() => updateState((current) => ({ ...current, cards: current.cards.filter((item) => item.id !== card.id) }))}>×</button></div></div>)}
                   {!state.cards.some((card) => card.folderId === activeFolder.id) && <Empty icon="□" title="Esta carpeta está vacía" copy="Añade tu primera tarjeta para empezar a estudiarla." action="Crear tarjeta" onAction={() => { setEditingCard(null); setModal("card"); }} />}
@@ -723,10 +803,10 @@ export default function OpoApp() {
 
       <nav className="bottom-nav">{navItems.map((item) => <NavButton key={item.id} item={item} active={tab === item.id} onClick={() => setTab(item.id)} />)}</nav>
 
-      {reviewQueue.length > 0 && reviewIndex < reviewQueue.length && currentCard && (
+      {reviewQueue.length > 0 && reviewIndex < reviewQueue.length && currentCard && currentQueueItem && (
         <div className="review-overlay">
           <div className="review-top"><button onClick={() => setReviewQueue([])}>×</button><div className="session-progress"><span style={{ width: `${Math.round((reviewIndex / reviewQueue.length) * 100)}%` }} /></div><span>{reviewIndex + 1}/{reviewQueue.length}</span></div>
-          <div className="review-stage"><span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span><div className={`study-card ${revealed ? "revealed" : ""}`}><span className="study-card-type">{currentCard.type === "choice" ? "ELIGE LA RESPUESTA" : "RECUERDA EL CONCEPTO"}</span><RichContent html={currentCard.front} className="study-front" />{currentCard.attachment && <AnnotatedCardImage attachment={currentCard.attachment} />}{currentCard.type === "choice" && !revealed ? <div className="options-list">{currentCard.options.map((option, index) => <button key={`${index}-${option}`} className={selectedOption === index ? "selected" : ""} onClick={() => setSelectedOption(index)}><span>{String.fromCharCode(65 + index)}</span>{option}</button>)}</div> : revealed ? <div className="answer-box"><small>RESPUESTA</small><RichContent html={currentCard.back} />{currentCard.type === "choice" && <strong>{String.fromCharCode(65 + currentCard.correctOption)} · {currentCard.options[currentCard.correctOption]}</strong>}</div> : <button className="reveal-button" onClick={() => setRevealed(true)}>Mostrar respuesta</button>}</div>{currentCard.type === "choice" && !revealed && <button className="check-button" disabled={selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}{revealed && <div className="rating-bar"><p>{currentCard.type === "choice" && selectedOption !== null ? selectedOption === currentCard.correctOption ? "¡Correcto! ¿Cómo te ha resultado?" : "No era esa. La repetiremos pronto." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">FSRS-6 · objetivo 90%</span></p><div><button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>{fsrsDueLabel(currentCard, "again")}</small></button><button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>{fsrsDueLabel(currentCard, "hard")}</small></button><button className="good" onClick={() => rateCurrent(currentCard.type === "choice" && selectedOption !== currentCard.correctOption ? "again" : "good")}><strong>Bien</strong><small>{fsrsDueLabel(currentCard, "good")}</small></button><button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{fsrsDueLabel(currentCard, "easy")}</small></button></div></div>}</div>
+          <div className="review-stage"><span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span><div className={`study-card ${revealed ? "revealed" : ""}`}><span className="study-card-type">{currentQueueItem.reinforcement ? "REFUERZO · " : ""}{currentCard.type === "choice" ? "ELIGE LA RESPUESTA" : "RECUERDA EL CONCEPTO"}</span><RichContent html={currentCard.front} className="study-front" />{currentCard.attachment && <AnnotatedCardImage attachment={currentCard.attachment} />}{currentCard.type === "choice" && !revealed ? <div className="options-list">{currentCard.options.map((option, index) => <button key={`${index}-${option}`} className={selectedOption === index ? "selected" : ""} onClick={() => setSelectedOption(index)}><span>{String.fromCharCode(65 + index)}</span>{option}</button>)}</div> : revealed ? <div className="answer-box"><small>RESPUESTA</small><RichContent html={currentCard.back} />{currentCard.type === "choice" && <strong>{String.fromCharCode(65 + currentCard.correctOption)} · {currentCard.options[currentCard.correctOption]}</strong>}</div> : <button className="reveal-button" onClick={() => setRevealed(true)}>Mostrar respuesta</button>}</div>{currentCard.type === "choice" && !revealed && <button className="check-button" disabled={selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}{revealed && <div className="rating-bar"><p>{currentCard.type === "choice" && selectedOption !== null ? selectedOption === currentCard.correctOption ? "¡Correcto! ¿Cómo te ha resultado?" : "No era esa. La repetiremos pronto." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{personalModelLabel(personalModel)}</span></p><div><button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>↻ tras 2 tarjetas</small></button><button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>↻ tras 4 tarjetas</small></button><button className="good" onClick={() => rateCurrent(currentCard.type === "choice" && selectedOption !== currentCard.correctOption ? "again" : "good")}><strong>Bien</strong><small>{fsrsDueLabel(currentCard, "good")}</small></button><button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{fsrsDueLabel(currentCard, "easy")}</small></button></div></div>}</div>
         </div>
       )}
 

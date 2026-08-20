@@ -1,4 +1,4 @@
-const CACHE = "opogc-shell-v4-20260820";
+const CACHE = "opogc-shell-v5-20260820";
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

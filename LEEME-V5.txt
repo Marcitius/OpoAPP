@@ -1,0 +1,26 @@
+OpoGC v5 — selección útil + modelo personal
+
+CAMBIOS
+- El modo recomendado ya NO rellena la sesión con tarjetas futuras.
+- Prioriza tarjetas vencidas con menor probabilidad estimada de recuerdo.
+- Añade nuevas tarjetas solo dentro del límite diario.
+- Botón 🎲 Aleatorias global y dentro de cada carpeta.
+- Otra vez: refuerzo dentro de la misma sesión tras 2 tarjetas distintas (máximo 3 refuerzos).
+- Difícil: un refuerzo dentro de la misma sesión tras 4 tarjetas.
+- Bien/Fácil: salen de la sesión y FSRS decide el siguiente repaso.
+- Se registra tiempo de respuesta, modo de sesión, si era refuerzo, probabilidad personalizada y retrievability FSRS.
+- Modelo personal conservador: FSRS sigue siendo el ancla; a partir de 40 repasos empieza a calibrarse y aumenta su influencia gradualmente hasta 300.
+- El modelo aprende de tus aciertos/fallos, dificultad FSRS, lapses, uso de Difícil y tiempos de respuesta acumulados.
+
+ARCHIVOS A SUBIR RESPETANDO RUTAS
+app/OpoApp.tsx
+app/fsrs.ts
+app/memoryModel.ts (nuevo)
+db/storage.ts
+drizzle/0003_personal_memory_model.sql (nuevo)
+public/sw.js
+public/version.json
+
+COMPROBACIÓN
+https://opoapp.marcdomingolopez.workers.dev/version.json
+Debe indicar: opogc-v5-personal-memory

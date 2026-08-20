@@ -56,6 +56,15 @@ export function fsrsRetrievability(stability: number, elapsedDays: number) {
   return clamp(Math.pow(1 + factor * Math.max(0, elapsedDays) / stability, -decay), 0, 1);
 }
 
+export function fsrsCurrentRetrievability(card: FsrsLikeCard, now = new Date()) {
+  const stability = Number(card.fsrsStability ?? 0);
+  if (card.reviewCount <= 0 || stability <= 0 || !card.lastReviewedAt) return 0.5;
+  const last = new Date(card.lastReviewedAt).getTime();
+  if (!Number.isFinite(last)) return 0.5;
+  const elapsedDays = Math.max(0, (now.getTime() - last) / DAY_MS);
+  return fsrsRetrievability(stability, elapsedDays);
+}
+
 function nextIntervalDays(stability: number, retention = FSRS_REQUEST_RETENTION) {
   const decay = W[20];
   const factor = Math.pow(0.9, -1 / decay) - 1;

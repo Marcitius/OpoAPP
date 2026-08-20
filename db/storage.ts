@@ -40,6 +40,11 @@ type Review = {
   rating: Rating;
   correct: boolean;
   reviewedAt: string;
+  responseMs?: number;
+  sessionMode?: string;
+  reinforcement?: boolean;
+  predictedRecall?: number;
+  fsrsRetrievability?: number;
 };
 
 type Attachment = {
@@ -132,6 +137,11 @@ type ReviewRow = {
   rating: Rating;
   correct: number;
   reviewedAt: string;
+  responseMs: number;
+  sessionMode: string;
+  reinforcement: number;
+  predictedRecall: number;
+  fsrsRetrievability: number;
 };
 
 type PsychRow = {
@@ -228,6 +238,11 @@ const SCHEMA_SQL = [
     rating TEXT NOT NULL,
     correct INTEGER NOT NULL,
     reviewed_at TEXT NOT NULL,
+    response_ms INTEGER NOT NULL DEFAULT 0,
+    session_mode TEXT NOT NULL DEFAULT 'recommended',
+    reinforcement INTEGER NOT NULL DEFAULT 0,
+    predicted_recall REAL NOT NULL DEFAULT -1,
+    fsrs_retrievability REAL NOT NULL DEFAULT -1,
     PRIMARY KEY (owner, id, sync_token)
   )`,
   `CREATE TABLE IF NOT EXISTS psych_tests (
@@ -282,12 +297,20 @@ const CARD_COLUMN_MIGRATIONS = [
   "ALTER TABLE cards ADD COLUMN fsrs_difficulty REAL NOT NULL DEFAULT 0",
 ];
 
+const REVIEW_COLUMN_MIGRATIONS = [
+  "ALTER TABLE reviews ADD COLUMN response_ms INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE reviews ADD COLUMN session_mode TEXT NOT NULL DEFAULT 'recommended'",
+  "ALTER TABLE reviews ADD COLUMN reinforcement INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE reviews ADD COLUMN predicted_recall REAL NOT NULL DEFAULT -1",
+  "ALTER TABLE reviews ADD COLUMN fsrs_retrievability REAL NOT NULL DEFAULT -1",
+];
+
 export async function ensureNormalizedSchema() {
   const db = await getD1();
   await db.batch(SCHEMA_SQL.map((sql) => db.prepare(sql)));
   // D1/SQLite does not add new columns when CREATE TABLE IF NOT EXISTS runs.
   // Apply additive migrations safely; duplicate-column errors simply mean the migration already ran.
-  for (const sql of [...SETTINGS_COLUMN_MIGRATIONS, ...CARD_COLUMN_MIGRATIONS]) {
+  for (const sql of [...SETTINGS_COLUMN_MIGRATIONS, ...CARD_COLUMN_MIGRATIONS, ...REVIEW_COLUMN_MIGRATIONS]) {
     try {
       await db.prepare(sql).run();
     } catch (error) {
@@ -366,9 +389,25 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
 
   const reviewStatements = state.reviews.map((review, position) =>
     db.prepare(
-      `INSERT INTO reviews (owner, id, sync_token, position, card_id, rating, correct, reviewed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(owner, review.id, syncToken, position, review.cardId, review.rating, review.correct ? 1 : 0, review.reviewedAt),
+      `INSERT INTO reviews (
+        owner, id, sync_token, position, card_id, rating, correct, reviewed_at,
+        response_ms, session_mode, reinforcement, predicted_recall, fsrs_retrievability
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      owner,
+      review.id,
+      syncToken,
+      position,
+      review.cardId,
+      review.rating,
+      review.correct ? 1 : 0,
+      review.reviewedAt,
+      Math.max(0, Number(review.responseMs ?? 0)),
+      review.sessionMode ?? "recommended",
+      review.reinforcement ? 1 : 0,
+      Number(review.predictedRecall ?? -1),
+      Number(review.fsrsRetrievability ?? -1),
+    ),
   );
 
   const psychStatements = state.psychTests.map((test, position) =>
@@ -555,7 +594,10 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
        FROM cards WHERE owner = ? AND sync_token = ? ORDER BY position`,
     ).bind(owner, sync).all<CardRow>(),
     db.prepare(
-      `SELECT id, card_id AS cardId, rating, correct, reviewed_at AS reviewedAt
+      `SELECT
+        id, card_id AS cardId, rating, correct, reviewed_at AS reviewedAt,
+        response_ms AS responseMs, session_mode AS sessionMode, reinforcement,
+        predicted_recall AS predictedRecall, fsrs_retrievability AS fsrsRetrievability
        FROM reviews WHERE owner = ? AND sync_token = ? ORDER BY position`,
     ).bind(owner, sync).all<ReviewRow>(),
     db.prepare(
@@ -651,6 +693,11 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
       rating: row.rating,
       correct: Boolean(row.correct),
       reviewedAt: row.reviewedAt,
+      responseMs: Number(row.responseMs ?? 0),
+      sessionMode: row.sessionMode ?? "recommended",
+      reinforcement: Boolean(row.reinforcement),
+      predictedRecall: Number(row.predictedRecall ?? -1),
+      fsrsRetrievability: Number(row.fsrsRetrievability ?? -1),
     })),
     psychTests: (psychResult.results ?? []).map((row) => ({
       id: row.id,

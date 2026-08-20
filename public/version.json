@@ -1,12 +1,14 @@
 {
-  "version": "opogc-v4-fsrs6-richcards",
+  "version": "opogc-v5-personal-memory",
   "date": "2026-08-20",
   "features": [
-    "FSRS-6 retention 90%",
-    "flashcard images",
-    "Apple Pencil and finger image annotation",
-    "rich text formatting",
-    "Constitution seed cards Tema 1",
-    "PDF reload and cache refresh"
+    "FSRS-6 long-term scheduling",
+    "personal recall model",
+    "recommended queue by recall risk",
+    "same-session reinforcement for Again and Hard",
+    "random flashcard mode",
+    "review response-time telemetry",
+    "flashcard images and rich text",
+    "PDF reload and adaptive zoom"
   ]
 }
