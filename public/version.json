@@ -1,14 +1,14 @@
 {
-  "version": "opogc-v5-personal-memory",
-  "date": "2026-08-20",
+  "version": "opogc-v6-answer-media-flip",
+  "date": "2026-08-21",
   "features": [
-    "FSRS-6 long-term scheduling",
-    "personal recall model",
-    "recommended queue by recall risk",
-    "same-session reinforcement for Again and Hard",
-    "random flashcard mode",
-    "review response-time telemetry",
-    "flashcard images and rich text",
+    "FSRS-6 and personal recall model",
+    "same-session reinforcement and random mode",
+    "answer-only flashcard images",
+    "tap-to-expand answer images with zoom",
+    "handwritten answer canvas for Apple Pencil and finger",
+    "draw over answer images",
+    "flip back from answer to question",
     "PDF reload and adaptive zoom"
   ]
 }

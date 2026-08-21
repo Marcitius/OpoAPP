@@ -90,7 +90,7 @@ function paintCanvas(canvas: HTMLCanvasElement | null, document: AnnotationDocum
   for (const stroke of document.pages["1"] ?? []) drawStroke(context, stroke, width, height);
 }
 
-export function AnnotatedCardImage({ attachment }: { attachment: Attachment }) {
+export function AnnotatedCardImage({ attachment, onOpen }: { attachment: Attachment; onOpen?: () => void }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [annotations, setAnnotations] = useState<AnnotationDocument>(emptyAnnotations);
@@ -121,14 +121,79 @@ export function AnnotatedCardImage({ attachment }: { attachment: Attachment }) {
     paintCanvas(canvasRef.current, annotations, size.width, size.height);
   }, [annotations, size]);
 
-  return (
+  const content = (
     <div className="card-image-view">
       <img ref={imgRef} src={attachment.url} alt={attachment.name} onLoad={() => {
         const rect = imgRef.current?.getBoundingClientRect();
         if (rect?.width && rect.height) setSize({ width: rect.width, height: rect.height });
       }} />
       <canvas ref={canvasRef} aria-hidden="true" />
+      {onOpen && <span className="card-image-expand">⛶ Abrir</span>}
     </div>
+  );
+
+  return onOpen ? <button type="button" className="card-image-button" onClick={onOpen} aria-label="Abrir imagen de la respuesta">{content}</button> : content;
+}
+
+export function ImageLightbox({ attachment, title, onClose }: { attachment: Attachment; title: string; onClose: () => void }) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [annotations, setAnnotations] = useState<AnnotationDocument>(emptyAnnotations);
+  const [natural, setNatural] = useState({ width: 0, height: 0 });
+  const [stage, setStage] = useState({ width: 0, height: 0 });
+  const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadAnnotations(attachment.key).then((value) => {
+      if (!cancelled) setAnnotations(value);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [attachment.key]);
+
+  useEffect(() => {
+    const element = stageRef.current;
+    if (!element) return;
+    const update = () => {
+      const rect = element.getBoundingClientRect();
+      setStage({ width: Math.max(1, rect.width), height: Math.max(1, rect.height) });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    window.addEventListener("resize", update);
+    return () => { observer.disconnect(); window.removeEventListener("resize", update); };
+  }, []);
+
+  const fitScale = natural.width && natural.height && stage.width && stage.height
+    ? Math.min((stage.width - 24) / natural.width, (stage.height - 24) / natural.height, 1)
+    : 1;
+  const displayWidth = natural.width ? Math.max(1, natural.width * fitScale * zoom) : 0;
+  const displayHeight = natural.height ? Math.max(1, natural.height * fitScale * zoom) : 0;
+
+  useEffect(() => {
+    if (displayWidth && displayHeight) paintCanvas(canvasRef.current, annotations, displayWidth, displayHeight);
+  }, [annotations, displayHeight, displayWidth]);
+
+  return (
+    <section className="answer-image-lightbox" aria-label="Imagen de la respuesta ampliada">
+      <header>
+        <button className="image-editor-close" onClick={onClose} aria-label="Cerrar">×</button>
+        <div><strong>{title || attachment.name}</strong><small>Respuesta visual</small></div>
+        <div className="answer-image-zoom">
+          <button onClick={() => setZoom((value) => Math.max(0.5, Math.round((value - 0.25) * 100) / 100))} aria-label="Desampliar">−</button>
+          <button className="zoom-label" onClick={() => setZoom(1)} title="Ajustar">{Math.round(zoom * 100)}%</button>
+          <button onClick={() => setZoom((value) => Math.min(4, Math.round((value + 0.25) * 100) / 100))} aria-label="Ampliar">＋</button>
+        </div>
+      </header>
+      <div className="answer-image-stage" ref={stageRef}>
+        <div className="answer-image-full" style={{ width: displayWidth || undefined, height: displayHeight || undefined }}>
+          <img ref={imgRef} src={attachment.url} alt={attachment.name} style={{ width: displayWidth || undefined, height: displayHeight || undefined }} onLoad={(event) => setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} />
+          <canvas ref={canvasRef} aria-hidden="true" />
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -1,0 +1,28 @@
+OpoGC v6 — respuesta visual/manuscrita y giro real de flashcard
+
+ARCHIVOS A SUBIR/SUSTITUIR EN GITHUB
+- app/OpoApp.tsx
+- app/CardImage.tsx
+- app/globals.css
+- public/sw.js
+- public/version.json
+
+CAMBIOS
+1. La imagen de una tarjeta se considera RESPUESTA VISUAL. Ya no aparece en el anverso/pregunta.
+2. Al pulsar "Mostrar respuesta" se muestra el texto de respuesta, la imagen de respuesta, o ambos.
+3. La imagen de respuesta se puede tocar para abrirla a pantalla completa.
+4. El visor ampliado incluye Ajustar/100% y controles - / + hasta 400% para leer páginas completas de libros.
+5. En Crear/Editar tarjeta, la respuesta queda separada visualmente del anverso.
+6. Se puede "Usar una imagen como respuesta".
+7. Se puede "Crear respuesta manuscrita": crea un lienzo blanco y abre el editor para escribir/dibujar con Apple Pencil o dedo.
+8. También se puede dibujar/anotar encima de una imagen subida.
+9. Tras mostrar la respuesta aparece "Volver a la pregunta" para girar la flashcard de nuevo sin puntuarla.
+10. Las imágenes ya existentes en tarjetas pasan a tratarse como parte de la respuesta; no se necesita migración de D1.
+11. Service worker actualizado a v6 para expulsar caché anterior.
+
+COMPROBACIÓN
+Abrir /version.json y comprobar:
+opogc-v6-answer-media-flip
+
+NOTA
+No se ha cambiado FSRS, el modelo personal ni la cola de refuerzo de v5. Esta versión se limita a corregir la semántica y UX de las respuestas visuales/manuscritas.

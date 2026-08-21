@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import PdfAnnotator from "./PdfAnnotator";
-import { AnnotatedCardImage, ImageAnnotator } from "./CardImage";
+import { AnnotatedCardImage, ImageAnnotator, ImageLightbox } from "./CardImage";
 import RichTextEditor, { plainRichText, RichContent, sanitizeRichHtml } from "./RichTextEditor";
 import { applyFsrsReview, fsrsCurrentRetrievability, fsrsDueLabel } from "./fsrs";
 import { fitPersonalMemoryModel, personalModelLabel, predictPersonalRecall } from "./memoryModel";
@@ -327,6 +327,7 @@ export default function OpoApp() {
   const [reviewIndex, setReviewIndex] = useState(0);
   const [studyMode, setStudyMode] = useState<StudyMode>("recommended");
   const [revealed, setRevealed] = useState(false);
+  const [viewingStudyImage, setViewingStudyImage] = useState(false);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [sessionDone, setSessionDone] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -462,6 +463,7 @@ export default function OpoApp() {
     setReviewIndex(0);
     setSessionDone(0);
     setRevealed(false);
+    setViewingStudyImage(false);
     setSelectedOption(null);
     cardShownAtRef.current = Date.now();
   }
@@ -511,6 +513,7 @@ export default function OpoApp() {
     setSessionDone((value) => value + 1);
     setReviewIndex((value) => value + 1);
     setRevealed(false);
+    setViewingStudyImage(false);
     setSelectedOption(null);
   }
 
@@ -806,8 +809,43 @@ export default function OpoApp() {
       {reviewQueue.length > 0 && reviewIndex < reviewQueue.length && currentCard && currentQueueItem && (
         <div className="review-overlay">
           <div className="review-top"><button onClick={() => setReviewQueue([])}>×</button><div className="session-progress"><span style={{ width: `${Math.round((reviewIndex / reviewQueue.length) * 100)}%` }} /></div><span>{reviewIndex + 1}/{reviewQueue.length}</span></div>
-          <div className="review-stage"><span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span><div className={`study-card ${revealed ? "revealed" : ""}`}><span className="study-card-type">{currentQueueItem.reinforcement ? "REFUERZO · " : ""}{currentCard.type === "choice" ? "ELIGE LA RESPUESTA" : "RECUERDA EL CONCEPTO"}</span><RichContent html={currentCard.front} className="study-front" />{currentCard.attachment && <AnnotatedCardImage attachment={currentCard.attachment} />}{currentCard.type === "choice" && !revealed ? <div className="options-list">{currentCard.options.map((option, index) => <button key={`${index}-${option}`} className={selectedOption === index ? "selected" : ""} onClick={() => setSelectedOption(index)}><span>{String.fromCharCode(65 + index)}</span>{option}</button>)}</div> : revealed ? <div className="answer-box"><small>RESPUESTA</small><RichContent html={currentCard.back} />{currentCard.type === "choice" && <strong>{String.fromCharCode(65 + currentCard.correctOption)} · {currentCard.options[currentCard.correctOption]}</strong>}</div> : <button className="reveal-button" onClick={() => setRevealed(true)}>Mostrar respuesta</button>}</div>{currentCard.type === "choice" && !revealed && <button className="check-button" disabled={selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}{revealed && <div className="rating-bar"><p>{currentCard.type === "choice" && selectedOption !== null ? selectedOption === currentCard.correctOption ? "¡Correcto! ¿Cómo te ha resultado?" : "No era esa. La repetiremos pronto." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{personalModelLabel(personalModel)}</span></p><div><button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>↻ tras 2 tarjetas</small></button><button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>↻ tras 4 tarjetas</small></button><button className="good" onClick={() => rateCurrent(currentCard.type === "choice" && selectedOption !== currentCard.correctOption ? "again" : "good")}><strong>Bien</strong><small>{fsrsDueLabel(currentCard, "good")}</small></button><button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{fsrsDueLabel(currentCard, "easy")}</small></button></div></div>}</div>
+          <div className="review-stage">
+            <span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span>
+            <div className={`study-card ${revealed ? "revealed answer-side" : "question-side"}`}>
+              <span className="study-card-type">{currentQueueItem.reinforcement ? "REFUERZO · " : ""}{revealed ? "RESPUESTA" : currentCard.type === "choice" ? "ELIGE LA RESPUESTA" : "RECUERDA EL CONCEPTO"}</span>
+              {!revealed ? (
+                <>
+                  <RichContent html={currentCard.front} className="study-front" />
+                  {currentCard.type === "choice" ? (
+                    <div className="options-list">{currentCard.options.map((option, index) => <button key={`${index}-${option}`} className={selectedOption === index ? "selected" : ""} onClick={() => setSelectedOption(index)}><span>{String.fromCharCode(65 + index)}</span>{option}</button>)}</div>
+                  ) : (
+                    <button className="reveal-button" onClick={() => setRevealed(true)}>Mostrar respuesta</button>
+                  )}
+                </>
+              ) : (
+                <div className="answer-side-content">
+                  {currentCard.type !== "choice" && plainRichText(currentCard.back) && <div className="answer-box"><RichContent html={currentCard.back} /></div>}
+                  {currentCard.type === "choice" && <div className="answer-box choice-answer"><strong>{String.fromCharCode(65 + currentCard.correctOption)} · {currentCard.options[currentCard.correctOption]}</strong>{plainRichText(currentCard.back) && <RichContent html={currentCard.back} />}</div>}
+                  {currentCard.attachment && (
+                    <div className="answer-visual-block">
+                      <span>RESPUESTA VISUAL</span>
+                      <AnnotatedCardImage attachment={currentCard.attachment} onOpen={() => setViewingStudyImage(true)} />
+                      <small>Toca la imagen para abrirla a pantalla completa.</small>
+                    </div>
+                  )}
+                  {!plainRichText(currentCard.back) && !currentCard.attachment && currentCard.type !== "choice" && <p className="empty-answer">Esta tarjeta no tiene respuesta escrita ni visual.</p>}
+                  <button className="flip-back-button" onClick={() => { setRevealed(false); setViewingStudyImage(false); }}>↶ Volver a la pregunta</button>
+                </div>
+              )}
+            </div>
+            {currentCard.type === "choice" && !revealed && <button className="check-button" disabled={selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}
+            {revealed && <div className="rating-bar"><p>{currentCard.type === "choice" && selectedOption !== null ? selectedOption === currentCard.correctOption ? "¡Correcto! ¿Cómo te ha resultado?" : "No era esa. La repetiremos pronto." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{personalModelLabel(personalModel)}</span></p><div><button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>↻ tras 2 tarjetas</small></button><button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>↻ tras 4 tarjetas</small></button><button className="good" onClick={() => rateCurrent(currentCard.type === "choice" && selectedOption !== currentCard.correctOption ? "again" : "good")}><strong>Bien</strong><small>{fsrsDueLabel(currentCard, "good")}</small></button><button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{fsrsDueLabel(currentCard, "easy")}</small></button></div></div>}
+          </div>
         </div>
+      )}
+
+      {viewingStudyImage && currentCard?.attachment && (
+        <ImageLightbox attachment={currentCard.attachment} title={plainRichText(currentCard.back) || plainRichText(currentCard.front) || "Respuesta visual"} onClose={() => setViewingStudyImage(false)} />
       )}
 
       {reviewQueue.length > 0 && reviewIndex >= reviewQueue.length && (
@@ -899,8 +937,11 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
     }
   }
 
-  async function uploadImage(file: File) {
-    if (!file.type.startsWith("image/")) return setImageError("Selecciona una imagen");
+  async function uploadImage(file: File): Promise<Attachment | null> {
+    if (!file.type.startsWith("image/")) {
+      setImageError("Selecciona una imagen");
+      return null;
+    }
     setUploadingImage(true);
     setImageError("");
     try {
@@ -911,8 +952,38 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
       const payload = await response.json() as { attachment?: Attachment; error?: string };
       if (!response.ok || !payload.attachment) throw new Error(payload.error ?? "No se pudo subir la imagen");
       setAttachment(payload.attachment);
+      return payload.attachment;
     } catch (reason) {
       setImageError(reason instanceof Error ? reason.message : "No se pudo subir la imagen");
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  async function createHandwrittenAnswer() {
+    setUploadingImage(true);
+    setImageError("");
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1600;
+      canvas.height = 1200;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("No se pudo crear el lienzo");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("No se pudo crear el lienzo");
+      const file = new File([blob], `respuesta-manuscrita-${Date.now()}.png`, { type: "image/png" });
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch("/api/files", { method: "POST", body: form });
+      const payload = await response.json() as { attachment?: Attachment; error?: string };
+      if (!response.ok || !payload.attachment) throw new Error(payload.error ?? "No se pudo crear la respuesta manuscrita");
+      setAttachment(payload.attachment);
+      setEditingImage(true);
+    } catch (reason) {
+      setImageError(reason instanceof Error ? reason.message : "No se pudo crear la respuesta manuscrita");
     } finally {
       setUploadingImage(false);
     }
@@ -954,21 +1025,38 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
     });
   }
 
-  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="Texto con formato, imágenes y anotaciones con Apple Pencil o dedo." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
+  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="La imagen y la escritura manuscrita forman parte de la respuesta y solo aparecen al darle la vuelta a la tarjeta." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
     <form onSubmit={submit}>
       <div className="segmented"><button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Pregunta y respuesta</button><button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Elección múltiple</button></div>
       <label>Carpeta<select value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Sin carpeta</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
-      <label>Pregunta</label><RichTextEditor value={front} onChange={setFront} placeholder="Escribe el anverso de la tarjeta" />
-      {type === "choice" && <fieldset><legend>Opciones · marca la correcta si quieres</legend>{options.map((option, index) => <label className="option-input" key={index}><input type="radio" name="correct" checked={correctOption === index} onChange={() => setCorrectOption(index)} /><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Opción ${index + 1}`} /></label>)}</fieldset>}
-      <label>Respuesta o explicación <small>(opcional)</small></label><RichTextEditor value={back} onChange={setBack} placeholder="Qué debes recordar" />
-      <div className="card-media-field">
-        <span className="card-media-label">Imagen <small>(opcional)</small></span>
-        {!attachment ? <label className="file-drop compact"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /><span>🖼</span><strong>{uploadingImage ? "Subiendo imagen…" : "Añadir imagen"}</strong><small>Fotos, capturas y esquemas</small></label> : <div className="card-media-preview"><AnnotatedCardImage attachment={attachment} /><div><button type="button" className="secondary-button" onClick={() => setEditingImage(true)}>✎ Dibujar sobre imagen</button><button type="button" className="secondary-button danger" onClick={() => setAttachment(null)}>Quitar</button></div></div>}
-        {imageError && <p className="form-error">{imageError}</p>}
+      <div className="flashcard-side-editor question-editor">
+        <span className="flashcard-side-label">ANVERSO · PREGUNTA</span>
+        <label>Pregunta</label><RichTextEditor value={front} onChange={setFront} placeholder="Escribe la pregunta" />
+        {type === "choice" && <fieldset><legend>Opciones · marca la correcta si quieres</legend>{options.map((option, index) => <label className="option-input" key={index}><input type="radio" name="correct" checked={correctOption === index} onChange={() => setCorrectOption(index)} /><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Opción ${index + 1}`} /></label>)}</fieldset>}
+      </div>
+      <div className="flashcard-side-editor answer-editor">
+        <span className="flashcard-side-label">REVERSO · RESPUESTA</span>
+        <label>Texto de la respuesta <small>(opcional)</small></label><RichTextEditor value={back} onChange={setBack} placeholder="Puedes escribir una respuesta, añadir una imagen, escribir a mano o combinarlo" />
+        <div className="card-media-field answer-media-field">
+          <span className="card-media-label">Respuesta visual <small>(opcional)</small></span>
+          {!attachment ? (
+            <div className="answer-media-actions">
+              <label className="file-drop compact answer-upload"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /><span>🖼</span><strong>{uploadingImage ? "Subiendo…" : "Usar una imagen como respuesta"}</strong><small>Página de libro, esquema, captura, fotografía…</small></label>
+              <button type="button" className="blank-answer-button" disabled={uploadingImage} onClick={() => void createHandwrittenAnswer()}><span>✎</span><strong>Crear respuesta manuscrita</strong><small>Abre un lienzo en blanco para Apple Pencil o dedo.</small></button>
+            </div>
+          ) : (
+            <div className="card-media-preview answer-media-preview">
+              <AnnotatedCardImage attachment={attachment} onOpen={() => setEditingImage(true)} />
+              <div><button type="button" className="secondary-button" onClick={() => setEditingImage(true)}>✎ Abrir / escribir</button><button type="button" className="secondary-button danger" onClick={() => setAttachment(null)}>Quitar respuesta visual</button></div>
+              <small>Esta imagen no se mostrará con la pregunta. Aparecerá únicamente al mostrar la respuesta.</small>
+            </div>
+          )}
+          {imageError && <p className="form-error">{imageError}</p>}
+        </div>
       </div>
       <button className="primary-button full" disabled={uploadingImage}>{initialCard ? "Guardar cambios" : "Guardar tarjeta"}</button>
     </form>
-    {editingImage && attachment && <ImageAnnotator attachment={attachment} title={plainRichText(front) || attachment.name} onClose={() => setEditingImage(false)} />}
+    {editingImage && attachment && <ImageAnnotator attachment={attachment} title={plainRichText(back) || plainRichText(front) || "Respuesta visual"} onClose={() => setEditingImage(false)} />}
   </ModalShell>;
 }
 
