@@ -45,21 +45,33 @@ function drawStroke(context: CanvasRenderingContext2D, stroke: InkStroke, width:
   }));
   const baseWidth = Math.max(1, stroke.width * width);
 
+  const widthForPressure = (pressure: number) => {
+    if (stroke.mode === "erase") return baseWidth;
+    const normalized = Math.min(1, Math.max(0.08, pressure));
+    return Math.max(0.75, baseWidth * (0.72 + Math.sqrt(normalized) * 0.42));
+  };
+
   if (points.length === 1) {
-    const radius = baseWidth * (0.35 + points[0].pressure * 0.35);
+    const radius = widthForPressure(points[0].pressure) / 2;
     context.beginPath();
     context.arc(points[0].x, points[0].y, radius, 0, Math.PI * 2);
     context.fill();
   } else {
+    let start = points[0];
+    let smoothedPressure = points[0].pressure;
     for (let index = 1; index < points.length; index += 1) {
-      const previous = points[index - 1];
       const current = points[index];
-      const pressure = (previous.pressure + current.pressure) / 2;
-      context.lineWidth = baseWidth * (0.55 + pressure * 0.9);
+      const next = points[index + 1];
+      const end = next
+        ? { x: (current.x + next.x) / 2, y: (current.y + next.y) / 2 }
+        : current;
+      smoothedPressure = smoothedPressure * 0.68 + current.pressure * 0.32;
+      context.lineWidth = widthForPressure(smoothedPressure);
       context.beginPath();
-      context.moveTo(previous.x, previous.y);
-      context.lineTo(current.x, current.y);
+      context.moveTo(start.x, start.y);
+      context.quadraticCurveTo(current.x, current.y, end.x, end.y);
       context.stroke();
+      start = { ...end, pressure: current.pressure };
     }
   }
   context.restore();
@@ -105,7 +117,9 @@ export default function PdfAnnotator({
   const stageRef = useRef<HTMLDivElement>(null);
   const pdfCanvasRef = useRef<HTMLCanvasElement>(null);
   const inkCanvasRef = useRef<HTMLCanvasElement>(null);
+  const pageWrapRef = useRef<HTMLDivElement>(null);
   const currentStrokeRef = useRef<InkStroke | null>(null);
+  const activePointerIdRef = useRef<number | null>(null);
   const annotationsRef = useRef<AnnotationDocument>(emptyAnnotations());
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const saveVersionRef = useRef(0);
@@ -113,6 +127,32 @@ export default function PdfAnnotator({
   useEffect(() => {
     annotationsRef.current = annotations;
   }, [annotations]);
+
+  useEffect(() => {
+    const pageWrap = pageWrapRef.current;
+    if (!pageWrap) return;
+
+    const blockNativeSelection = (event: Event) => {
+      event.preventDefault();
+      window.getSelection()?.removeAllRanges();
+    };
+
+    pageWrap.addEventListener("contextmenu", blockNativeSelection);
+    pageWrap.addEventListener("selectstart", blockNativeSelection);
+    pageWrap.addEventListener("dragstart", blockNativeSelection);
+
+    return () => {
+      pageWrap.removeEventListener("contextmenu", blockNativeSelection);
+      pageWrap.removeEventListener("selectstart", blockNativeSelection);
+      pageWrap.removeEventListener("dragstart", blockNativeSelection);
+    };
+  }, []);
+
+  useEffect(() => {
+    currentStrokeRef.current = null;
+    activePointerIdRef.current = null;
+    window.getSelection()?.removeAllRanges();
+  }, [pageNumber, tool]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -331,7 +371,7 @@ export default function PdfAnnotator({
       });
   }
 
-  function pointFromEvent(event: ReactPointerEvent<HTMLCanvasElement>): InkPoint | null {
+  function pointFromNativeEvent(event: PointerEvent): InkPoint | null {
     const canvas = inkCanvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -339,35 +379,24 @@ export default function PdfAnnotator({
     return {
       x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
       y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
-      pressure: event.pressure > 0 ? event.pressure : 0.5,
+      pressure: event.pointerType === "pen"
+        ? Math.min(1, Math.max(0.08, event.pressure || 0.08))
+        : 0.5,
     };
   }
 
-  function pointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
-    if (tool === "hand") return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const point = pointFromEvent(event);
-    if (!point || !canvasSize.width) return;
-    currentStrokeRef.current = {
-      id: strokeId(),
-      mode: tool === "eraser" ? "erase" : "draw",
-      color,
-      width: (tool === "eraser" ? brushSize * 5 : brushSize) / canvasSize.width,
-      points: [point],
-    };
+  function pointsFromEvent(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const nativeEvent = event.nativeEvent;
+    const coalesced = typeof nativeEvent.getCoalescedEvents === "function"
+      ? nativeEvent.getCoalescedEvents()
+      : [];
+    const samples = coalesced.length ? coalesced : [nativeEvent];
+    return samples
+      .map(pointFromNativeEvent)
+      .filter((point): point is InkPoint => point !== null);
   }
 
-  function pointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
-    const stroke = currentStrokeRef.current;
-    if (!stroke) return;
-    event.preventDefault();
-    const point = pointFromEvent(event);
-    if (!point) return;
-    const previous = stroke.points[stroke.points.length - 1];
-    const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
-    if (distance < 0.0015) return;
-    stroke.points.push(point);
+  function previewStroke(stroke: InkStroke) {
     redrawInk({
       ...annotationsRef.current,
       pages: {
@@ -377,11 +406,72 @@ export default function PdfAnnotator({
     });
   }
 
-  function finishStroke(event: ReactPointerEvent<HTMLCanvasElement>) {
-    const stroke = currentStrokeRef.current;
-    if (!stroke) return;
+  function appendEventPoints(event: ReactPointerEvent<HTMLCanvasElement>, stroke: InkStroke) {
+    let added = false;
+    for (const point of pointsFromEvent(event)) {
+      const previous = stroke.points[stroke.points.length - 1];
+      if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 0.00055) continue;
+      stroke.points.push(point);
+      added = true;
+    }
+    return added;
+  }
+
+  function pointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (tool === "hand") return;
     event.preventDefault();
+    event.stopPropagation();
+    window.getSelection()?.removeAllRanges();
+
+    // En iPad, Apple Pencil llega como `pen` y la palma/dedos como `touch`.
+    // Ignorar cualquier touch evita que la mano dibuje o termine el trazo activo.
+    if (event.pointerType === "touch") return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (activePointerIdRef.current !== null) return;
+
+    const point = pointsFromEvent(event)[0];
+    if (!point || !canvasSize.width) return;
+    activePointerIdRef.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    currentStrokeRef.current = {
+      id: strokeId(),
+      mode: tool === "eraser" ? "erase" : "draw",
+      color,
+      width: (tool === "eraser" ? brushSize * 5 : brushSize) / canvasSize.width,
+      points: [point],
+    };
+    previewStroke(currentStrokeRef.current);
+  }
+
+  function pointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (event.pointerType === "touch") {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const stroke = currentStrokeRef.current;
+    if (!stroke || activePointerIdRef.current !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (appendEventPoints(event, stroke)) previewStroke(stroke);
+  }
+
+  function finishStroke(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (event.pointerType === "touch") {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const stroke = currentStrokeRef.current;
+    if (!stroke || activePointerIdRef.current !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    appendEventPoints(event, stroke);
     currentStrokeRef.current = null;
+    activePointerIdRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     const pageKey = String(pageNumber);
     const next: AnnotationDocument = {
       version: 1,
@@ -418,7 +508,7 @@ export default function PdfAnnotator({
 
   return (
     <section
-      className="pdf-editor"
+      className="pdf-editor pdf-draw-only"
       aria-label={`Editor de ${title}`}
       style={{ width: "100vw", maxWidth: "100vw", minWidth: 0, overflow: "hidden" }}
     >
@@ -454,6 +544,9 @@ export default function PdfAnnotator({
             <input type="color" value={color} onChange={(event) => setColor(event.target.value)} />
             <span style={{ background: color }} />
           </label>
+          <span className="pdf-pencil-status" title="Los dedos y la palma no dibujan ni seleccionan el PDF">
+            Pencil · palma bloqueada
+          </span>
           <label className="pdf-size">
             <span>Trazo</span>
             <input type="range" min="2" max="12" value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} />
@@ -485,7 +578,11 @@ export default function PdfAnnotator({
           </div>
         )}
 
-        <div className="pdf-page-wrap" style={{ width: canvasSize.width || undefined, height: canvasSize.height || undefined }}>
+        <div
+          className="pdf-page-wrap"
+          ref={pageWrapRef}
+          style={{ width: canvasSize.width || undefined, height: canvasSize.height || undefined }}
+        >
           <canvas ref={pdfCanvasRef} className="pdf-page-canvas" />
           <canvas
             ref={inkCanvasRef}
@@ -495,6 +592,7 @@ export default function PdfAnnotator({
             onPointerMove={pointerMove}
             onPointerUp={finishStroke}
             onPointerCancel={finishStroke}
+            onLostPointerCapture={finishStroke}
           />
         </div>
       </div>
