@@ -311,3 +311,72 @@ button { color: inherit; }
   .answer-image-zoom button { min-width: 32px; padding: 0 6px; }
   .answer-image-zoom .zoom-label { min-width: 48px; }
 }
+
+/* PDF Ink Studio v2 · Apple Pencil, figuras y herramientas de estudio */
+.pdf-ink-studio { position: fixed; inset: 0; z-index: 420; width: 100vw; max-width: 100vw; height: 100dvh; min-width: 0; display: grid; grid-template-rows: auto auto auto minmax(0,1fr); overflow: hidden; background: #d9d8d2; color: var(--ink); -webkit-user-select: none; user-select: none; }
+.pdf-ink-studio .pdf-editor-head { width: 100%; min-width: 0; max-width: 100vw; }
+.pdf-head-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.pdf-head-actions > button { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 10px; background: white; color: #737b76; cursor: pointer; }
+.pdf-head-actions > button.active { border-color: #bcb8f6; background: #eeecff; color: #564ce0; }
+.pdf-toolbar { min-width: 0; display: grid; gap: 5px; padding: 6px 10px 7px; overflow: hidden; }
+.pdf-toolbar-row { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; overflow-x: auto; scrollbar-width: none; }
+.pdf-toolbar-row::-webkit-scrollbar { display: none; }
+.pdf-tool-group, .pdf-history-tools, .pdf-presets, .pdf-segmented { flex: 0 0 auto; display: flex; align-items: center; gap: 3px; }
+.pdf-toolbar button, .pdf-toolbar select { min-height: 35px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #4f5852; font: inherit; font-size: 10px; font-weight: 750; cursor: pointer; white-space: nowrap; }
+.pdf-toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 9px; }
+.pdf-toolbar button.active, .pdf-option-button.active, .pdf-presets button.active, .pdf-segmented button.active { border-color: #c7c3fb; background: #eeecff; color: #574ce1; }
+.pdf-toolbar button:disabled { opacity: .28; cursor: default; }
+.pdf-history-tools { margin-left: auto; }
+.pdf-history-tools button { border-color: #e0ded7; background: #fff; }
+.pdf-options-row { justify-content: flex-start; padding-top: 4px; border-top: 1px solid #e0dfd9; }
+.pdf-presets, .pdf-segmented { padding: 3px; border-radius: 10px; background: #e9e8e2; }
+.pdf-presets button, .pdf-segmented button { min-height: 29px; padding: 4px 8px; font-size: 9px; }
+.pdf-presets button.active, .pdf-segmented button.active { border-color: transparent; background: white; box-shadow: 0 2px 7px rgba(20,35,27,.08); }
+.pdf-options-row select { height: 33px; padding: 0 28px 0 10px; border-color: #dedbd3; background: white; }
+.pdf-option-button { flex: 0 0 auto; border-color: #dedbd3 !important; background: white !important; }
+.pdf-option-button.active { background: #eeecff !important; }
+.pdf-pencil-status { flex: 0 0 auto; }
+.pdf-selection-bar { z-index: 4; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 6px 11px; overflow-x: auto; border-bottom: 1px solid #d2d0ca; background: #efedff; color: #574ce1; scrollbar-width: none; }
+.pdf-selection-bar strong { margin-right: 6px; font-size: 10px; white-space: nowrap; }
+.pdf-selection-bar button { min-height: 31px; padding: 5px 10px; border: 1px solid #d4d0fb; border-radius: 9px; background: white; color: #564ce0; font-size: 9px; font-weight: 750; white-space: nowrap; cursor: pointer; }
+.pdf-selection-bar button.danger { color: #a14e43; }
+.pdf-selection-bar.empty { min-height: 0; height: 0; padding: 0; border: 0; overflow: hidden; }
+.pdf-workspace { min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0,1fr); overflow: hidden; }
+.pdf-workspace.with-pages { grid-template-columns: 146px minmax(0,1fr); }
+.pdf-page-drawer { min-height: 0; display: grid; align-content: start; gap: 9px; padding: 10px; overflow-y: auto; border-right: 1px solid #c8c7c0; background: #efeee9; }
+.pdf-page-drawer > div { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; }
+.pdf-page-drawer > div strong { font-size: 11px; }.pdf-page-drawer > div button { border: 0; background: transparent; font-size: 19px; cursor: pointer; }
+.pdf-thumbnail { position: relative; padding: 5px; overflow: hidden; border: 2px solid transparent; border-radius: 9px; background: #d7d6d0; cursor: pointer; }
+.pdf-thumbnail.active { border-color: #6258e8; background: #ebe9ff; }
+.pdf-thumbnail canvas { width: 100%; height: auto; display: block; background: white; }
+.pdf-thumbnail span { z-index: 1; position: absolute; top: 8px; left: 8px; min-width: 21px; height: 21px; display: grid; place-items: center; padding: 0 5px; border-radius: 999px; background: rgba(28,31,29,.78); color: white; font-size: 8px; font-weight: 800; }
+.pdf-ink-studio .pdf-stage { width: 100%; max-width: 100vw; min-width: 0; min-height: 0; }
+.pdf-page-wrap { isolation: isolate; }
+.pdf-page-canvas { z-index: 0; position: relative; }
+.pdf-committed-canvas, .pdf-live-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.pdf-committed-canvas { z-index: 1; pointer-events: none; }
+.pdf-live-canvas { z-index: 2; touch-action: none; cursor: crosshair; }
+.pdf-stage.hand .pdf-live-canvas { pointer-events: none; }
+.pdf-stage.hand .pdf-page-wrap { touch-action: pan-x pan-y pinch-zoom; }
+.pdf-stage.drawing .pdf-page-wrap { touch-action: none; }
+
+@media (max-width: 780px) {
+  .pdf-head-actions > button { width: 31px; height: 31px; }
+  .pdf-head-actions .pdf-pages span { min-width: 45px; }
+  .pdf-toolbar { padding: 5px 7px 6px; }
+  .pdf-toolbar-row { gap: 6px; }
+  .pdf-toolbar button { min-height: 33px; padding: 5px 8px; }
+  .pdf-tool-group button span { display: none; }
+  .pdf-presets button { font-size: 8px; }
+  .pdf-workspace.with-pages { grid-template-columns: 105px minmax(0,1fr); }
+  .pdf-page-drawer { padding: 7px; }
+  .pdf-pencil-status { display: none; }
+}
+
+@media (max-width: 520px) {
+  .pdf-editor-head { grid-template-columns: 36px minmax(0,1fr) auto; }
+  .pdf-head-actions > button { display: none; }
+  .pdf-head-actions > button:nth-child(2) { display: inline-grid; place-items: center; }
+  .pdf-workspace.with-pages { grid-template-columns: 92px minmax(0,1fr); }
+  .pdf-title strong { max-width: 40vw; }
+}
