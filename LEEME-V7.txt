@@ -1,0 +1,42 @@
+OpoGC v7 — ChatGPT/JSON + Flashcards + Vocabulario + Tests
+
+PARTIMOS DE LA VERSIÓN ACTUAL v6 Y MANTENEMOS:
+- FSRS-6 + modelo personal de memoria.
+- Refuerzo intrasesión (Otra vez / Difícil).
+- Modo aleatorio.
+- Imágenes solo en el reverso, zoom y respuestas manuscritas.
+- Psicotécnicos y editor PDF.
+
+NUEVO EN v7
+1. Botón "✨ ChatGPT / JSON" en Biblioteca.
+2. Prompt oficial integrado y botón para copiarlo.
+3. Importación por pegar JSON o subir un archivo .json.
+4. Validación estricta de root {version:1, items:[...]}.
+5. Se pueden mezclar:
+   - tipo "flashcard"
+   - tipo "vocabulario"
+   - tipo "test"
+6. Vocabulario y test exigen exactamente cuatro opciones y correcta A/B/C/D.
+7. "tema" se detecta automáticamente: si no existe una carpeta con ese nombre, OpoGC la crea.
+8. "subtema", "explicacion" y "fuente" se conservan en el reverso de la tarjeta.
+9. Duplicados: misma pregunta + mismo tema + mismo tipo se omiten al importar.
+10. Crear/Editar tarjeta permite elegir manualmente Flashcard / Vocabulario / Tipo test.
+11. Los tres tipos pasan por EXACTAMENTE el mismo sistema de aprendizaje:
+    FSRS-6 + modelo personal + tiempo de respuesta + refuerzos intrasesión.
+12. En vocabulario y test una respuesta incorrecta se fuerza a "Otra vez" para el algoritmo.
+
+ARCHIVOS A SUBIR A GITHUB
+- app/OpoApp.tsx
+- app/CardImportModal.tsx (nuevo)
+- app/globals.css
+- db/storage.ts
+- public/sw.js
+- public/version.json
+
+No hay migración D1 nueva: la columna cards.type ya es TEXT y admite "test". storage.ts solo amplía el tipo TypeScript.
+
+DESPLIEGUE
+Arrastra las carpetas app, db y public a la raíz del repositorio respetando las rutas.
+Después comprueba:
+https://opoapp.marcdomingolopez.workers.dev/version.json
+Debe mostrar: opogc-v7-chatgpt-json-tests

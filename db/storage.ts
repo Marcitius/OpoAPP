@@ -1,7 +1,7 @@
 import { getD1 } from "@/db";
 
 type Rating = "again" | "hard" | "good" | "easy";
-type CardType = "basic" | "choice";
+type CardType = "basic" | "choice" | "test";
 
 type Folder = {
   id: string;

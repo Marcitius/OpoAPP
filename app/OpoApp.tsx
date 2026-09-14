@@ -6,9 +6,10 @@ import { AnnotatedCardImage, ImageAnnotator, ImageLightbox } from "./CardImage";
 import RichTextEditor, { plainRichText, RichContent, sanitizeRichHtml } from "./RichTextEditor";
 import { applyFsrsReview, fsrsCurrentRetrievability, fsrsDueLabel } from "./fsrs";
 import { fitPersonalMemoryModel, personalModelLabel, predictPersonalRecall } from "./memoryModel";
+import CardImportModal, { type ParsedImportItem } from "./CardImportModal";
 
 type Tab = "today" | "library" | "psych" | "progress";
-type CardType = "basic" | "choice";
+type CardType = "basic" | "choice" | "test";
 type Rating = "again" | "hard" | "good" | "easy";
 type StudyMode = "recommended" | "random" | "all";
 type ReviewQueueItem = { cardId: string; reinforcement: boolean; reason: "scheduled" | "again" | "hard" };
@@ -103,6 +104,31 @@ const uid = () => typeof crypto !== "undefined" && "randomUUID" in crypto
   : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 const nowIso = () => new Date().toISOString();
 const todayKey = () => new Date().toISOString().slice(0, 10);
+const isMultipleChoiceType = (type: CardType) => type === "choice" || type === "test";
+const isMultipleChoiceCard = (card: Card) => isMultipleChoiceType(card.type);
+const cardTypeLabel = (type: CardType) => type === "test" ? "TEST" : type === "choice" ? "VOCAB" : "FLASHCARD";
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function importedBackHtml(item: ParsedImportItem) {
+  const parts: string[] = [];
+  if (item.tipo === "flashcard" && item.respuesta) parts.push(`<p>${escapeHtml(item.respuesta).replaceAll("\n", "<br>")}</p>`);
+  if (item.explicacion) parts.push(`<p><strong>Explicación:</strong> ${escapeHtml(item.explicacion).replaceAll("\n", "<br>")}</p>`);
+  const meta = [item.subtema ? `<span><strong>Subtema:</strong> ${escapeHtml(item.subtema)}</span>` : "", item.fuente ? `<span><strong>Fuente:</strong> ${escapeHtml(item.fuente)}</span>` : ""].filter(Boolean);
+  if (meta.length) parts.push(`<div class="imported-card-meta">${meta.join(" · ")}</div>`);
+  return sanitizeRichHtml(parts.join(""));
+}
+
+function normalizedQuestion(value: string) {
+  return value.trim().toLocaleLowerCase("es").replace(/\s+/g, " ");
+}
 
 function initialState(): AppState {
   const vocabularyId = uid();
@@ -312,7 +338,7 @@ export default function OpoApp() {
   const [tab, setTab] = useState<Tab>("today");
   const [state, setState] = useState<AppState | null>(null);
   const [sync, setSync] = useState<"loading" | "saved" | "saving" | "error">("loading");
-  const [modal, setModal] = useState<null | "folder" | "card" | "psych" | "attempt">(null);
+  const [modal, setModal] = useState<null | "folder" | "card" | "import" | "psych" | "attempt">(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedPsych, setSelectedPsych] = useState<string | null>(null);
   const [editingPsych, setEditingPsych] = useState<string | null>(null);
@@ -471,7 +497,7 @@ export default function OpoApp() {
   function rateCurrent(rating: Rating) {
     if (!state || !currentCard || !currentQueueItem) return;
     const now = new Date();
-    const choiceWasWrong = currentCard.type === "choice" && selectedOption !== null && selectedOption !== currentCard.correctOption;
+    const choiceWasWrong = isMultipleChoiceCard(currentCard) && selectedOption !== null && selectedOption !== currentCard.correctOption;
     const effectiveRating: Rating = choiceWasWrong ? "again" : rating;
     const correct = effectiveRating !== "again";
     const responseMs = Math.max(0, Date.now() - cardShownAtRef.current);
@@ -515,6 +541,69 @@ export default function OpoApp() {
     setRevealed(false);
     setViewingStudyImage(false);
     setSelectedOption(null);
+  }
+
+  function importGeneratedCards(items: ParsedImportItem[]) {
+    if (!state) return { imported: 0, skipped: items.length, foldersCreated: 0 };
+
+    const folders = [...state.folders];
+    const cards = [...state.cards];
+    const folderByName = new Map(folders.map((folder) => [folder.name.trim().toLocaleLowerCase("es"), folder]));
+    const existingKeys = new Set(cards.map((card) => `${card.folderId}::${card.type}::${normalizedQuestion(plainRichText(card.front))}`));
+    let imported = 0;
+    let skipped = 0;
+    let foldersCreated = 0;
+
+    for (const item of items) {
+      const tema = item.tema.trim() || "Importado";
+      const folderKey = tema.toLocaleLowerCase("es");
+      let folder = folderByName.get(folderKey);
+      if (!folder) {
+        folder = { id: uid(), name: tema, color: colors[folders.length % colors.length], parentId: null, createdAt: nowIso() };
+        folders.push(folder);
+        folderByName.set(folderKey, folder);
+        foldersCreated += 1;
+      }
+
+      const type: CardType = item.tipo === "test" ? "test" : item.tipo === "vocabulario" ? "choice" : "basic";
+      const key = `${folder.id}::${type}::${normalizedQuestion(item.pregunta)}`;
+      if (existingKeys.has(key)) {
+        skipped += 1;
+        continue;
+      }
+
+      const correctOption = item.correcta ? Math.max(0, "ABCD".indexOf(item.correcta)) : 0;
+      cards.push({
+        id: uid(),
+        folderId: folder.id,
+        type,
+        front: sanitizeRichHtml(`<p>${escapeHtml(item.pregunta).replaceAll("\n", "<br>")}</p>`),
+        back: importedBackHtml(item),
+        options: isMultipleChoiceType(type) ? item.opciones.slice(0, 4) : [],
+        correctOption: isMultipleChoiceType(type) ? correctOption : 0,
+        dueAt: nowIso(),
+        createdAt: nowIso(),
+        lastReviewedAt: null,
+        intervalDays: 0,
+        ease: 0,
+        repetitions: 0,
+        lapses: 0,
+        streak: 0,
+        reviewCount: 0,
+        successCount: 0,
+        attachment: null,
+        fsrsStability: 0,
+        fsrsDifficulty: 0,
+      });
+      existingKeys.add(key);
+      imported += 1;
+    }
+
+    if (imported > 0) {
+      updateState((current) => ({ ...current, folders, cards }));
+      notify(`${imported} elementos importados${foldersCreated ? ` · ${foldersCreated} temas nuevos` : ""}${skipped ? ` · ${skipped} duplicados omitidos` : ""}`);
+    }
+    return { imported, skipped, foldersCreated };
   }
 
   function openAttemptEditor(testId: string, attemptId: string | null = null) {
@@ -647,7 +736,7 @@ export default function OpoApp() {
 
         {tab === "library" && (
           <section className="page">
-            <div className="action-row"><div className="search-box"><span>⌕</span><input placeholder="Buscar carpetas o tarjetas" aria-label="Buscar" /></div><button className="secondary-button" onClick={() => startReview(undefined, "random")}>🎲 Aleatorias</button><button className="secondary-button" onClick={() => startReview(undefined, "all")}>▶ Estudiar todas</button><button className="secondary-button" onClick={() => setModal("folder")}>＋ Carpeta</button><button className="primary-button" onClick={() => { setEditingCard(null); setModal("card"); }}>＋ Tarjeta</button></div>
+            <div className="action-row"><div className="search-box"><span>⌕</span><input placeholder="Buscar carpetas o tarjetas" aria-label="Buscar" /></div><button className="secondary-button ai-import-button" onClick={() => setModal("import")}>✨ ChatGPT / JSON</button><button className="secondary-button" onClick={() => startReview(undefined, "random")}>🎲 Aleatorias</button><button className="secondary-button" onClick={() => startReview(undefined, "all")}>▶ Estudiar todas</button><button className="secondary-button" onClick={() => setModal("folder")}>＋ Carpeta</button><button className="primary-button" onClick={() => { setEditingCard(null); setModal("card"); }}>＋ Tarjeta</button></div>
             {!activeFolder ? (
               <>
                 <div className="section-heading"><div><span className="section-label">ORGANIZACIÓN</span><h2>Tus carpetas</h2></div><span>{state.folders.length} carpetas · {state.cards.length} tarjetas</span></div>
@@ -665,7 +754,7 @@ export default function OpoApp() {
                 <button className="back-button" onClick={() => setSelectedFolder(null)}>← Todas las carpetas</button>
                 <div className="folder-title"><div><span className="folder-icon large" style={{ background: `${activeFolder.color}18`, color: activeFolder.color }}>▰</span><div><span className="section-label">CARPETA</span><h2>{activeFolder.name}</h2><p>{state.cards.filter((card) => card.folderId === activeFolder.id).length} tarjetas</p></div></div><div><button className="secondary-button danger" onClick={() => deleteFolder(activeFolder.id)}>Eliminar</button><button className="secondary-button" onClick={() => startReview(activeFolder.id, "random")}>🎲 Aleatorias</button><button className="primary-button" onClick={() => startReview(activeFolder.id, "all")}>Estudiar todas</button></div></div>
                 <div className="card-table">
-                  {state.cards.filter((card) => card.folderId === activeFolder.id).map((card) => <div className="card-row" key={card.id}><span className="card-kind">{card.type === "choice" ? "TEST" : "TARJETA"}</span><div><strong>{plainRichText(card.front) || "Sin pregunta"}{card.attachment ? " · 🖼️" : ""}</strong><p>{plainRichText(card.back) || (card.type === "choice" ? "Sin explicación añadida" : "Sin respuesta añadida")}</p></div><span>{card.reviewCount ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos` : "Sin estudiar"}</span><div className="card-actions"><button aria-label="Editar tarjeta" title="Editar tarjeta" onClick={() => { setEditingCard(card.id); setModal("card"); }}>✎</button><button aria-label="Eliminar tarjeta" title="Eliminar tarjeta" onClick={() => updateState((current) => ({ ...current, cards: current.cards.filter((item) => item.id !== card.id) }))}>×</button></div></div>)}
+                  {state.cards.filter((card) => card.folderId === activeFolder.id).map((card) => <div className="card-row" key={card.id}><span className="card-kind">{cardTypeLabel(card.type)}</span><div><strong>{plainRichText(card.front) || "Sin pregunta"}{card.attachment ? " · 🖼️" : ""}</strong><p>{plainRichText(card.back) || (isMultipleChoiceCard(card) ? "Sin explicación añadida" : "Sin respuesta añadida")}</p></div><span>{card.reviewCount ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos` : "Sin estudiar"}</span><div className="card-actions"><button aria-label="Editar tarjeta" title="Editar tarjeta" onClick={() => { setEditingCard(card.id); setModal("card"); }}>✎</button><button aria-label="Eliminar tarjeta" title="Eliminar tarjeta" onClick={() => updateState((current) => ({ ...current, cards: current.cards.filter((item) => item.id !== card.id) }))}>×</button></div></div>)}
                   {!state.cards.some((card) => card.folderId === activeFolder.id) && <Empty icon="□" title="Esta carpeta está vacía" copy="Añade tu primera tarjeta para empezar a estudiarla." action="Crear tarjeta" onAction={() => { setEditingCard(null); setModal("card"); }} />}
                 </div>
               </div>
@@ -812,11 +901,11 @@ export default function OpoApp() {
           <div className="review-stage">
             <span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span>
             <div className={`study-card ${revealed ? "revealed answer-side" : "question-side"}`}>
-              <span className="study-card-type">{currentQueueItem.reinforcement ? "REFUERZO · " : ""}{revealed ? "RESPUESTA" : currentCard.type === "choice" ? "ELIGE LA RESPUESTA" : "RECUERDA EL CONCEPTO"}</span>
+              <span className="study-card-type">{currentQueueItem.reinforcement ? "REFUERZO · " : ""}{revealed ? "RESPUESTA" : currentCard.type === "test" ? "PREGUNTA TIPO TEST" : currentCard.type === "choice" ? "VOCABULARIO" : "RECUERDA EL CONCEPTO"}</span>
               {!revealed ? (
                 <>
                   <RichContent html={currentCard.front} className="study-front" />
-                  {currentCard.type === "choice" ? (
+                  {isMultipleChoiceCard(currentCard) ? (
                     <div className="options-list">{currentCard.options.map((option, index) => <button key={`${index}-${option}`} className={selectedOption === index ? "selected" : ""} onClick={() => setSelectedOption(index)}><span>{String.fromCharCode(65 + index)}</span>{option}</button>)}</div>
                   ) : (
                     <button className="reveal-button" onClick={() => setRevealed(true)}>Mostrar respuesta</button>
@@ -824,8 +913,8 @@ export default function OpoApp() {
                 </>
               ) : (
                 <div className="answer-side-content">
-                  {currentCard.type !== "choice" && plainRichText(currentCard.back) && <div className="answer-box"><RichContent html={currentCard.back} /></div>}
-                  {currentCard.type === "choice" && <div className="answer-box choice-answer"><strong>{String.fromCharCode(65 + currentCard.correctOption)} · {currentCard.options[currentCard.correctOption]}</strong>{plainRichText(currentCard.back) && <RichContent html={currentCard.back} />}</div>}
+                  {!isMultipleChoiceCard(currentCard) && plainRichText(currentCard.back) && <div className="answer-box"><RichContent html={currentCard.back} /></div>}
+                  {isMultipleChoiceCard(currentCard) && <div className="answer-box choice-answer"><strong>{String.fromCharCode(65 + currentCard.correctOption)} · {currentCard.options[currentCard.correctOption]}</strong>{plainRichText(currentCard.back) && <RichContent html={currentCard.back} />}</div>}
                   {currentCard.attachment && (
                     <div className="answer-visual-block">
                       <span>RESPUESTA VISUAL</span>
@@ -833,13 +922,13 @@ export default function OpoApp() {
                       <small>Toca la imagen para abrirla a pantalla completa.</small>
                     </div>
                   )}
-                  {!plainRichText(currentCard.back) && !currentCard.attachment && currentCard.type !== "choice" && <p className="empty-answer">Esta tarjeta no tiene respuesta escrita ni visual.</p>}
+                  {!plainRichText(currentCard.back) && !currentCard.attachment && !isMultipleChoiceCard(currentCard) && <p className="empty-answer">Esta tarjeta no tiene respuesta escrita ni visual.</p>}
                   <button className="flip-back-button" onClick={() => { setRevealed(false); setViewingStudyImage(false); }}>↶ Volver a la pregunta</button>
                 </div>
               )}
             </div>
-            {currentCard.type === "choice" && !revealed && <button className="check-button" disabled={selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}
-            {revealed && <div className="rating-bar"><p>{currentCard.type === "choice" && selectedOption !== null ? selectedOption === currentCard.correctOption ? "¡Correcto! ¿Cómo te ha resultado?" : "No era esa. La repetiremos pronto." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{personalModelLabel(personalModel)}</span></p><div><button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>↻ tras 2 tarjetas</small></button><button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>↻ tras 4 tarjetas</small></button><button className="good" onClick={() => rateCurrent(currentCard.type === "choice" && selectedOption !== currentCard.correctOption ? "again" : "good")}><strong>Bien</strong><small>{fsrsDueLabel(currentCard, "good")}</small></button><button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{fsrsDueLabel(currentCard, "easy")}</small></button></div></div>}
+            {isMultipleChoiceCard(currentCard) && !revealed && <button className="check-button" disabled={selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}
+            {revealed && <div className="rating-bar"><p>{isMultipleChoiceCard(currentCard) && selectedOption !== null ? selectedOption === currentCard.correctOption ? "¡Correcto! ¿Cómo te ha resultado?" : "No era esa. La repetiremos pronto." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{personalModelLabel(personalModel)}</span></p><div><button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>↻ tras 2 tarjetas</small></button><button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>↻ tras 4 tarjetas</small></button><button className="good" onClick={() => rateCurrent(isMultipleChoiceCard(currentCard) && selectedOption !== currentCard.correctOption ? "again" : "good")}><strong>Bien</strong><small>{fsrsDueLabel(currentCard, "good")}</small></button><button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{fsrsDueLabel(currentCard, "easy")}</small></button></div></div>}
           </div>
         </div>
       )}
@@ -854,6 +943,7 @@ export default function OpoApp() {
 
       {modal === "folder" && <FolderModal onClose={() => setModal(null)} onCreate={(folder) => { updateState((current) => ({ ...current, folders: [...current.folders, folder] })); setModal(null); notify("Carpeta creada"); }} />}
       {modal === "card" && <CardModal folders={state.folders} defaultFolder={selectedFolder} initialCard={openCard} onClose={() => { setModal(null); setEditingCard(null); }} onSave={(card) => { updateState((current) => ({ ...current, cards: openCard ? current.cards.map((item) => item.id === card.id ? card : item) : [...current.cards, card] })); setModal(null); setEditingCard(null); notify(openCard ? "Tarjeta actualizada" : "Tarjeta guardada"); }} />}
+      {modal === "import" && <CardImportModal onClose={() => setModal(null)} onImport={importGeneratedCards} />}
       {modal === "psych" && <PsychModal initialTest={openPsychTest} onClose={() => { setModal(null); setEditingPsychTest(null); }} onSave={(test) => { updateState((current) => ({ ...current, psychTests: openPsychTest ? current.psychTests.map((item) => item.id === test.id ? test : item) : [...current.psychTests, test] })); setModal(null); setEditingPsychTest(null); setPsychDetail(test.id); notify(openPsychTest ? "Psicotécnico actualizado" : "Psicotécnico guardado"); }} />}
       {modal === "attempt" && activePsych && <AttemptModal test={activePsych} initialAttempt={openAttempt} onClose={() => { setModal(null); setSelectedPsych(null); setEditingAttempt(null); }} onSave={(attempt) => { updateState((current) => ({ ...current, psychTests: current.psychTests.map((test) => test.id === activePsych.id ? { ...test, attempts: openAttempt ? test.attempts.map((item) => item.id === attempt.id ? attempt : item) : [...test.attempts, attempt] } : test) })); setModal(null); setSelectedPsych(null); setEditingAttempt(null); setPsychDetail(activePsych.id); notify(openAttempt ? "Intento actualizado" : "Intento registrado"); }} />}
       {openPsych?.attachment?.type === "application/pdf" && <PdfAnnotator attachment={openPsych.attachment} title={openPsych.name} onClose={() => setEditingPsych(null)} />}
@@ -903,7 +993,7 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
   const [back, setBack] = useState(initialCard?.back ?? "");
   const [options, setOptions] = useState(() => {
     const existing = initialCard?.options ?? [];
-    return Array.from({ length: Math.max(4, existing.length) }, (_, index) => existing[index] ?? "");
+    return Array.from({ length: 4 }, (_, index) => existing[index] ?? "");
   });
   const [correctOption, setCorrectOption] = useState(initialCard?.correctOption ?? 0);
   const [attachment, setAttachment] = useState<Attachment | null>(initialCard?.attachment ?? null);
@@ -1019,20 +1109,20 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
       type,
       front: sanitizeRichHtml(front),
       back: sanitizeRichHtml(back),
-      options: type === "choice" ? options.map((option) => option.trim()) : [],
-      correctOption: type === "choice" ? Math.min(correctOption, Math.max(0, options.length - 1)) : 0,
+      options: isMultipleChoiceType(type) ? options.slice(0, 4).map((option) => option.trim()) : [],
+      correctOption: isMultipleChoiceType(type) ? Math.min(correctOption, 3) : 0,
       attachment,
     });
   }
 
-  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="La imagen y la escritura manuscrita forman parte de la respuesta y solo aparecen al darle la vuelta a la tarjeta." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
+  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="Crea flashcards, vocabulario o preguntas tipo test. Todas usan el mismo sistema de repaso adaptativo." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
     <form onSubmit={submit}>
-      <div className="segmented"><button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Pregunta y respuesta</button><button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Elección múltiple</button></div>
+      <div className="segmented three-types"><button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Flashcard</button><button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Vocabulario</button><button type="button" className={type === "test" ? "active" : ""} onClick={() => setType("test")}>Tipo test</button></div>
       <label>Carpeta<select value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Sin carpeta</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
       <div className="flashcard-side-editor question-editor">
         <span className="flashcard-side-label">ANVERSO · PREGUNTA</span>
         <label>Pregunta</label><RichTextEditor value={front} onChange={setFront} placeholder="Escribe la pregunta" />
-        {type === "choice" && <fieldset><legend>Opciones · marca la correcta si quieres</legend>{options.map((option, index) => <label className="option-input" key={index}><input type="radio" name="correct" checked={correctOption === index} onChange={() => setCorrectOption(index)} /><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Opción ${index + 1}`} /></label>)}</fieldset>}
+        {isMultipleChoiceType(type) && <fieldset><legend>{type === "test" ? "Opciones del test" : "Opciones de vocabulario"} · marca la correcta</legend>{options.map((option, index) => <label className="option-input" key={index}><input type="radio" name="correct" checked={correctOption === index} onChange={() => setCorrectOption(index)} /><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Opción ${index + 1}`} /></label>)}</fieldset>}
       </div>
       <div className="flashcard-side-editor answer-editor">
         <span className="flashcard-side-label">REVERSO · RESPUESTA</span>

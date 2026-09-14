@@ -1,14 +1,15 @@
 {
-  "version": "opogc-v6-answer-media-flip",
-  "date": "2026-08-21",
+  "version": "opogc-v7-chatgpt-json-tests",
+  "date": "2026-09-14",
   "features": [
-    "FSRS-6 and personal recall model",
+    "FSRS-6 and personal recall model for every card type",
     "same-session reinforcement and random mode",
-    "answer-only flashcard images",
-    "tap-to-expand answer images with zoom",
-    "handwritten answer canvas for Apple Pencil and finger",
-    "draw over answer images",
-    "flip back from answer to question",
+    "ChatGPT prompt workflow and JSON importer",
+    "mixed flashcard, vocabulario and test imports",
+    "automatic Tema folder detection and creation",
+    "duplicate question detection during import",
+    "manual flashcard, vocabulary and test creation",
+    "answer-only images and handwritten answers",
     "PDF reload and adaptive zoom"
   ]
 }
