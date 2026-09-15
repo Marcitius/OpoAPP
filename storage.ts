@@ -1,7 +1,7 @@
 import { getD1 } from "@/db";
 
 type Rating = "again" | "hard" | "good" | "easy";
-type CardType = "basic" | "choice";
+type CardType = "basic" | "choice" | "test" | "orthography";
 
 type Folder = {
   id: string;
@@ -19,6 +19,7 @@ type Card = {
   back: string;
   options: string[];
   correctOption: number;
+  correctOptions: number[];
   dueAt: string;
   createdAt: string;
   lastReviewedAt: string | null;
@@ -32,6 +33,11 @@ type Card = {
   attachment: Attachment | null;
   fsrsStability: number;
   fsrsDifficulty: number;
+  orthographyIsCorrect: boolean | null;
+  orthographyCorrectForm: string;
+  orthographyExplanation: string;
+  orthographySource: string;
+  orthographyStage: number;
 };
 
 type Review = {
@@ -40,6 +46,11 @@ type Review = {
   rating: Rating;
   correct: boolean;
   reviewedAt: string;
+  responseMs?: number;
+  sessionMode?: string;
+  reinforcement?: boolean;
+  predictedRecall?: number;
+  fsrsRetrievability?: number;
 };
 
 type Attachment = {
@@ -106,6 +117,7 @@ type CardRow = {
   back: string;
   optionsJson: string;
   correctOption: number;
+  correctOptionsJson: string;
   dueAt: string;
   createdAt: string;
   lastReviewedAt: string | null;
@@ -124,6 +136,11 @@ type CardRow = {
   attachmentUrl: string | null;
   fsrsStability: number;
   fsrsDifficulty: number;
+  orthographyIsCorrect: number | null;
+  orthographyCorrectForm: string | null;
+  orthographyExplanation: string | null;
+  orthographySource: string | null;
+  orthographyStage: number;
 };
 
 type ReviewRow = {
@@ -132,6 +149,11 @@ type ReviewRow = {
   rating: Rating;
   correct: number;
   reviewedAt: string;
+  responseMs: number;
+  sessionMode: string;
+  reinforcement: number;
+  predictedRecall: number;
+  fsrsRetrievability: number;
 };
 
 type PsychRow = {
@@ -199,6 +221,7 @@ const SCHEMA_SQL = [
     back TEXT NOT NULL,
     options_json TEXT NOT NULL,
     correct_option INTEGER NOT NULL,
+    correct_options_json TEXT NOT NULL DEFAULT '[]',
     due_at TEXT NOT NULL,
     created_at TEXT NOT NULL,
     last_reviewed_at TEXT,
@@ -217,6 +240,11 @@ const SCHEMA_SQL = [
     attachment_url TEXT,
     fsrs_stability REAL NOT NULL DEFAULT 0,
     fsrs_difficulty REAL NOT NULL DEFAULT 0,
+    orthography_is_correct INTEGER,
+    orthography_correct_form TEXT,
+    orthography_explanation TEXT,
+    orthography_source TEXT,
+    orthography_stage INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (owner, id, sync_token)
   )`,
   `CREATE TABLE IF NOT EXISTS reviews (
@@ -228,6 +256,11 @@ const SCHEMA_SQL = [
     rating TEXT NOT NULL,
     correct INTEGER NOT NULL,
     reviewed_at TEXT NOT NULL,
+    response_ms INTEGER NOT NULL DEFAULT 0,
+    session_mode TEXT NOT NULL DEFAULT 'recommended',
+    reinforcement INTEGER NOT NULL DEFAULT 0,
+    predicted_recall REAL NOT NULL DEFAULT -1,
+    fsrs_retrievability REAL NOT NULL DEFAULT -1,
     PRIMARY KEY (owner, id, sync_token)
   )`,
   `CREATE TABLE IF NOT EXISTS psych_tests (
@@ -280,6 +313,20 @@ const CARD_COLUMN_MIGRATIONS = [
   "ALTER TABLE cards ADD COLUMN attachment_url TEXT",
   "ALTER TABLE cards ADD COLUMN fsrs_stability REAL NOT NULL DEFAULT 0",
   "ALTER TABLE cards ADD COLUMN fsrs_difficulty REAL NOT NULL DEFAULT 0",
+  "ALTER TABLE cards ADD COLUMN correct_options_json TEXT NOT NULL DEFAULT '[]'",
+  "ALTER TABLE cards ADD COLUMN orthography_is_correct INTEGER",
+  "ALTER TABLE cards ADD COLUMN orthography_correct_form TEXT",
+  "ALTER TABLE cards ADD COLUMN orthography_explanation TEXT",
+  "ALTER TABLE cards ADD COLUMN orthography_source TEXT",
+  "ALTER TABLE cards ADD COLUMN orthography_stage INTEGER NOT NULL DEFAULT 1",
+];
+
+const REVIEW_COLUMN_MIGRATIONS = [
+  "ALTER TABLE reviews ADD COLUMN response_ms INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE reviews ADD COLUMN session_mode TEXT NOT NULL DEFAULT 'recommended'",
+  "ALTER TABLE reviews ADD COLUMN reinforcement INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE reviews ADD COLUMN predicted_recall REAL NOT NULL DEFAULT -1",
+  "ALTER TABLE reviews ADD COLUMN fsrs_retrievability REAL NOT NULL DEFAULT -1",
 ];
 
 export async function ensureNormalizedSchema() {
@@ -287,7 +334,7 @@ export async function ensureNormalizedSchema() {
   await db.batch(SCHEMA_SQL.map((sql) => db.prepare(sql)));
   // D1/SQLite does not add new columns when CREATE TABLE IF NOT EXISTS runs.
   // Apply additive migrations safely; duplicate-column errors simply mean the migration already ran.
-  for (const sql of [...SETTINGS_COLUMN_MIGRATIONS, ...CARD_COLUMN_MIGRATIONS]) {
+  for (const sql of [...SETTINGS_COLUMN_MIGRATIONS, ...CARD_COLUMN_MIGRATIONS, ...REVIEW_COLUMN_MIGRATIONS]) {
     try {
       await db.prepare(sql).run();
     } catch (error) {
@@ -328,10 +375,11 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
   const cardStatements = state.cards.map((card, position) =>
     db.prepare(
       `INSERT INTO cards (
-        owner, id, sync_token, position, folder_id, type, front, back, options_json, correct_option,
+        owner, id, sync_token, position, folder_id, type, front, back, options_json, correct_option, correct_options_json,
         due_at, created_at, last_reviewed_at, interval_days, ease, repetitions, lapses, streak, review_count, success_count,
-        attachment_id, attachment_key, attachment_name, attachment_type, attachment_size, attachment_url, fsrs_stability, fsrs_difficulty
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        attachment_id, attachment_key, attachment_name, attachment_type, attachment_size, attachment_url, fsrs_stability, fsrs_difficulty,
+        orthography_is_correct, orthography_correct_form, orthography_explanation, orthography_source, orthography_stage
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       owner,
       card.id,
@@ -343,6 +391,7 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
       card.back,
       JSON.stringify(card.options ?? []),
       card.correctOption,
+      JSON.stringify(card.correctOptions ?? [card.correctOption]),
       card.dueAt,
       card.createdAt,
       card.lastReviewedAt,
@@ -361,14 +410,35 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
       card.attachment?.url ?? null,
       Number(card.fsrsStability ?? 0),
       Number(card.fsrsDifficulty ?? 0),
+      typeof card.orthographyIsCorrect === "boolean" ? (card.orthographyIsCorrect ? 1 : 0) : null,
+      card.orthographyCorrectForm ?? "",
+      card.orthographyExplanation ?? "",
+      card.orthographySource ?? "",
+      Math.max(1, Number(card.orthographyStage ?? 1)),
     ),
   );
 
   const reviewStatements = state.reviews.map((review, position) =>
     db.prepare(
-      `INSERT INTO reviews (owner, id, sync_token, position, card_id, rating, correct, reviewed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(owner, review.id, syncToken, position, review.cardId, review.rating, review.correct ? 1 : 0, review.reviewedAt),
+      `INSERT INTO reviews (
+        owner, id, sync_token, position, card_id, rating, correct, reviewed_at,
+        response_ms, session_mode, reinforcement, predicted_recall, fsrs_retrievability
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      owner,
+      review.id,
+      syncToken,
+      position,
+      review.cardId,
+      review.rating,
+      review.correct ? 1 : 0,
+      review.reviewedAt,
+      Math.max(0, Number(review.responseMs ?? 0)),
+      review.sessionMode ?? "recommended",
+      review.reinforcement ? 1 : 0,
+      Number(review.predictedRecall ?? -1),
+      Number(review.fsrsRetrievability ?? -1),
+    ),
   );
 
   const psychStatements = state.psychTests.map((test, position) =>
@@ -546,16 +616,22 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
     db.prepare(
       `SELECT
         id, folder_id AS folderId, type, front, back, options_json AS optionsJson,
-        correct_option AS correctOption, due_at AS dueAt, created_at AS createdAt,
+        correct_option AS correctOption, correct_options_json AS correctOptionsJson, due_at AS dueAt, created_at AS createdAt,
         last_reviewed_at AS lastReviewedAt, interval_days AS intervalDays, ease,
         repetitions, lapses, streak, review_count AS reviewCount, success_count AS successCount,
         attachment_id AS attachmentId, attachment_key AS attachmentKey, attachment_name AS attachmentName,
         attachment_type AS attachmentType, attachment_size AS attachmentSize, attachment_url AS attachmentUrl,
-        fsrs_stability AS fsrsStability, fsrs_difficulty AS fsrsDifficulty
+        fsrs_stability AS fsrsStability, fsrs_difficulty AS fsrsDifficulty,
+        orthography_is_correct AS orthographyIsCorrect, orthography_correct_form AS orthographyCorrectForm,
+        orthography_explanation AS orthographyExplanation, orthography_source AS orthographySource,
+        orthography_stage AS orthographyStage
        FROM cards WHERE owner = ? AND sync_token = ? ORDER BY position`,
     ).bind(owner, sync).all<CardRow>(),
     db.prepare(
-      `SELECT id, card_id AS cardId, rating, correct, reviewed_at AS reviewedAt
+      `SELECT
+        id, card_id AS cardId, rating, correct, reviewed_at AS reviewedAt,
+        response_ms AS responseMs, session_mode AS sessionMode, reinforcement,
+        predicted_recall AS predictedRecall, fsrs_retrievability AS fsrsRetrievability
        FROM reviews WHERE owner = ? AND sync_token = ? ORDER BY position`,
     ).bind(owner, sync).all<ReviewRow>(),
     db.prepare(
@@ -607,12 +683,20 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
     })),
     cards: (cardsResult.results ?? []).map((row) => {
       let options: string[] = [];
+      let correctOptions: number[] = [];
       try {
         const parsed = JSON.parse(row.optionsJson);
         if (Array.isArray(parsed)) options = parsed.map((value) => String(value));
       } catch {
         options = [];
       }
+      try {
+        const parsed = JSON.parse(row.correctOptionsJson ?? "[]");
+        if (Array.isArray(parsed)) correctOptions = parsed.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value >= 0 && value < 4);
+      } catch {
+        correctOptions = [];
+      }
+      if (!correctOptions.length && (row.type === "choice" || row.type === "test")) correctOptions = [Number(row.correctOption)];
       return {
         id: row.id,
         folderId: row.folderId,
@@ -621,6 +705,7 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
         back: row.back,
         options,
         correctOption: Number(row.correctOption),
+        correctOptions,
         dueAt: row.dueAt,
         createdAt: row.createdAt,
         lastReviewedAt: row.lastReviewedAt,
@@ -643,6 +728,11 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
           : null,
         fsrsStability: Number(row.fsrsStability ?? 0),
         fsrsDifficulty: Number(row.fsrsDifficulty ?? 0),
+        orthographyIsCorrect: row.orthographyIsCorrect === null || row.orthographyIsCorrect === undefined ? null : Boolean(row.orthographyIsCorrect),
+        orthographyCorrectForm: row.orthographyCorrectForm ?? "",
+        orthographyExplanation: row.orthographyExplanation ?? "",
+        orthographySource: row.orthographySource ?? "",
+        orthographyStage: Math.max(1, Number(row.orthographyStage ?? 1)),
       };
     }),
     reviews: (reviewsResult.results ?? []).map((row) => ({
@@ -651,6 +741,11 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
       rating: row.rating,
       correct: Boolean(row.correct),
       reviewedAt: row.reviewedAt,
+      responseMs: Number(row.responseMs ?? 0),
+      sessionMode: row.sessionMode ?? "recommended",
+      reinforcement: Boolean(row.reinforcement),
+      predictedRecall: Number(row.predictedRecall ?? -1),
+      fsrsRetrievability: Number(row.fsrsRetrievability ?? -1),
     })),
     psychTests: (psychResult.results ?? []).map((row) => ({
       id: row.id,

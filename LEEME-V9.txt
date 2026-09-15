@@ -1,0 +1,43 @@
+OpoGC v9 — Ortografía dinámica + SRS por palabra
+
+Base acumulada: v8 (Tema → Subtema, modo Aprender continuo, tests múltiples, ChatGPT/JSON) + nuevo sistema de Ortografía.
+
+SUBE ESTAS RUTAS RESPETANDO EXACTAMENTE LAS CARPETAS:
+- app/OpoApp.tsx
+- app/CardImportModal.tsx
+- app/OrthographyStudy.tsx
+- app/memoryModel.ts
+- app/globals.css
+- db/storage.ts
+- drizzle/0004_multi_answer_tests.sql
+- drizzle/0005_orthography.sql
+- public/sw.js
+- public/version.json
+
+CAMBIOS PRINCIPALES
+1. Nuevo tipo de contenido "ortografia". Cada palabra es una unidad independiente con su propio estado FSRS/progreso.
+2. Importación JSON de ortografía con palabra, es_correcta (boolean), forma_correcta, explicación, fuente, tema y subtema.
+3. OpoGC NO guarda grupos fijos. Al estudiar Ortografía construye grupos temporales de hasta 4 palabras y vuelve a barajar posiciones y acompañantes.
+4. Selección múltiple: se puede marcar de 0 a 4 palabras y pulsar Corregir.
+5. Corrección individual: cada palabra genera su propio resultado y su propio registro de Review/SRS.
+6. Las palabras falladas ganan prioridad dentro de la misma sesión; las acertadas tienen un pequeño enfriamiento para evitar repetición inmediata.
+7. El primer encuentro de una palabra en la sesión modifica FSRS de largo plazo. Los refuerzos intrasesión se registran para estadísticas/modelo personal, pero no extienden artificialmente el intervalo FSRS.
+8. El modelo personal también reconoce los refuerzos intrasesión y no los reproduce como nuevos avances FSRS al recalibrarse.
+9. Tema → Subtema funciona también para Ortografía: estudiar un subtema usa inicialmente sus palabras; estudiar el tema mezcla palabras de sus subtemas.
+10. Estadísticas específicas por palabra: estudiadas, en aprendizaje, dominadas, acierto, más falladas y próximas a repasar.
+11. Queda preparado orthography_stage para un segundo nivel de recuperación de grafía en palabras persistentemente falladas. En esta versión el refuerzo visible siempre muestra "incorrecta → forma correcta".
+12. Se mantiene compatibilidad con flashcard, vocabulario, test de respuesta única/múltiple, imágenes, escritura manuscrita, PDFs y datos existentes.
+13. El prompt "ChatGPT / JSON" ya explica los cuatro tipos y obliga a crear una entrada individual por palabra de ortografía.
+
+VALIDACIONES REALIZADAS EN EL PARCHE
+- Sintaxis TypeScript/TSX: OpoApp, CardImportModal, OrthographyStudy, memoryModel y storage.
+- Parser JSON: ortografía correcta/incorrecta, boolean estricto, forma_correcta obligatoria cuando procede y compatibilidad con flashcard/vocabulario/test simple/test múltiple.
+- Selector dinámico: grupos únicos de 4, cambio de posición/acompañantes y mayor frecuencia de palabras débiles.
+- SQL: mismo número de columnas y parámetros en INSERT de cards.
+- CSS: parseo correcto.
+
+NOTA DE BUILD
+No se ha podido ejecutar npm ci/build completo en el entorno de generación porque falta una dependencia de npm no disponible en la caché local. El build de Cloudflare será la validación final de integración del repositorio completo.
+
+Tras desplegar, /version.json debe indicar:
+opogc-v9-orthography-dynamic-srs
