@@ -1,15 +1,15 @@
 {
-  "version": "opogc-v7-chatgpt-json-tests",
-  "date": "2026-09-14",
+  "version": "opogc-v8-learning-topics-multitest",
+  "date": "2026-09-15",
   "features": [
-    "FSRS-6 and personal recall model for every card type",
-    "same-session reinforcement and random mode",
-    "ChatGPT prompt workflow and JSON importer",
-    "mixed flashcard, vocabulario and test imports",
-    "automatic Tema folder detection and creation",
-    "duplicate question detection during import",
-    "manual flashcard, vocabulary and test creation",
-    "answer-only images and handwritten answers",
-    "PDF reload and adaptive zoom"
+    "Tema to Subtema hierarchy",
+    "continuous Learn mode controlled by the student",
+    "weak and forgotten cards gain same-session priority",
+    "FSRS-6 reserved for long-term scheduling on the first meaningful session encounter",
+    "single-answer and multiple-answer tests",
+    "ChatGPT JSON prompt with flashcards, vocabulary and both test modes",
+    "automatic Tema and Subtema creation during JSON import",
+    "personal recall model, random mode and scheduled review",
+    "answer images, handwriting and PDF tools"
   ]
 }

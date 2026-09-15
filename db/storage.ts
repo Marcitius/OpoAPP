@@ -19,6 +19,7 @@ type Card = {
   back: string;
   options: string[];
   correctOption: number;
+  correctOptions: number[];
   dueAt: string;
   createdAt: string;
   lastReviewedAt: string | null;
@@ -111,6 +112,7 @@ type CardRow = {
   back: string;
   optionsJson: string;
   correctOption: number;
+  correctOptionsJson: string;
   dueAt: string;
   createdAt: string;
   lastReviewedAt: string | null;
@@ -209,6 +211,7 @@ const SCHEMA_SQL = [
     back TEXT NOT NULL,
     options_json TEXT NOT NULL,
     correct_option INTEGER NOT NULL,
+    correct_options_json TEXT NOT NULL DEFAULT '[]',
     due_at TEXT NOT NULL,
     created_at TEXT NOT NULL,
     last_reviewed_at TEXT,
@@ -295,6 +298,7 @@ const CARD_COLUMN_MIGRATIONS = [
   "ALTER TABLE cards ADD COLUMN attachment_url TEXT",
   "ALTER TABLE cards ADD COLUMN fsrs_stability REAL NOT NULL DEFAULT 0",
   "ALTER TABLE cards ADD COLUMN fsrs_difficulty REAL NOT NULL DEFAULT 0",
+  "ALTER TABLE cards ADD COLUMN correct_options_json TEXT NOT NULL DEFAULT '[]'",
 ];
 
 const REVIEW_COLUMN_MIGRATIONS = [
@@ -351,10 +355,10 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
   const cardStatements = state.cards.map((card, position) =>
     db.prepare(
       `INSERT INTO cards (
-        owner, id, sync_token, position, folder_id, type, front, back, options_json, correct_option,
+        owner, id, sync_token, position, folder_id, type, front, back, options_json, correct_option, correct_options_json,
         due_at, created_at, last_reviewed_at, interval_days, ease, repetitions, lapses, streak, review_count, success_count,
         attachment_id, attachment_key, attachment_name, attachment_type, attachment_size, attachment_url, fsrs_stability, fsrs_difficulty
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       owner,
       card.id,
@@ -366,6 +370,7 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
       card.back,
       JSON.stringify(card.options ?? []),
       card.correctOption,
+      JSON.stringify(card.correctOptions ?? [card.correctOption]),
       card.dueAt,
       card.createdAt,
       card.lastReviewedAt,
@@ -585,7 +590,7 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
     db.prepare(
       `SELECT
         id, folder_id AS folderId, type, front, back, options_json AS optionsJson,
-        correct_option AS correctOption, due_at AS dueAt, created_at AS createdAt,
+        correct_option AS correctOption, correct_options_json AS correctOptionsJson, due_at AS dueAt, created_at AS createdAt,
         last_reviewed_at AS lastReviewedAt, interval_days AS intervalDays, ease,
         repetitions, lapses, streak, review_count AS reviewCount, success_count AS successCount,
         attachment_id AS attachmentId, attachment_key AS attachmentKey, attachment_name AS attachmentName,
@@ -649,12 +654,20 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
     })),
     cards: (cardsResult.results ?? []).map((row) => {
       let options: string[] = [];
+      let correctOptions: number[] = [];
       try {
         const parsed = JSON.parse(row.optionsJson);
         if (Array.isArray(parsed)) options = parsed.map((value) => String(value));
       } catch {
         options = [];
       }
+      try {
+        const parsed = JSON.parse(row.correctOptionsJson ?? "[]");
+        if (Array.isArray(parsed)) correctOptions = parsed.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value >= 0 && value < 4);
+      } catch {
+        correctOptions = [];
+      }
+      if (!correctOptions.length && row.type !== "basic") correctOptions = [Number(row.correctOption)];
       return {
         id: row.id,
         folderId: row.folderId,
@@ -663,6 +676,7 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
         back: row.back,
         options,
         correctOption: Number(row.correctOption),
+        correctOptions,
         dueAt: row.dueAt,
         createdAt: row.createdAt,
         lastReviewedAt: row.lastReviewedAt,

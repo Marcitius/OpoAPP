@@ -1,0 +1,21 @@
+OpoGC v8 — aprendizaje activo + subtemas + tests múltiples
+
+Sube estas rutas respetando exactamente las carpetas:
+- app/OpoApp.tsx
+- app/CardImportModal.tsx
+- app/globals.css
+- db/storage.ts
+- drizzle/0004_multi_answer_tests.sql
+- public/sw.js
+- public/version.json
+
+Cambios principales:
+1. Jerarquía real Tema → Subtema. Estudiar un tema incluye sus subtemas; entrar en un subtema limita el estudio a ese bloque.
+2. Nuevo modo Aprender continuo: no termina por una cifra fija. El alumno detiene la sesión. Las tarjetas falladas/difíciles ganan prioridad; las fáciles se apartan progresivamente.
+3. FSRS-6 sigue planificando el largo plazo, pero durante Aprender solo el primer encuentro significativo de la tarjeta en esa sesión modifica el intervalo FSRS. Los refuerzos intrasesión se registran como telemetría, sin inflar artificialmente el siguiente intervalo.
+4. Tests de respuesta única o múltiple. En los múltiples deben coincidir exactamente todas las opciones seleccionadas.
+5. El prompt de ChatGPT ya contempla flashcards, vocabulario, test con "correcta" y test múltiple con "correctas".
+6. El importador crea automáticamente Tema y Subtema a partir del JSON.
+
+Tras desplegar, /version.json debe indicar:
+opogc-v8-learning-topics-multitest
