@@ -11,6 +11,7 @@ export type PersonalMemoryReview = {
   correct: boolean;
   reviewedAt: string;
   responseMs?: number;
+  reinforcement?: boolean;
 };
 
 export type PersonalMemoryModel = {
@@ -110,7 +111,9 @@ export function fitPersonalMemoryModel(cards: PersonalMemoryCard[], reviews: Per
         y: review.correct ? 1 : 0,
       });
 
-      replay = applyFsrsReview(replay, review.rating, reviewedAt);
+      // Same-session reinforcement is useful evidence for the personal model,
+      // but it must not artificially advance the replayed long-term FSRS state.
+      if (!review.reinforcement) replay = applyFsrsReview(replay, review.rating, reviewedAt);
       priorReviews += 1;
       if (review.rating === "hard") hardCount += 1;
       if (Number(review.responseMs ?? 0) > 0) {

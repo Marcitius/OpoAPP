@@ -391,3 +391,71 @@ button { color: inherit; }
   .review-top.continuous > span { display: none; }
   .review-top .finish-learn-button { grid-column: 2 / 4; width: 100%; }
 }
+
+/* V9 · Ortografía dinámica por palabra */
+.segmented.four-types { grid-template-columns: repeat(4, 1fr); }
+.import-kind.ortografia { background: #f6eadf; color: #9b5b2f; }
+.orthography-manual-editor { display: grid; gap: 12px; margin-top: 12px; padding: 16px; border: 1px solid #ead7c6; border-radius: 16px; background: #fffaf5; }
+.orthography-manual-editor > label { display: grid; gap: 6px; }
+.orthography-correctness-toggle { margin: 0; }
+
+.orthography-overlay { z-index: 250; background: #f0eee8; }
+.orthography-top { position: sticky; top: 0; z-index: 3; }
+.orthography-stage { min-height: calc(100dvh - 78px); overflow: auto; padding: 28px clamp(14px, 4vw, 42px) 42px; display: grid; place-items: start center; }
+.orthography-question-card { width: min(760px, 100%); display: grid; gap: 16px; padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow); }
+.orthography-question-card h2 { margin: 2px 0 0; font-family: Georgia, serif; font-size: clamp(24px, 4vw, 34px); line-height: 1.16; font-weight: 500; letter-spacing: -.03em; }
+.orthography-hint { margin: -5px 0 2px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.orthography-options { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.orthography-option { min-height: 78px; display: grid; grid-template-columns: 32px minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 15px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease, transform .15s ease; }
+.orthography-option:hover:not(:disabled) { transform: translateY(-1px); border-color: #b9c7be; }
+.orthography-option.selected { border-color: var(--green); background: #eef6f1; }
+.orthography-option:disabled { cursor: default; opacity: 1; }
+.orthography-option.result-correct { border-color: #9fc4ad; background: #f0f8f3; }
+.orthography-option.result-wrong { border-color: #d6a99b; background: #fbf0ed; }
+.orthography-checkbox { width: 28px; height: 28px; display: grid; place-items: center; border: 1.5px solid #bfc5bf; border-radius: 8px; color: white; font-size: 14px; font-weight: 900; }
+.orthography-option.selected .orthography-checkbox { border-color: var(--green); background: var(--green); }
+.orthography-option strong { font-size: 18px; font-weight: 700; letter-spacing: .01em; }
+.orthography-result-icon { font-size: 18px; font-weight: 900; }
+.orthography-option.result-correct .orthography-result-icon { color: #2d7553; }
+.orthography-option.result-wrong .orthography-result-icon { color: #b45f4d; }
+.orthography-correct-button { min-height: 48px; }
+.orthography-feedback { display: grid; gap: 16px; }
+.orthography-feedback-list { display: grid; gap: 8px; }
+.orthography-feedback-item { padding: 13px 14px; border: 1px solid var(--line); border-left-width: 4px; border-radius: 13px; background: white; }
+.orthography-feedback-item.correct { border-left-color: #4f8c68; }
+.orthography-feedback-item.wrong { border-left-color: #bd654e; background: #fff9f7; }
+.orthography-feedback-main { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.orthography-feedback-main strong { font-size: 15px; }
+.orthography-feedback-main strong span { color: var(--green); }
+.orthography-feedback-item.wrong .orthography-feedback-main strong span:first-of-type { color: #b85f4b; }
+.orthography-feedback-main em { color: var(--muted); font-style: normal; margin: 0 4px; }
+.orthography-feedback-main small { color: var(--muted); font-size: 9px; text-align: right; }
+.orthography-feedback-item p { margin: 7px 0 0; color: #4f5953; font-size: 10px; line-height: 1.45; }
+.orthography-source { display: block; margin-top: 6px; color: var(--muted); font-size: 8px; }
+.orthography-feedback-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.orthography-stats-panel { margin-top: 20px; }
+.orthography-history-count { color: var(--muted); font-size: 10px; }
+.orthography-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.orthography-stat-grid > div { padding: 14px; border: 1px solid #e8e4dc; border-radius: 14px; background: #faf9f5; }
+.orthography-stat-grid span, .orthography-stat-grid small { display: block; color: var(--muted); font-size: 9px; }
+.orthography-stat-grid strong { display: block; margin: 5px 0 4px; font-family: Georgia, serif; font-size: 26px; font-weight: 500; }
+.orthography-stats-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+.orthography-mini-list { display: grid; gap: 6px; margin-top: 8px; }
+.orthography-mini-list > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 10px; border-radius: 10px; background: #f6f4ee; font-size: 10px; }
+.orthography-mini-list strong { color: var(--green); white-space: nowrap; }
+
+@media (max-width: 800px) {
+  .segmented.four-types { grid-template-columns: 1fr 1fr; }
+  .orthography-stage { min-height: calc(100dvh - 110px); padding: 14px 10px calc(24px + env(safe-area-inset-bottom)); }
+  .orthography-question-card { padding: 18px 14px; border-radius: 18px; }
+  .orthography-options { grid-template-columns: 1fr; }
+  .orthography-option { min-height: 70px; padding: 13px 14px; }
+  .orthography-option strong { font-size: 18px; }
+  .orthography-feedback-main { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .orthography-feedback-main small { text-align: left; }
+  .orthography-feedback-actions { position: sticky; bottom: 0; padding-top: 8px; background: linear-gradient(transparent, var(--surface) 18%); }
+  .orthography-feedback-actions button { flex: 1; }
+  .orthography-stat-grid { grid-template-columns: 1fr 1fr; }
+  .orthography-stats-columns { grid-template-columns: 1fr; }
+}

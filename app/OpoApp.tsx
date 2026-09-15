@@ -7,9 +7,10 @@ import RichTextEditor, { plainRichText, RichContent, sanitizeRichHtml } from "./
 import { applyFsrsReview, fsrsCurrentRetrievability, fsrsDueLabel } from "./fsrs";
 import { fitPersonalMemoryModel, personalModelLabel, predictPersonalRecall } from "./memoryModel";
 import CardImportModal, { type ParsedImportItem } from "./CardImportModal";
+import OrthographyStudy, { type OrthographyStudyCard, type OrthographyStudyResult } from "./OrthographyStudy";
 
 type Tab = "today" | "library" | "psych" | "progress";
-type CardType = "basic" | "choice" | "test";
+type CardType = "basic" | "choice" | "test" | "orthography";
 type Rating = "again" | "hard" | "good" | "easy";
 type StudyMode = "recommended" | "random" | "all" | "learn";
 type ReviewQueueItem = { cardId: string; reinforcement: boolean; reason: "scheduled" | "again" | "hard" };
@@ -45,6 +46,11 @@ type Card = {
   attachment: Attachment | null;
   fsrsStability: number;
   fsrsDifficulty: number;
+  orthographyIsCorrect: boolean | null;
+  orthographyCorrectForm: string;
+  orthographyExplanation: string;
+  orthographySource: string;
+  orthographyStage: number;
 };
 
 type Review = {
@@ -107,13 +113,14 @@ const nowIso = () => new Date().toISOString();
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const isMultipleChoiceType = (type: CardType) => type === "choice" || type === "test";
 const isMultipleChoiceCard = (card: Card) => isMultipleChoiceType(card.type);
+const isOrthographyCard = (card: Card) => card.type === "orthography";
 const cardCorrectOptions = (card: Card) => {
   const values = Array.isArray(card.correctOptions) && card.correctOptions.length ? card.correctOptions : [card.correctOption];
   return [...new Set(values.filter((value) => Number.isInteger(value) && value >= 0 && value < 4))].sort((a, b) => a - b);
 };
 const isMultipleAnswerTest = (card: Card) => card.type === "test" && cardCorrectOptions(card).length > 1;
 const sameNumberSet = (a: number[], b: number[]) => a.length === b.length && [...a].sort((x, y) => x - y).every((value, index) => value === [...b].sort((x, y) => x - y)[index]);
-const cardTypeLabel = (type: CardType) => type === "test" ? "TEST" : type === "choice" ? "VOCAB" : "FLASHCARD";
+const cardTypeLabel = (type: CardType) => type === "orthography" ? "ORTO" : type === "test" ? "TEST" : type === "choice" ? "VOCAB" : "FLASHCARD";
 
 function escapeHtml(value: string) {
   return value
@@ -130,6 +137,15 @@ function importedBackHtml(item: ParsedImportItem) {
   if (item.explicacion) parts.push(`<p><strong>Explicación:</strong> ${escapeHtml(item.explicacion).replaceAll("\n", "<br>")}</p>`);
   const meta = [item.fuente ? `<span><strong>Fuente:</strong> ${escapeHtml(item.fuente)}</span>` : ""].filter(Boolean);
   if (meta.length) parts.push(`<div class="imported-card-meta">${meta.join(" · ")}</div>`);
+  return sanitizeRichHtml(parts.join(""));
+}
+
+function orthographyBackHtml(word: string, isCorrect: boolean, correctForm: string, explanation: string, source: string) {
+  const parts: string[] = [];
+  if (isCorrect) parts.push(`<p><strong>${escapeHtml(correctForm || word)}</strong> está correctamente escrita.</p>`);
+  else parts.push(`<p><strong>${escapeHtml(word)}</strong> → <strong>${escapeHtml(correctForm)}</strong></p>`);
+  if (explanation) parts.push(`<p>${escapeHtml(explanation).replaceAll("\n", "<br>")}</p>`);
+  if (source) parts.push(`<div class="imported-card-meta"><span><strong>Fuente:</strong> ${escapeHtml(source)}</span></div>`);
   return sanitizeRichHtml(parts.join(""));
 }
 
@@ -162,6 +178,11 @@ function initialState(): AppState {
     attachment: null,
     fsrsStability: 0,
     fsrsDifficulty: 0,
+    orthographyIsCorrect: null,
+    orthographyCorrectForm: "",
+    orthographyExplanation: "",
+    orthographySource: "",
+    orthographyStage: 1,
   });
 
   return {
@@ -230,11 +251,16 @@ function normalizeAndSeed(state: AppState) {
     const normalized = {
       ...card,
       attachment: card.attachment ?? null,
-      correctOptions: Array.isArray(card.correctOptions) && card.correctOptions.length ? card.correctOptions : (card.type === "basic" ? [] : [Number(card.correctOption ?? 0)]),
+      correctOptions: Array.isArray(card.correctOptions) && card.correctOptions.length ? card.correctOptions : (isMultipleChoiceType(card.type) ? [Number(card.correctOption ?? 0)] : []),
       fsrsStability: Number(card.fsrsStability ?? (card.reviewCount > 0 ? Math.max(1, card.intervalDays || 1) : 0)),
       fsrsDifficulty: Number(card.fsrsDifficulty ?? (card.reviewCount > 0 ? 5 : 0)),
+      orthographyIsCorrect: typeof card.orthographyIsCorrect === "boolean" ? card.orthographyIsCorrect : null,
+      orthographyCorrectForm: String(card.orthographyCorrectForm ?? ""),
+      orthographyExplanation: String(card.orthographyExplanation ?? ""),
+      orthographySource: String(card.orthographySource ?? ""),
+      orthographyStage: Math.max(1, Number(card.orthographyStage ?? 1)),
     };
-    if (card.attachment === undefined || card.correctOptions === undefined || card.fsrsStability === undefined || card.fsrsDifficulty === undefined) changed = true;
+    if (card.attachment === undefined || card.correctOptions === undefined || card.fsrsStability === undefined || card.fsrsDifficulty === undefined || card.orthographyIsCorrect === undefined || card.orthographyCorrectForm === undefined || card.orthographyStage === undefined) changed = true;
     return normalized;
   });
 
@@ -253,6 +279,7 @@ function normalizeAndSeed(state: AppState) {
         id: seed.id, folderId: theme.id, type: seed.type ?? "basic", front: seed.front, back: seed.back, options: seed.options ?? [],
         correctOption: seed.correctOption ?? 0, correctOptions: seed.type && seed.type !== "basic" ? [seed.correctOption ?? 0] : [],
         dueAt: nowIso(), createdAt: nowIso(), lastReviewedAt: null, intervalDays: 0, ease: 0, repetitions: 0, lapses: 0, streak: 0, reviewCount: 0, successCount: 0, attachment: null, fsrsStability: 0, fsrsDifficulty: 0,
+        orthographyIsCorrect: null, orthographyCorrectForm: "", orthographyExplanation: "", orthographySource: "", orthographyStage: 1,
       });
       changed = true;
     }
@@ -391,6 +418,102 @@ function chooseLearnCard(
   })[0] ?? null;
 }
 
+type OrthographySessionStat = { seen: number; correct: number; wrong: number; cooldownUntil: number };
+type OrthographySessionState = {
+  folderId: string | null;
+  mode: StudyMode;
+  groupIds: string[];
+  results: OrthographyStudyResult[] | null;
+  groupNumber: number;
+  responses: number;
+  correctResponses: number;
+  scopeLabel: string;
+};
+
+function orthographyCardWeight(
+  card: Card,
+  reviews: Review[],
+  model: ReturnType<typeof fitPersonalMemoryModel>,
+  stat: OrthographySessionStat | undefined,
+  turn: number,
+  previousIds: Set<string>,
+  mode: StudyMode,
+) {
+  if (mode === "random") return 1 + Math.random() * 0.35;
+  const now = new Date();
+  const due = card.reviewCount > 0 && new Date(card.dueAt).getTime() <= now.getTime();
+  const recall = predictPersonalRecall(card, reviews, model, now).probability;
+  const failRate = card.reviewCount > 0 ? 1 - card.successCount / Math.max(1, card.reviewCount) : 0.45;
+  const sessionWrong = stat?.wrong ?? 0;
+  const sessionCorrect = stat?.correct ?? 0;
+  const newBoost = card.reviewCount === 0 ? 4.2 : 0;
+  const dueBoost = due ? 6.2 : 0;
+  const difficultyBoost = failRate * 3 + Math.min(5, card.lapses) * 0.55 + (1 - recall) * 2.4;
+  const sessionBoost = sessionWrong * 3.2 - sessionCorrect * 0.45;
+  const unseenBoost = !stat || stat.seen === 0 ? 1.3 : 0;
+  let weight = 0.8 + dueBoost + newBoost + difficultyBoost + sessionBoost + unseenBoost;
+  if (stat && stat.cooldownUntil > turn) weight *= 0.14;
+  if (previousIds.has(card.id) && sessionWrong <= sessionCorrect) weight *= 0.28;
+  if (mode === "all" && (!stat || stat.seen === 0)) weight += 2.2;
+  return Math.max(0.08, weight);
+}
+
+function chooseOrthographyGroup(
+  cards: Card[],
+  reviews: Review[],
+  model: ReturnType<typeof fitPersonalMemoryModel>,
+  stats: Map<string, OrthographySessionStat>,
+  turn: number,
+  previousGroup: string[],
+  mode: StudyMode,
+) {
+  const orthographyCards = cards.filter(isOrthographyCard);
+  const targetSize = Math.min(4, orthographyCards.length);
+  if (!targetSize) return [];
+  const previousIds = new Set(previousGroup);
+  const ready = orthographyCards.filter((card) => (stats.get(card.id)?.cooldownUntil ?? 0) <= turn);
+  let available = [...(ready.length >= targetSize ? ready : orthographyCards)];
+  const selected: Card[] = [];
+
+  while (selected.length < targetSize && available.length) {
+    const weights = available.map((card) => orthographyCardWeight(card, reviews, model, stats.get(card.id), turn, previousIds, mode));
+    const total = weights.reduce((sum, value) => sum + value, 0);
+    let pick = Math.random() * total;
+    let index = available.length - 1;
+    for (let candidateIndex = 0; candidateIndex < available.length; candidateIndex += 1) {
+      pick -= weights[candidateIndex];
+      if (pick <= 0) { index = candidateIndex; break; }
+    }
+    selected.push(available[index]);
+    available.splice(index, 1);
+  }
+
+  if (selected.length === targetSize && targetSize >= 3 && Math.random() < 0.68) {
+    const allCorrect = selected.every((card) => card.orthographyIsCorrect === true);
+    const allIncorrect = selected.every((card) => card.orthographyIsCorrect === false);
+    if (allCorrect || allIncorrect) {
+      const desired = allCorrect ? false : true;
+      const alternatives = orthographyCards.filter((card) => card.orthographyIsCorrect === desired && !selected.some((item) => item.id === card.id));
+      if (alternatives.length) {
+        const replacement = alternatives[Math.floor(Math.random() * alternatives.length)];
+        selected[selected.length - 1] = replacement;
+      }
+    }
+  }
+
+  return shuffled(selected);
+}
+
+function orthographyStudyCard(card: Card): OrthographyStudyCard {
+  return {
+    id: card.id,
+    word: plainRichText(card.front),
+    isCorrect: card.orthographyIsCorrect === true,
+    correctForm: card.orthographyCorrectForm || plainRichText(card.front),
+    explanation: card.orthographyExplanation || "",
+    source: card.orthographySource || "",
+  };
+}
 
 export default function OpoApp() {
   const [tab, setTab] = useState<Tab>("today");
@@ -416,6 +539,8 @@ export default function OpoApp() {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
   const [sessionDone, setSessionDone] = useState(0);
+  const [orthographySession, setOrthographySession] = useState<OrthographySessionState | null>(null);
+  const [orthographySelected, setOrthographySelected] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -423,6 +548,11 @@ export default function OpoApp() {
   const reinforcementCountsRef = useRef<Map<string, number>>(new Map());
   const learnStatsRef = useRef<Map<string, { seen: number; again: number; hard: number; good: number; easy: number; cooldownUntil: number }>>(new Map());
   const studyScopeRef = useRef<string[]>([]);
+  const orthographyStatsRef = useRef<Map<string, OrthographySessionStat>>(new Map());
+  const orthographyLongTermSeenRef = useRef<Set<string>>(new Set());
+  const orthographyScopeRef = useRef<string[]>([]);
+  const orthographyPreviousGroupRef = useRef<string[]>([]);
+  const orthographyGroupStartedAtRef = useRef(Date.now());
 
   useEffect(() => {
     const onOnline = () => setOnline(true);
@@ -491,7 +621,7 @@ export default function OpoApp() {
     if (!state) return [];
     const now = new Date();
     return state.cards
-      .filter((card) => card.reviewCount > 0 && new Date(card.dueAt).getTime() <= now.getTime())
+      .filter((card) => !isOrthographyCard(card) && card.reviewCount > 0 && new Date(card.dueAt).getTime() <= now.getTime())
       .sort((a, b) =>
         predictPersonalRecall(a, state.reviews, personalModel, now).probability
         - predictPersonalRecall(b, state.reviews, personalModel, now).probability,
@@ -515,12 +645,149 @@ export default function OpoApp() {
     if (currentCard) cardShownAtRef.current = Date.now();
   }, [currentCard?.id, reviewIndex]);
 
+  function startOrthographySession(folderId: string | undefined, mode: StudyMode, scope: Card[]) {
+    if (!state) return;
+    const words = scope.filter(isOrthographyCard);
+    if (!words.length) return notify("No hay palabras de ortografía en este tema o subtema");
+    const group = chooseOrthographyGroup(words, state.reviews, personalModel, new Map(), 1, [], mode);
+    if (!group.length) return notify("No hay palabras disponibles para practicar");
+    const folder = folderId ? state.folders.find((item) => item.id === folderId) : null;
+    orthographyStatsRef.current = new Map();
+    orthographyLongTermSeenRef.current = new Set();
+    orthographyScopeRef.current = words.map((card) => card.id);
+    orthographyPreviousGroupRef.current = group.map((card) => card.id);
+    orthographyGroupStartedAtRef.current = Date.now();
+    setReviewQueue([]);
+    setOrthographySelected([]);
+    setOrthographySession({
+      folderId: folderId ?? null,
+      mode,
+      groupIds: group.map((card) => card.id),
+      results: null,
+      groupNumber: 1,
+      responses: 0,
+      correctResponses: 0,
+      scopeLabel: folder?.name ?? "Ortografía",
+    });
+  }
+
+  function toggleOrthographyWord(cardId: string) {
+    if (orthographySession?.results) return;
+    setOrthographySelected((current) => current.includes(cardId) ? current.filter((id) => id !== cardId) : [...current, cardId]);
+  }
+
+  function correctOrthographyGroup() {
+    if (!state || !orthographySession || orthographySession.results) return;
+    const groupCards = orthographySession.groupIds
+      .map((id) => state.cards.find((card) => card.id === id))
+      .filter((card): card is Card => Boolean(card && isOrthographyCard(card)));
+    if (!groupCards.length) return;
+    const selected = new Set(orthographySelected);
+    const now = new Date();
+    const responseMs = Math.max(0, Date.now() - orthographyGroupStartedAtRef.current);
+    const results: OrthographyStudyResult[] = groupCards.map((card) => {
+      const shouldBeMarked = card.orthographyIsCorrect === false;
+      const userMarked = selected.has(card.id);
+      return { cardId: card.id, userMarked, shouldBeMarked, correct: userMarked === shouldBeMarked };
+    });
+    const resultById = new Map(results.map((result) => [result.cardId, result]));
+    const newReviews: Review[] = [];
+    const updatedById = new Map<string, Card>();
+    const currentTurn = orthographySession.groupNumber;
+
+    for (const card of groupCards) {
+      const result = resultById.get(card.id)!;
+      const rating: Rating = result.correct ? "good" : "again";
+      const firstLongTermEncounter = !orthographyLongTermSeenRef.current.has(card.id);
+      let updated = firstLongTermEncounter ? scheduleCard(card, rating) : card;
+      const previousStat = orthographyStatsRef.current.get(card.id) ?? { seen: 0, correct: 0, wrong: 0, cooldownUntil: 0 };
+      const nextWrong = previousStat.wrong + (result.correct ? 0 : 1);
+      if (!result.correct && (nextWrong >= 2 || updated.lapses >= 2)) updated = { ...updated, orthographyStage: Math.max(2, updated.orthographyStage || 1) };
+      updatedById.set(card.id, updated);
+      if (firstLongTermEncounter) orthographyLongTermSeenRef.current.add(card.id);
+
+      const recall = predictPersonalRecall(card, state.reviews, personalModel, now);
+      newReviews.push({
+        id: uid(),
+        cardId: card.id,
+        rating,
+        correct: result.correct,
+        reviewedAt: now.toISOString(),
+        responseMs,
+        sessionMode: orthographySession.mode,
+        reinforcement: !firstLongTermEncounter,
+        predictedRecall: recall.probability,
+        fsrsRetrievability: fsrsCurrentRetrievability(card, now),
+      });
+
+      orthographyStatsRef.current.set(card.id, {
+        seen: previousStat.seen + 1,
+        correct: previousStat.correct + (result.correct ? 1 : 0),
+        wrong: nextWrong,
+        cooldownUntil: currentTurn + (result.correct ? 3 : 1),
+      });
+    }
+
+    updateState((current) => ({
+      ...current,
+      cards: current.cards.map((card) => updatedById.get(card.id) ?? card),
+      reviews: [...current.reviews, ...newReviews],
+    }));
+
+    const correctCount = results.filter((result) => result.correct).length;
+    setOrthographySession((current) => current ? {
+      ...current,
+      results,
+      responses: current.responses + results.length,
+      correctResponses: current.correctResponses + correctCount,
+    } : current);
+  }
+
+  function continueOrthographySession() {
+    if (!state || !orthographySession || !orthographySession.results) return;
+    const scope = state.cards.filter((card) => orthographyScopeRef.current.includes(card.id) && isOrthographyCard(card));
+    const nextTurn = orthographySession.groupNumber + 1;
+    const group = chooseOrthographyGroup(
+      scope,
+      state.reviews,
+      personalModel,
+      orthographyStatsRef.current,
+      nextTurn,
+      orthographySession.groupIds,
+      orthographySession.mode,
+    );
+    if (!group.length) return notify("No quedan palabras disponibles en este ámbito");
+    orthographyPreviousGroupRef.current = group.map((card) => card.id);
+    orthographyGroupStartedAtRef.current = Date.now();
+    setOrthographySelected([]);
+    setOrthographySession((current) => current ? {
+      ...current,
+      groupIds: group.map((card) => card.id),
+      results: null,
+      groupNumber: nextTurn,
+    } : current);
+  }
+
+  function closeOrthographySession() {
+    setOrthographySession(null);
+    setOrthographySelected([]);
+    orthographyScopeRef.current = [];
+    orthographyPreviousGroupRef.current = [];
+  }
+
   function startReview(folderId?: string, mode: StudyMode = "recommended") {
     if (!state) return;
-    const scope = cardsInFolderScope(state, folderId);
+    const fullScope = cardsInFolderScope(state, folderId);
+    const orthographyScope = fullScope.filter(isOrthographyCard);
+    if (orthographyScope.length && orthographyScope.length === fullScope.length) {
+      startOrthographySession(folderId, mode, orthographyScope);
+      return;
+    }
+    const scope = fullScope.filter((card) => !isOrthographyCard(card));
     const now = new Date();
     let selectedPool: Card[] = [];
 
+    closeOrthographySession();
     studyScopeRef.current = scope.map((card) => card.id);
     learnStatsRef.current = new Map();
 
@@ -688,8 +955,9 @@ export default function OpoApp() {
         folder = child;
       }
 
-      const type: CardType = item.tipo === "test" ? "test" : item.tipo === "vocabulario" ? "choice" : "basic";
-      const key = `${folder.id}::${type}::${normalizedQuestion(item.pregunta)}`;
+      const type: CardType = item.tipo === "ortografia" ? "orthography" : item.tipo === "test" ? "test" : item.tipo === "vocabulario" ? "choice" : "basic";
+      const contentKey = item.tipo === "ortografia" ? item.palabra : item.pregunta;
+      const key = `${folder.id}::${type}::${normalizedQuestion(contentKey)}`;
       if (existingKeys.has(key)) {
         skipped += 1;
         continue;
@@ -699,12 +967,16 @@ export default function OpoApp() {
         ? item.correctas.map((letter) => "ABCD".indexOf(letter)).filter((index) => index >= 0)
         : [];
       const correctOption = correctOptions[0] ?? 0;
+      const isOrthography = item.tipo === "ortografia";
+      const word = isOrthography ? item.palabra : item.pregunta;
       cards.push({
         id: uid(),
         folderId: folder.id,
         type,
-        front: sanitizeRichHtml(`<p>${escapeHtml(item.pregunta).replaceAll("\n", "<br>")}</p>`),
-        back: importedBackHtml(item),
+        front: sanitizeRichHtml(`<p>${escapeHtml(word).replaceAll("\n", "<br>")}</p>`),
+        back: isOrthography
+          ? orthographyBackHtml(item.palabra, item.esCorrecta === true, item.formaCorrecta, item.explicacion, item.fuente)
+          : importedBackHtml(item),
         options: isMultipleChoiceType(type) ? item.opciones.slice(0, 4) : [],
         correctOption,
         correctOptions: isMultipleChoiceType(type) ? correctOptions : [],
@@ -721,6 +993,11 @@ export default function OpoApp() {
         attachment: null,
         fsrsStability: 0,
         fsrsDifficulty: 0,
+        orthographyIsCorrect: isOrthography ? item.esCorrecta === true : null,
+        orthographyCorrectForm: isOrthography ? item.formaCorrecta : "",
+        orthographyExplanation: isOrthography ? item.explicacion : "",
+        orthographySource: isOrthography ? item.fuente : "",
+        orthographyStage: 1,
       });
       existingKeys.add(key);
       imported += 1;
@@ -783,6 +1060,25 @@ export default function OpoApp() {
 
   const accuracy = state.reviews.length ? Math.round((state.reviews.filter((review) => review.correct).length / state.reviews.length) * 100) : 0;
   const mastered = state.cards.filter((card) => card.intervalDays >= 21 && card.streak >= 3).length;
+  const orthographyCards = state.cards.filter(isOrthographyCard);
+  const orthographyIds = new Set(orthographyCards.map((card) => card.id));
+  const orthographyReviews = state.reviews.filter((review) => orthographyIds.has(review.cardId));
+  const orthographyStudiedIds = new Set(orthographyReviews.map((review) => review.cardId));
+  const orthographyStudied = orthographyStudiedIds.size;
+  const orthographyMastered = orthographyCards.filter((card) => card.intervalDays >= 21 && card.streak >= 3).length;
+  const orthographyLearning = Math.max(0, orthographyStudied - orthographyMastered);
+  const orthographyAccuracy = orthographyReviews.length ? Math.round(orthographyReviews.filter((review) => review.correct).length / orthographyReviews.length * 100) : 0;
+  const orthographyDue = orthographyCards.filter((card) => card.reviewCount > 0 && new Date(card.dueAt).getTime() <= Date.now()).length;
+  const orthographyFailures = new Map<string, number>();
+  for (const review of orthographyReviews) if (!review.correct) orthographyFailures.set(review.cardId, (orthographyFailures.get(review.cardId) ?? 0) + 1);
+  const weakestOrthography = [...orthographyCards]
+    .filter((card) => (orthographyFailures.get(card.id) ?? 0) > 0)
+    .sort((a, b) => (orthographyFailures.get(b.id) ?? 0) - (orthographyFailures.get(a.id) ?? 0))
+    .slice(0, 5);
+  const nextOrthography = [...orthographyCards]
+    .filter((card) => card.reviewCount > 0)
+    .sort((a, b) => a.dueAt.localeCompare(b.dueAt))
+    .slice(0, 5);
   const psychCategories = Array.from(new Set(state.psychTests.map((test) => test.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "es"));
   const filteredPsychTests = sortPsychTests(
     state.psychTests.filter((test) => {
@@ -1040,21 +1336,54 @@ export default function OpoApp() {
         {tab === "progress" && (
           <section className="page progress-page">
             <div className="stats-row four">
-              <StatCard label="Tarjetas" value={state.cards.length.toString()} detail={`${dueCards.length} pendientes`} tone="green" />
+              <StatCard label="Elementos" value={state.cards.length.toString()} detail={`${dueCards.length + orthographyDue} pendientes`} tone="green" />
               <StatCard label="Repasos" value={state.reviews.length.toString()} detail={`${todayReviews.length} hoy`} tone="amber" />
               <StatCard label="Precisión" value={`${accuracy}%`} detail="histórico global" tone="purple" />
               <StatCard label="Racha" value={`${streakDays(state.reviews)} d`} detail="días seguidos" tone="blue" />
             </div>
             <div className="content-grid">
               <section className="panel"><div className="panel-head"><div><span className="section-label">ACTIVIDAD</span><h3>Últimos 7 días</h3></div></div><ActivityChart reviews={state.reviews} /></section>
-              <section className="panel"><div className="panel-head"><div><span className="section-label">MEMORIA</span><h3>Estado de tarjetas</h3></div></div><MemoryBreakdown cards={state.cards} /></section>
+              <section className="panel"><div className="panel-head"><div><span className="section-label">MEMORIA</span><h3>Estado de tarjetas</h3></div></div><MemoryBreakdown cards={state.cards.filter((card) => !isOrthographyCard(card))} /></section>
             </div>
-            <section className="panel weak-panel"><div className="panel-head"><div><span className="section-label">ATENCIÓN PRIORITARIA</span><h3>Conceptos más débiles</h3></div></div><div className="weak-list">{[...state.cards].filter((card) => card.reviewCount > 0).sort((a, b) => (a.successCount / a.reviewCount) - (b.successCount / b.reviewCount)).slice(0, 5).map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{Math.round((card.successCount / card.reviewCount) * 100)}%</strong></div>)}{!state.cards.some((card) => card.reviewCount > 0) && <p className="muted">Completa algunos repasos para detectar tus puntos débiles.</p>}</div></section>
+            <section className="panel weak-panel"><div className="panel-head"><div><span className="section-label">ATENCIÓN PRIORITARIA</span><h3>Conceptos más débiles</h3></div></div><div className="weak-list">{[...state.cards].filter((card) => !isOrthographyCard(card) && card.reviewCount > 0).sort((a, b) => (a.successCount / a.reviewCount) - (b.successCount / b.reviewCount)).slice(0, 5).map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{Math.round((card.successCount / card.reviewCount) * 100)}%</strong></div>)}{!state.cards.some((card) => !isOrthographyCard(card) && card.reviewCount > 0) && <p className="muted">Completa algunos repasos para detectar tus puntos débiles.</p>}</div></section>
+
+            {orthographyCards.length > 0 && <section className="panel orthography-stats-panel">
+              <div className="panel-head"><div><span className="section-label">ORTOGRAFÍA</span><h3>Progreso por palabra</h3></div><span className="orthography-history-count">{orthographyDue} para repasar</span></div>
+              <div className="orthography-stat-grid">
+                <div><span>Palabras</span><strong>{orthographyCards.length}</strong><small>almacenadas individualmente</small></div>
+                <div><span>Estudiadas</span><strong>{orthographyStudied}</strong><small>{orthographyLearning} en aprendizaje</small></div>
+                <div><span>Dominadas</span><strong>{orthographyMastered}</strong><small>intervalo consolidado</small></div>
+                <div><span>Acierto</span><strong>{orthographyAccuracy}%</strong><small>{orthographyReviews.length} respuestas individuales</small></div>
+              </div>
+              <div className="orthography-stats-columns">
+                <div><span className="section-label">MÁS FALLADAS</span><div className="orthography-mini-list">{weakestOrthography.map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{orthographyFailures.get(card.id) ?? 0} fallos</strong></div>)}{!weakestOrthography.length && <p className="muted">Aún no hay fallos registrados.</p>}</div></div>
+                <div><span className="section-label">PRÓXIMOS REPASOS</span><div className="orthography-mini-list">{nextOrthography.map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{new Date(card.dueAt).getTime() <= Date.now() ? "Ahora" : dateLabel(card.dueAt)}</strong></div>)}{!nextOrthography.length && <p className="muted">Empieza a practicar para generar la programación.</p>}</div></div>
+              </div>
+            </section>}
           </section>
         )}
       </main>
 
       <nav className="bottom-nav">{navItems.map((item) => <NavButton key={item.id} item={item} active={tab === item.id} onClick={() => setTab(item.id)} />)}</nav>
+
+      {orthographySession && (
+        <OrthographyStudy
+          cards={orthographySession.groupIds
+            .map((id) => state.cards.find((card) => card.id === id))
+            .filter((card): card is Card => Boolean(card && isOrthographyCard(card)))
+            .map(orthographyStudyCard)}
+          selectedIds={orthographySelected}
+          results={orthographySession.results}
+          groupNumber={orthographySession.groupNumber}
+          responses={orthographySession.responses}
+          correctResponses={orthographySession.correctResponses}
+          scopeLabel={orthographySession.scopeLabel}
+          onToggle={toggleOrthographyWord}
+          onCorrect={correctOrthographyGroup}
+          onContinue={continueOrthographySession}
+          onClose={closeOrthographySession}
+        />
+      )}
 
       {reviewQueue.length > 0 && reviewIndex < reviewQueue.length && currentCard && currentQueueItem && (
         <div className="review-overlay">
@@ -1177,6 +1506,11 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState("");
   const [editingImage, setEditingImage] = useState(false);
+  const [orthographyWord, setOrthographyWord] = useState(initialCard?.type === "orthography" ? plainRichText(initialCard.front) : "");
+  const [orthographyIsCorrect, setOrthographyIsCorrect] = useState(initialCard?.type === "orthography" ? initialCard.orthographyIsCorrect !== false : true);
+  const [orthographyCorrectForm, setOrthographyCorrectForm] = useState(initialCard?.type === "orthography" ? initialCard.orthographyCorrectForm : "");
+  const [orthographyExplanation, setOrthographyExplanation] = useState(initialCard?.type === "orthography" ? initialCard.orthographyExplanation : "");
+  const [orthographySource, setOrthographySource] = useState(initialCard?.type === "orthography" ? initialCard.orthographySource : "");
 
   async function compressIfNeeded(file: File) {
     if (file.size <= 5.5 * 1024 * 1024) return file;
@@ -1280,50 +1614,82 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
       attachment: null,
       fsrsStability: 0,
       fsrsDifficulty: 0,
+      orthographyIsCorrect: null,
+      orthographyCorrectForm: "",
+      orthographyExplanation: "",
+      orthographySource: "",
+      orthographyStage: 1,
     };
+    if (type === "orthography" && !orthographyWord.trim()) return;
+    if (type === "orthography" && !orthographyIsCorrect && !orthographyCorrectForm.trim()) return;
+    const finalOrthographyForm = orthographyIsCorrect ? (orthographyCorrectForm.trim() || orthographyWord.trim()) : orthographyCorrectForm.trim();
     onSave({
       ...base,
       folderId,
       type,
-      front: sanitizeRichHtml(front),
-      back: sanitizeRichHtml(back),
+      front: type === "orthography" ? sanitizeRichHtml(`<p>${escapeHtml(orthographyWord.trim())}</p>`) : sanitizeRichHtml(front),
+      back: type === "orthography"
+        ? orthographyBackHtml(orthographyWord.trim(), orthographyIsCorrect, finalOrthographyForm, orthographyExplanation.trim(), orthographySource.trim())
+        : sanitizeRichHtml(back),
       options: isMultipleChoiceType(type) ? options.slice(0, 4).map((option) => option.trim()) : [],
       correctOption: isMultipleChoiceType(type) ? ((type === "test" && multipleAnswers ? [...new Set(correctOptions)].sort((a, b) => a - b)[0] : correctOption) ?? 0) : 0,
       correctOptions: isMultipleChoiceType(type) ? (type === "test" && multipleAnswers ? ([...new Set(correctOptions)].sort((a, b) => a - b).length ? [...new Set(correctOptions)].sort((a, b) => a - b) : [0]) : [Math.min(correctOption, 3)]) : [],
-      attachment,
+      attachment: type === "orthography" ? null : attachment,
+      orthographyIsCorrect: type === "orthography" ? orthographyIsCorrect : null,
+      orthographyCorrectForm: type === "orthography" ? finalOrthographyForm : "",
+      orthographyExplanation: type === "orthography" ? orthographyExplanation.trim() : "",
+      orthographySource: type === "orthography" ? orthographySource.trim() : "",
+      orthographyStage: type === "orthography" ? Math.max(1, base.orthographyStage || 1) : 1,
     });
   }
 
-  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="Crea flashcards, vocabulario o preguntas tipo test. Todas usan el mismo sistema de repaso adaptativo." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
+  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="Crea flashcards, vocabulario, tests u ortografía. Cada elemento mantiene su propio progreso adaptativo." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
     <form onSubmit={submit}>
-      <div className="segmented three-types"><button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Flashcard</button><button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Vocabulario</button><button type="button" className={type === "test" ? "active" : ""} onClick={() => setType("test")}>Tipo test</button></div>
+      <div className="segmented four-types"><button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Flashcard</button><button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Vocabulario</button><button type="button" className={type === "test" ? "active" : ""} onClick={() => setType("test")}>Tipo test</button><button type="button" className={type === "orthography" ? "active" : ""} onClick={() => setType("orthography")}>Ortografía</button></div>
       <label>Tema / subtema<select value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Sin carpeta</option>{folders.filter((folder) => !folder.parentId).flatMap((theme) => [<option key={theme.id} value={theme.id}>{theme.name}</option>, ...folders.filter((folder) => folder.parentId === theme.id).map((child) => <option key={child.id} value={child.id}>↳ {child.name}</option>)])}</select></label>
-      <div className="flashcard-side-editor question-editor">
-        <span className="flashcard-side-label">ANVERSO · PREGUNTA</span>
-        <label>Pregunta</label><RichTextEditor value={front} onChange={setFront} placeholder="Escribe la pregunta" />
-        {isMultipleChoiceType(type) && <fieldset><legend>{type === "test" ? "Opciones del test" : "Opciones de vocabulario"}</legend>{type === "test" && <div className="answer-mode-toggle"><button type="button" className={!multipleAnswers ? "active" : ""} onClick={() => { setMultipleAnswers(false); setCorrectOption(correctOptions[0] ?? correctOption); }}>Respuesta única</button><button type="button" className={multipleAnswers ? "active" : ""} onClick={() => { setMultipleAnswers(true); setCorrectOptions((current) => current.length ? current : [correctOption]); }}>Respuesta múltiple</button></div>}{type === "test" && multipleAnswers && <p className="field-help">Marca todas las opciones correctas. Al estudiar, habrá que seleccionar exactamente ese conjunto.</p>}{options.map((option, index) => { const checked = type === "test" && multipleAnswers ? correctOptions.includes(index) : correctOption === index; return <label className="option-input" key={index}><input type={type === "test" && multipleAnswers ? "checkbox" : "radio"} name={type === "test" && multipleAnswers ? undefined : "correct"} checked={checked} onChange={() => { if (type === "test" && multipleAnswers) setCorrectOptions((current) => current.includes(index) ? current.filter((value) => value !== index) : [...current, index]); else { setCorrectOption(index); setCorrectOptions([index]); } }} /><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Opción ${index + 1}`} /></label>; })}</fieldset>}
-      </div>
-      <div className="flashcard-side-editor answer-editor">
-        <span className="flashcard-side-label">REVERSO · RESPUESTA</span>
-        <label>Texto de la respuesta <small>(opcional)</small></label><RichTextEditor value={back} onChange={setBack} placeholder="Puedes escribir una respuesta, añadir una imagen, escribir a mano o combinarlo" />
-        <div className="card-media-field answer-media-field">
-          <span className="card-media-label">Respuesta visual <small>(opcional)</small></span>
-          {!attachment ? (
-            <div className="answer-media-actions">
-              <label className="file-drop compact answer-upload"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /><span>🖼</span><strong>{uploadingImage ? "Subiendo…" : "Usar una imagen como respuesta"}</strong><small>Página de libro, esquema, captura, fotografía…</small></label>
-              <button type="button" className="blank-answer-button" disabled={uploadingImage} onClick={() => void createHandwrittenAnswer()}><span>✎</span><strong>Crear respuesta manuscrita</strong><small>Abre un lienzo en blanco para Apple Pencil o dedo.</small></button>
-            </div>
-          ) : (
-            <div className="card-media-preview answer-media-preview">
-              <AnnotatedCardImage attachment={attachment} onOpen={() => setEditingImage(true)} />
-              <div><button type="button" className="secondary-button" onClick={() => setEditingImage(true)}>✎ Abrir / escribir</button><button type="button" className="secondary-button danger" onClick={() => setAttachment(null)}>Quitar respuesta visual</button></div>
-              <small>Esta imagen no se mostrará con la pregunta. Aparecerá únicamente al mostrar la respuesta.</small>
-            </div>
-          )}
-          {imageError && <p className="form-error">{imageError}</p>}
+      {type === "orthography" ? (
+        <div className="orthography-manual-editor">
+          <span className="flashcard-side-label">PALABRA · UNIDAD INDIVIDUAL DE ESTUDIO</span>
+          <label>Palabra<input value={orthographyWord} onChange={(event) => setOrthographyWord(event.target.value)} placeholder="Ej. haciago" /></label>
+          <div className="answer-mode-toggle orthography-correctness-toggle">
+            <button type="button" className={orthographyIsCorrect ? "active" : ""} onClick={() => { setOrthographyIsCorrect(true); if (!orthographyCorrectForm.trim()) setOrthographyCorrectForm(orthographyWord); }}>Está bien escrita</button>
+            <button type="button" className={!orthographyIsCorrect ? "active" : ""} onClick={() => setOrthographyIsCorrect(false)}>Está mal escrita</button>
+          </div>
+          <label>Forma correcta{!orthographyIsCorrect ? " · obligatoria" : " · puede coincidir con la palabra"}<input value={orthographyCorrectForm} onChange={(event) => setOrthographyCorrectForm(event.target.value)} placeholder={orthographyIsCorrect ? orthographyWord || "Forma correcta" : "Ej. aciago"} /></label>
+          <label>Explicación <small>(opcional)</small><textarea value={orthographyExplanation} onChange={(event) => setOrthographyExplanation(event.target.value)} placeholder="La forma correcta es…" /></label>
+          <label>Fuente <small>(opcional)</small><input value={orthographySource} onChange={(event) => setOrthographySource(event.target.value)} placeholder="Ejercicio 1, p. 13" /></label>
+          <p className="field-help">OpoGC no guardará esta palabra como un test fijo. La mezclará dinámicamente con otras tres y mantendrá su progreso SRS por separado.</p>
         </div>
-      </div>
-      <button className="primary-button full" disabled={uploadingImage}>{initialCard ? "Guardar cambios" : "Guardar tarjeta"}</button>
+      ) : (
+        <>
+          <div className="flashcard-side-editor question-editor">
+            <span className="flashcard-side-label">ANVERSO · PREGUNTA</span>
+            <label>Pregunta</label><RichTextEditor value={front} onChange={setFront} placeholder="Escribe la pregunta" />
+            {isMultipleChoiceType(type) && <fieldset><legend>{type === "test" ? "Opciones del test" : "Opciones de vocabulario"}</legend>{type === "test" && <div className="answer-mode-toggle"><button type="button" className={!multipleAnswers ? "active" : ""} onClick={() => { setMultipleAnswers(false); setCorrectOption(correctOptions[0] ?? correctOption); }}>Respuesta única</button><button type="button" className={multipleAnswers ? "active" : ""} onClick={() => { setMultipleAnswers(true); setCorrectOptions((current) => current.length ? current : [correctOption]); }}>Respuesta múltiple</button></div>}{type === "test" && multipleAnswers && <p className="field-help">Marca todas las opciones correctas. Al estudiar, habrá que seleccionar exactamente ese conjunto.</p>}{options.map((option, index) => { const checked = type === "test" && multipleAnswers ? correctOptions.includes(index) : correctOption === index; return <label className="option-input" key={index}><input type={type === "test" && multipleAnswers ? "checkbox" : "radio"} name={type === "test" && multipleAnswers ? undefined : "correct"} checked={checked} onChange={() => { if (type === "test" && multipleAnswers) setCorrectOptions((current) => current.includes(index) ? current.filter((value) => value !== index) : [...current, index]); else { setCorrectOption(index); setCorrectOptions([index]); } }} /><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Opción ${index + 1}`} /></label>; })}</fieldset>}
+          </div>
+          <div className="flashcard-side-editor answer-editor">
+            <span className="flashcard-side-label">REVERSO · RESPUESTA</span>
+            <label>Texto de la respuesta <small>(opcional)</small></label><RichTextEditor value={back} onChange={setBack} placeholder="Puedes escribir una respuesta, añadir una imagen, escribir a mano o combinarlo" />
+            <div className="card-media-field answer-media-field">
+              <span className="card-media-label">Respuesta visual <small>(opcional)</small></span>
+              {!attachment ? (
+                <div className="answer-media-actions">
+                  <label className="file-drop compact answer-upload"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /><span>🖼</span><strong>{uploadingImage ? "Subiendo…" : "Usar una imagen como respuesta"}</strong><small>Página de libro, esquema, captura, fotografía…</small></label>
+                  <button type="button" className="blank-answer-button" disabled={uploadingImage} onClick={() => void createHandwrittenAnswer()}><span>✎</span><strong>Crear respuesta manuscrita</strong><small>Abre un lienzo en blanco para Apple Pencil o dedo.</small></button>
+                </div>
+              ) : (
+                <div className="card-media-preview answer-media-preview">
+                  <AnnotatedCardImage attachment={attachment} onOpen={() => setEditingImage(true)} />
+                  <div><button type="button" className="secondary-button" onClick={() => setEditingImage(true)}>✎ Abrir / escribir</button><button type="button" className="secondary-button danger" onClick={() => setAttachment(null)}>Quitar respuesta visual</button></div>
+                  <small>Esta imagen no se mostrará con la pregunta. Aparecerá únicamente al mostrar la respuesta.</small>
+                </div>
+              )}
+              {imageError && <p className="form-error">{imageError}</p>}
+            </div>
+          </div>
+        </>
+      )}
+      <button className="primary-button full" disabled={uploadingImage || (type === "orthography" && (!orthographyWord.trim() || (!orthographyIsCorrect && !orthographyCorrectForm.trim())))}>{initialCard ? "Guardar cambios" : type === "orthography" ? "Guardar palabra" : "Guardar tarjeta"}</button>
     </form>
     {editingImage && attachment && <ImageAnnotator attachment={attachment} title={plainRichText(back) || plainRichText(front) || "Respuesta visual"} onClose={() => setEditingImage(false)} />}
   </ModalShell>;

@@ -1,7 +1,7 @@
 import { getD1 } from "@/db";
 
 type Rating = "again" | "hard" | "good" | "easy";
-type CardType = "basic" | "choice" | "test";
+type CardType = "basic" | "choice" | "test" | "orthography";
 
 type Folder = {
   id: string;
@@ -33,6 +33,11 @@ type Card = {
   attachment: Attachment | null;
   fsrsStability: number;
   fsrsDifficulty: number;
+  orthographyIsCorrect: boolean | null;
+  orthographyCorrectForm: string;
+  orthographyExplanation: string;
+  orthographySource: string;
+  orthographyStage: number;
 };
 
 type Review = {
@@ -131,6 +136,11 @@ type CardRow = {
   attachmentUrl: string | null;
   fsrsStability: number;
   fsrsDifficulty: number;
+  orthographyIsCorrect: number | null;
+  orthographyCorrectForm: string | null;
+  orthographyExplanation: string | null;
+  orthographySource: string | null;
+  orthographyStage: number;
 };
 
 type ReviewRow = {
@@ -230,6 +240,11 @@ const SCHEMA_SQL = [
     attachment_url TEXT,
     fsrs_stability REAL NOT NULL DEFAULT 0,
     fsrs_difficulty REAL NOT NULL DEFAULT 0,
+    orthography_is_correct INTEGER,
+    orthography_correct_form TEXT,
+    orthography_explanation TEXT,
+    orthography_source TEXT,
+    orthography_stage INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (owner, id, sync_token)
   )`,
   `CREATE TABLE IF NOT EXISTS reviews (
@@ -299,6 +314,11 @@ const CARD_COLUMN_MIGRATIONS = [
   "ALTER TABLE cards ADD COLUMN fsrs_stability REAL NOT NULL DEFAULT 0",
   "ALTER TABLE cards ADD COLUMN fsrs_difficulty REAL NOT NULL DEFAULT 0",
   "ALTER TABLE cards ADD COLUMN correct_options_json TEXT NOT NULL DEFAULT '[]'",
+  "ALTER TABLE cards ADD COLUMN orthography_is_correct INTEGER",
+  "ALTER TABLE cards ADD COLUMN orthography_correct_form TEXT",
+  "ALTER TABLE cards ADD COLUMN orthography_explanation TEXT",
+  "ALTER TABLE cards ADD COLUMN orthography_source TEXT",
+  "ALTER TABLE cards ADD COLUMN orthography_stage INTEGER NOT NULL DEFAULT 1",
 ];
 
 const REVIEW_COLUMN_MIGRATIONS = [
@@ -357,8 +377,9 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
       `INSERT INTO cards (
         owner, id, sync_token, position, folder_id, type, front, back, options_json, correct_option, correct_options_json,
         due_at, created_at, last_reviewed_at, interval_days, ease, repetitions, lapses, streak, review_count, success_count,
-        attachment_id, attachment_key, attachment_name, attachment_type, attachment_size, attachment_url, fsrs_stability, fsrs_difficulty
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        attachment_id, attachment_key, attachment_name, attachment_type, attachment_size, attachment_url, fsrs_stability, fsrs_difficulty,
+        orthography_is_correct, orthography_correct_form, orthography_explanation, orthography_source, orthography_stage
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       owner,
       card.id,
@@ -389,6 +410,11 @@ async function writeSnapshot(owner: string, state: AppState, updatedAt: string) 
       card.attachment?.url ?? null,
       Number(card.fsrsStability ?? 0),
       Number(card.fsrsDifficulty ?? 0),
+      typeof card.orthographyIsCorrect === "boolean" ? (card.orthographyIsCorrect ? 1 : 0) : null,
+      card.orthographyCorrectForm ?? "",
+      card.orthographyExplanation ?? "",
+      card.orthographySource ?? "",
+      Math.max(1, Number(card.orthographyStage ?? 1)),
     ),
   );
 
@@ -595,7 +621,10 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
         repetitions, lapses, streak, review_count AS reviewCount, success_count AS successCount,
         attachment_id AS attachmentId, attachment_key AS attachmentKey, attachment_name AS attachmentName,
         attachment_type AS attachmentType, attachment_size AS attachmentSize, attachment_url AS attachmentUrl,
-        fsrs_stability AS fsrsStability, fsrs_difficulty AS fsrsDifficulty
+        fsrs_stability AS fsrsStability, fsrs_difficulty AS fsrsDifficulty,
+        orthography_is_correct AS orthographyIsCorrect, orthography_correct_form AS orthographyCorrectForm,
+        orthography_explanation AS orthographyExplanation, orthography_source AS orthographySource,
+        orthography_stage AS orthographyStage
        FROM cards WHERE owner = ? AND sync_token = ? ORDER BY position`,
     ).bind(owner, sync).all<CardRow>(),
     db.prepare(
@@ -667,7 +696,7 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
       } catch {
         correctOptions = [];
       }
-      if (!correctOptions.length && row.type !== "basic") correctOptions = [Number(row.correctOption)];
+      if (!correctOptions.length && (row.type === "choice" || row.type === "test")) correctOptions = [Number(row.correctOption)];
       return {
         id: row.id,
         folderId: row.folderId,
@@ -699,6 +728,11 @@ export async function loadState(owner: string): Promise<{ state: AppState | null
           : null,
         fsrsStability: Number(row.fsrsStability ?? 0),
         fsrsDifficulty: Number(row.fsrsDifficulty ?? 0),
+        orthographyIsCorrect: row.orthographyIsCorrect === null || row.orthographyIsCorrect === undefined ? null : Boolean(row.orthographyIsCorrect),
+        orthographyCorrectForm: row.orthographyCorrectForm ?? "",
+        orthographyExplanation: row.orthographyExplanation ?? "",
+        orthographySource: row.orthographySource ?? "",
+        orthographyStage: Math.max(1, Number(row.orthographyStage ?? 1)),
       };
     }),
     reviews: (reviewsResult.results ?? []).map((row) => ({

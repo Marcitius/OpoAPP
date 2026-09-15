@@ -1,15 +1,17 @@
 {
-  "version": "opogc-v8-learning-topics-multitest",
+  "version": "opogc-v9-orthography-dynamic-srs",
   "date": "2026-09-15",
   "features": [
-    "Tema to Subtema hierarchy",
-    "continuous Learn mode controlled by the student",
-    "weak and forgotten cards gain same-session priority",
-    "FSRS-6 reserved for long-term scheduling on the first meaningful session encounter",
+    "dynamic orthography study with four-word groups",
+    "orthography words stored and scheduled individually",
+    "randomized companions and positions on every group",
+    "per-word correction and spaced repetition updates",
+    "weak spelling items gain same-session priority",
+    "Tema to Subtema orthography scope",
+    "orthography progress statistics",
+    "ChatGPT JSON prompt with orthography, flashcards, vocabulary and tests",
     "single-answer and multiple-answer tests",
-    "ChatGPT JSON prompt with flashcards, vocabulary and both test modes",
-    "automatic Tema and Subtema creation during JSON import",
-    "personal recall model, random mode and scheduled review",
-    "answer images, handwriting and PDF tools"
+    "continuous Learn mode and FSRS-6 long-term scheduling",
+    "personal recall model, answer images, handwriting and PDF tools"
   ]
 }
