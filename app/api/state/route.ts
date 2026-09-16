@@ -1,5 +1,6 @@
 import { ownerFromRequest } from "@/db";
-import { isAppState, loadState, saveState } from "@/db/storage";
+import { isAppState, loadState } from "@/db/storage";
+import { saveStateIncremental } from "@/db/incremental-storage";
 
 export async function GET(request: Request) {
   try {
@@ -21,7 +22,7 @@ export async function PUT(request: Request) {
       return Response.json({ error: "Estado no válido" }, { status: 400 });
     }
 
-    const result = await saveState(owner, payload.state);
+    const result = await saveStateIncremental(owner, payload.state);
     return Response.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "No se pudo guardar el progreso";

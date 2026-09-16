@@ -1,0 +1,38 @@
+OpoGC v9.5 — Guardado incremental D1
+=====================================
+
+OBJETIVO
+- Evitar reescribir toda la base D1 cada vez que se responde una tarjeta.
+- Mantener intactas las funciones de estudio de v9.4.
+
+CAMBIO PRINCIPAL
+Antes:
+  una respuesta -> snapshot completo de carpetas + tarjetas + reviews + tests + borrado snapshot anterior + backup legacy.
+
+Ahora (caso normal):
+  una respuesta -> UPDATE de la tarjeta modificada + INSERT del nuevo review + UPDATE de app_settings.
+
+Además:
+- Reviews son append-only y no se eliminan por saves solapados.
+- Si llega una petición antigua después de una más nueva, no puede reducir reviewCount/FSRS de una tarjeta.
+- app_state ya no se reescribe en cada guardado normal.
+- active_sync se mantiene estable: no se crean snapshots completos en cada interacción.
+- Altas/bajas/movimientos de tarjetas siguen persistiendo de forma incremental.
+- No requiere migración D1 ni borrar datos.
+
+ARCHIVOS A SUBIR
+- app/api/state/route.ts
+- db/incremental-storage.ts   (NUEVO)
+- public/sw.js
+- public/version.json
+
+NO sustituir db/storage.ts. La v9.5 reutiliza su loader y lo mantiene como fallback de bootstrap/migración.
+
+COMPROBACIÓN
+Tras desplegar, abrir:
+  /version.json
+Debe mostrar:
+  opogc-v9.5-incremental-d1-storage
+
+NOTA
+El contador diario de D1 que ya se haya consumido no baja al desplegar esta versión; se reinicia según el ciclo diario de Cloudflare. Esta versión reduce el consumo de los guardados nuevos.
