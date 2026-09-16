@@ -12,7 +12,7 @@ import OrthographyStudy, { type OrthographyStudyCard, type OrthographyStudyResul
 type Tab = "today" | "library" | "psych" | "progress";
 type CardType = "basic" | "choice" | "test" | "orthography";
 type Rating = "again" | "hard" | "good" | "easy";
-type StudyMode = "recommended" | "random" | "all" | "learn";
+type StudyMode = "recommended" | "random" | "all" | "learn" | "weakest";
 type ReviewQueueItem = { cardId: string; reinforcement: boolean; reason: "scheduled" | "again" | "hard" };
 type PsychSort = "oldest" | "recent" | "last-low" | "last-high" | "avg-low" | "avg-high" | "attempts-low" | "attempts-high" | "name";
 
@@ -389,6 +389,57 @@ function cardsInFolderScope(state: AppState, folderId?: string) {
   return state.cards.filter((card) => ids.has(card.folderId) && isStudyableCard(card));
 }
 
+const isContinuousStudyMode = (mode: StudyMode) => mode === "learn" || mode === "weakest";
+
+function failureCount(cardId: string, reviews: Review[]) {
+  return reviews.reduce((count, review) => count + (review.cardId === cardId && !review.correct ? 1 : 0), 0);
+}
+
+function recentFailureCount(cardId: string, reviews: Review[], take = 8) {
+  return reviews
+    .filter((review) => review.cardId === cardId)
+    .slice(-take)
+    .reduce((count, review) => count + (!review.correct ? 1 : 0), 0);
+}
+
+function weaknessScore(card: Card, reviews: Review[], model: ReturnType<typeof fitPersonalMemoryModel>, now = new Date()) {
+  const failures = failureCount(card.id, reviews);
+  if (!failures) return 0;
+  const cardReviews = reviews.filter((review) => review.cardId === card.id);
+  const failRate = cardReviews.length ? failures / cardReviews.length : 0;
+  const recentFailures = recentFailureCount(card.id, reviews);
+  const recall = predictPersonalRecall(card, reviews, model, now).probability;
+  return failRate * 5
+    + recentFailures * 1.45
+    + Math.min(failures, 8) * 0.7
+    + Math.min(card.lapses, 6) * 0.75
+    + (1 - recall) * 2.2;
+}
+
+function weakestStudyCards(cards: Card[], reviews: Review[], model: ReturnType<typeof fitPersonalMemoryModel>) {
+  const now = new Date();
+  const failed = cards
+    .filter((card) => failureCount(card.id, reviews) > 0)
+    .sort((a, b) => weaknessScore(b, reviews, model, now) - weaknessScore(a, reviews, model, now))
+    .slice(0, 30);
+  if (!failed.length) return [];
+
+  // Si aún hay muy pocas falladas, añadimos hasta 4 tarjetas de apoyo para evitar
+  // repetir la misma de forma inmediata y confundir memoria de trabajo con aprendizaje.
+  if (failed.length < 4) {
+    const failedIds = new Set(failed.map((card) => card.id));
+    const support = cards
+      .filter((card) => card.reviewCount > 0 && !failedIds.has(card.id))
+      .sort((a, b) =>
+        predictPersonalRecall(a, reviews, model, now).probability
+        - predictPersonalRecall(b, reviews, model, now).probability,
+      )
+      .slice(0, 4 - failed.length);
+    return [...failed, ...support];
+  }
+  return failed;
+}
+
 function chooseLearnCard(
   cards: Card[],
   reviews: Review[],
@@ -444,6 +495,8 @@ function orthographyCardWeight(
   const due = card.reviewCount > 0 && new Date(card.dueAt).getTime() <= now.getTime();
   const recall = predictPersonalRecall(card, reviews, model, now).probability;
   const failRate = card.reviewCount > 0 ? 1 - card.successCount / Math.max(1, card.reviewCount) : 0.45;
+  const failures = failureCount(card.id, reviews);
+  const recentFailures = recentFailureCount(card.id, reviews);
   const sessionWrong = stat?.wrong ?? 0;
   const sessionCorrect = stat?.correct ?? 0;
   const newBoost = card.reviewCount === 0 ? 4.2 : 0;
@@ -451,7 +504,12 @@ function orthographyCardWeight(
   const difficultyBoost = failRate * 3 + Math.min(5, card.lapses) * 0.55 + (1 - recall) * 2.4;
   const sessionBoost = sessionWrong * 3.2 - sessionCorrect * 0.45;
   const unseenBoost = !stat || stat.seen === 0 ? 1.3 : 0;
-  let weight = 0.8 + dueBoost + newBoost + difficultyBoost + sessionBoost + unseenBoost;
+  const weakestBoost = mode === "weakest"
+    ? (failures > 0
+      ? 8 + failRate * 7 + recentFailures * 2.2 + Math.min(failures, 8) * 0.9 + Math.min(card.lapses, 6)
+      : -0.55)
+    : 0;
+  let weight = 0.8 + dueBoost + newBoost + difficultyBoost + sessionBoost + unseenBoost + weakestBoost;
   if (stat && stat.cooldownUntil > turn) weight *= 0.14;
   if (previousIds.has(card.id) && sessionWrong <= sessionCorrect) weight *= 0.28;
   if (mode === "all" && (!stat || stat.seen === 0)) weight += 2.2;
@@ -521,6 +579,9 @@ export default function OpoApp() {
   const [sync, setSync] = useState<"loading" | "saved" | "saving" | "error">("loading");
   const [modal, setModal] = useState<null | "folder" | "card" | "import" | "psych" | "attempt">(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [bulkTargetFolderId, setBulkTargetFolderId] = useState("");
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
   const [selectedPsych, setSelectedPsych] = useState<string | null>(null);
   const [editingPsych, setEditingPsych] = useState<string | null>(null);
@@ -645,10 +706,52 @@ export default function OpoApp() {
     if (currentCard) cardShownAtRef.current = Date.now();
   }, [currentCard?.id, reviewIndex]);
 
+  useEffect(() => {
+    setBulkSelectMode(false);
+    setSelectedCardIds([]);
+    setBulkTargetFolderId("");
+  }, [selectedFolder]);
+
+  function toggleCardSelection(cardId: string) {
+    setSelectedCardIds((current) => current.includes(cardId)
+      ? current.filter((id) => id !== cardId)
+      : [...current, cardId]);
+  }
+
+  function moveSelectedCards(targetFolderId: string) {
+    if (!state || !targetFolderId || !selectedCardIds.length) return;
+    const selected = new Set(selectedCardIds);
+    const target = state.folders.find((folder) => folder.id === targetFolderId);
+    if (!target) return notify("No se ha encontrado el tema o subtema de destino");
+    updateState((current) => ({
+      ...current,
+      cards: current.cards.map((card) => selected.has(card.id) ? { ...card, folderId: targetFolderId } : card),
+    }));
+    notify(`${selected.size} ${selected.size === 1 ? "tarjeta movida" : "tarjetas movidas"} a ${target.name}`);
+    setSelectedCardIds([]);
+    setBulkTargetFolderId("");
+  }
+
+  function deleteSelectedCards() {
+    if (!selectedCardIds.length) return;
+    const total = selectedCardIds.length;
+    if (!confirm(`¿Eliminar ${total} ${total === 1 ? "tarjeta seleccionada" : "tarjetas seleccionadas"}? Esta acción no se puede deshacer.`)) return;
+    const selected = new Set(selectedCardIds);
+    updateState((current) => ({
+      ...current,
+      cards: current.cards.filter((card) => !selected.has(card.id)),
+    }));
+    setSelectedCardIds([]);
+    notify(`${total} ${total === 1 ? "tarjeta eliminada" : "tarjetas eliminadas"}`);
+  }
+
   function startOrthographySession(folderId: string | undefined, mode: StudyMode, scope: Card[]) {
     if (!state) return;
     const words = scope.filter(isOrthographyCard);
     if (!words.length) return notify("No hay palabras de ortografía en este tema o subtema");
+    if (mode === "weakest" && !words.some((card) => failureCount(card.id, state.reviews) > 0)) {
+      return notify("Aún no hay palabras falladas en este tema o subtema");
+    }
     const group = chooseOrthographyGroup(words, state.reviews, personalModel, new Map(), 1, [], mode);
     if (!group.length) return notify("No hay palabras disponibles para practicar");
     const folder = folderId ? state.folders.find((item) => item.id === folderId) : null;
@@ -783,15 +886,23 @@ export default function OpoApp() {
       startOrthographySession(folderId, mode, orthographyScope);
       return;
     }
-    const scope = fullScope.filter((card) => !isOrthographyCard(card));
+    let scope = fullScope.filter((card) => !isOrthographyCard(card));
     const now = new Date();
     let selectedPool: Card[] = [];
 
     closeOrthographySession();
-    studyScopeRef.current = scope.map((card) => card.id);
     learnStatsRef.current = new Map();
 
-    if (mode === "learn") {
+    if (mode === "weakest") {
+      scope = weakestStudyCards(scope, state.reviews, personalModel);
+      if (!scope.length) {
+        return notify(folderId ? "Aún no hay elementos fallados en este tema o subtema" : "Aún no hay elementos fallados para repasar");
+      }
+    }
+
+    studyScopeRef.current = scope.map((card) => card.id);
+
+    if (isContinuousStudyMode(mode)) {
       const first = chooseLearnCard(scope, state.reviews, personalModel, learnStatsRef.current, 0);
       if (!first) return notify(folderId ? "Aún no hay tarjetas en este tema o subtema" : "Aún no hay tarjetas para estudiar");
       selectedPool = [first];
@@ -816,7 +927,9 @@ export default function OpoApp() {
     if (!selectedPool.length) {
       return notify(mode === "recommended"
         ? "No hay tarjetas programadas ahora. Usa Aprender o Aleatorias si quieres seguir."
-        : folderId ? "Aún no hay tarjetas en este tema o subtema" : "Aún no hay tarjetas para estudiar");
+        : mode === "weakest"
+          ? "Aún no hay elementos fallados para repasar"
+          : folderId ? "Aún no hay tarjetas en este tema o subtema" : "Aún no hay tarjetas para estudiar");
     }
 
     setStudyMode(mode);
@@ -849,7 +962,8 @@ export default function OpoApp() {
 
     const learnStat = learnStatsRef.current.get(currentCard.id) ?? { seen: 0, again: 0, hard: 0, good: 0, easy: 0, cooldownUntil: 0 };
     const firstLearnEncounter = learnStat.seen === 0;
-    const shouldUpdateLongTerm = studyMode !== "learn" || firstLearnEncounter;
+    const continuousMode = isContinuousStudyMode(studyMode);
+    const shouldUpdateLongTerm = !continuousMode || firstLearnEncounter;
     const updated = shouldUpdateLongTerm ? scheduleCard(currentCard, effectiveRating) : currentCard;
 
     const review: Review = {
@@ -860,7 +974,7 @@ export default function OpoApp() {
       reviewedAt: now.toISOString(),
       responseMs,
       sessionMode: studyMode,
-      reinforcement: studyMode === "learn" ? !firstLearnEncounter : currentQueueItem.reinforcement,
+      reinforcement: continuousMode ? !firstLearnEncounter : currentQueueItem.reinforcement,
       predictedRecall: recall.probability,
       fsrsRetrievability: fsrsCurrentRetrievability(currentCard, now),
     };
@@ -872,7 +986,7 @@ export default function OpoApp() {
 
     const nextQueue = [...reviewQueue];
 
-    if (studyMode === "learn") {
+    if (continuousMode) {
       const nextTurn = sessionDone + 1;
       const gap = effectiveRating === "again" ? 2 : effectiveRating === "hard" ? 4 : effectiveRating === "good" ? 7 : 14;
       const nextStat: LearnStat = {
@@ -1202,6 +1316,7 @@ export default function OpoApp() {
                       <button className="secondary-button danger" onClick={() => deleteFolder(activeFolder.id)}>Eliminar</button>
                       {isTheme && <button className="secondary-button" onClick={() => { setNewFolderParentId(activeFolder.id); setModal("folder"); }}>＋ Subtema</button>}
                       <button className="secondary-button" onClick={() => startReview(activeFolder.id, "recommended")}>Repaso programado</button>
+                      <button className="secondary-button" onClick={() => startReview(activeFolder.id, "weakest")}>🔥 Más falladas</button>
                       <button className="secondary-button" onClick={() => startReview(activeFolder.id, "random")}>🎲 Aleatorias</button>
                       <button className="primary-button" onClick={() => startReview(activeFolder.id, "learn")}>◎ Aprender</button>
                     </div>
@@ -1209,9 +1324,54 @@ export default function OpoApp() {
 
                   {children.length > 0 && <section className="subtopic-section"><div className="subtopic-heading"><span className="section-label">SUBTEMAS</span><p>Estudia solo una parte o usa «Aprender» arriba para mezclar todo el tema.</p></div><div className="subtopic-grid">{children.map((child) => { const childCards = cardsInFolderScope(state, child.id); const reviewed = childCards.filter((card) => card.reviewCount > 0).length; const pct = childCards.length ? Math.round(reviewed / childCards.length * 100) : 0; return <button key={child.id} className="subtopic-card" onClick={() => setSelectedFolder(child.id)}><span className="folder-icon" style={{ background: `${child.color}18`, color: child.color }}>▰</span><div><strong>{child.name}</strong><small>{childCards.length} tarjetas · {pct}% visto</small></div><span>→</span></button>; })}</div></section>}
 
-                  <div className="card-section-head"><div><span className="section-label">{isTheme ? "TARJETAS SIN SUBTEMA" : "TARJETAS DEL SUBTEMA"}</span><h3>{directCards.length ? `${directCards.length} tarjetas` : "Sin tarjetas directas"}</h3></div><button className="secondary-button" onClick={() => { setEditingCard(null); setModal("card"); }}>＋ Tarjeta aquí</button></div>
-                  {directCards.length > 0 ? <div className="card-table">
-                    {directCards.map((card) => <div className="card-row" key={card.id}><span className="card-kind">{cardTypeLabel(card.type)}{isMultipleAnswerTest(card) ? " · MULTI" : ""}</span><div><strong>{plainRichText(card.front) || "Sin pregunta"}{card.attachment ? " · 🖼️" : ""}</strong><p>{plainRichText(card.back) || (isMultipleChoiceCard(card) ? "Sin explicación añadida" : "Sin respuesta añadida")}</p></div><span>{card.reviewCount ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos` : "Sin estudiar"}</span><div className="card-actions"><button aria-label="Editar tarjeta" title="Editar tarjeta" onClick={() => { setEditingCard(card.id); setModal("card"); }}>✎</button><button aria-label="Eliminar tarjeta" title="Eliminar tarjeta" onClick={() => updateState((current) => ({ ...current, cards: current.cards.filter((item) => item.id !== card.id) }))}>×</button></div></div>)}
+                  <div className="card-section-head">
+                    <div><span className="section-label">{isTheme ? "TARJETAS SIN SUBTEMA" : "TARJETAS DEL SUBTEMA"}</span><h3>{directCards.length ? `${directCards.length} tarjetas` : "Sin tarjetas directas"}</h3></div>
+                    <div className="card-section-actions">
+                      {directCards.length > 0 && <button className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`} onClick={() => { setBulkSelectMode((value) => !value); setSelectedCardIds([]); setBulkTargetFolderId(""); }}>{bulkSelectMode ? "Cancelar selección" : "Seleccionar"}</button>}
+                      <button className="secondary-button" onClick={() => { setEditingCard(null); setModal("card"); }}>＋ Tarjeta aquí</button>
+                    </div>
+                  </div>
+
+                  {bulkSelectMode && directCards.length > 0 && (
+                    <div className="bulk-card-toolbar">
+                      <div className="bulk-card-summary">
+                        <strong>{selectedCardIds.length} seleccionada{selectedCardIds.length === 1 ? "" : "s"}</strong>
+                        <button type="button" className="text-button" onClick={() => setSelectedCardIds(selectedCardIds.length === directCards.length ? [] : directCards.map((card) => card.id))}>
+                          {selectedCardIds.length === directCards.length ? "Quitar todas" : "Seleccionar todas"}
+                        </button>
+                      </div>
+                      <div className="bulk-card-actions">
+                        <select value={bulkTargetFolderId} onChange={(event) => setBulkTargetFolderId(event.target.value)} aria-label="Tema o subtema de destino">
+                          <option value="">Mover a tema / subtema…</option>
+                          {state.folders.filter((folder) => !folder.parentId).flatMap((theme) => [
+                            <option key={theme.id} value={theme.id}>{theme.name}</option>,
+                            ...state.folders.filter((folder) => folder.parentId === theme.id).map((child) => <option key={child.id} value={child.id}>↳ {theme.name} · {child.name}</option>),
+                          ])}
+                        </select>
+                        <button className="secondary-button" disabled={!selectedCardIds.length || !bulkTargetFolderId} onClick={() => moveSelectedCards(bulkTargetFolderId)}>Mover</button>
+                        <button className="secondary-button danger" disabled={!selectedCardIds.length} onClick={deleteSelectedCards}>Eliminar</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {directCards.length > 0 ? <div className={`card-table ${bulkSelectMode ? "selecting" : ""}`}>
+                    {directCards.map((card) => {
+                      const selected = selectedCardIds.includes(card.id);
+                      return <div
+                        className={`card-row ${bulkSelectMode ? "bulk-selectable" : ""} ${selected ? "selected" : ""}`}
+                        key={card.id}
+                        onClick={() => { if (bulkSelectMode) toggleCardSelection(card.id); }}
+                      >
+                        {bulkSelectMode && <button type="button" className="card-select-check" aria-label={selected ? "Quitar de la selección" : "Seleccionar tarjeta"} onClick={(event) => { event.stopPropagation(); toggleCardSelection(card.id); }}>{selected ? "✓" : ""}</button>}
+                        <span className="card-kind">{cardTypeLabel(card.type)}{isMultipleAnswerTest(card) ? " · MULTI" : ""}</span>
+                        <div><strong>{plainRichText(card.front) || "Sin pregunta"}{card.attachment ? " · 🖼️" : ""}</strong><p>{plainRichText(card.back) || (isMultipleChoiceCard(card) ? "Sin explicación añadida" : "Sin respuesta añadida")}</p></div>
+                        <span>{card.reviewCount ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos` : "Sin estudiar"}</span>
+                        <div className="card-actions">
+                          {!bulkSelectMode && <button aria-label="Editar tarjeta" title="Editar tarjeta" onClick={() => { setEditingCard(card.id); setModal("card"); }}>✎</button>}
+                          {!bulkSelectMode && <button aria-label="Eliminar tarjeta" title="Eliminar tarjeta" onClick={() => updateState((current) => ({ ...current, cards: current.cards.filter((item) => item.id !== card.id) }))}>×</button>}
+                        </div>
+                      </div>;
+                    })}
                   </div> : <div className="folder-empty-note">{children.length ? "Las tarjetas de este tema están organizadas dentro de sus subtemas." : "Añade tarjetas a este subtema para empezar a estudiarlo."}</div>}
                 </div>
               );
@@ -1345,10 +1505,10 @@ export default function OpoApp() {
               <section className="panel"><div className="panel-head"><div><span className="section-label">ACTIVIDAD</span><h3>Últimos 7 días</h3></div></div><ActivityChart reviews={state.reviews} /></section>
               <section className="panel"><div className="panel-head"><div><span className="section-label">MEMORIA</span><h3>Estado de tarjetas</h3></div></div><MemoryBreakdown cards={state.cards.filter((card) => !isOrthographyCard(card))} /></section>
             </div>
-            <section className="panel weak-panel"><div className="panel-head"><div><span className="section-label">ATENCIÓN PRIORITARIA</span><h3>Conceptos más débiles</h3></div></div><div className="weak-list">{[...state.cards].filter((card) => !isOrthographyCard(card) && card.reviewCount > 0).sort((a, b) => (a.successCount / a.reviewCount) - (b.successCount / b.reviewCount)).slice(0, 5).map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{Math.round((card.successCount / card.reviewCount) * 100)}%</strong></div>)}{!state.cards.some((card) => !isOrthographyCard(card) && card.reviewCount > 0) && <p className="muted">Completa algunos repasos para detectar tus puntos débiles.</p>}</div></section>
+            <section className="panel weak-panel"><div className="panel-head"><div><span className="section-label">ATENCIÓN PRIORITARIA</span><h3>Conceptos más débiles</h3></div><button className="secondary-button" onClick={() => startReview(undefined, "weakest")}>🔥 Repasar más falladas</button></div><div className="weak-list">{[...state.cards].filter((card) => !isOrthographyCard(card) && card.reviewCount > 0).sort((a, b) => (a.successCount / a.reviewCount) - (b.successCount / b.reviewCount)).slice(0, 5).map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{Math.round((card.successCount / card.reviewCount) * 100)}%</strong></div>)}{!state.cards.some((card) => !isOrthographyCard(card) && card.reviewCount > 0) && <p className="muted">Completa algunos repasos para detectar tus puntos débiles.</p>}</div></section>
 
             {orthographyCards.length > 0 && <section className="panel orthography-stats-panel">
-              <div className="panel-head"><div><span className="section-label">ORTOGRAFÍA</span><h3>Progreso por palabra</h3></div><span className="orthography-history-count">{orthographyDue} para repasar</span></div>
+              <div className="panel-head"><div><span className="section-label">ORTOGRAFÍA</span><h3>Progreso por palabra</h3></div><div className="folder-study-actions"><span className="orthography-history-count">{orthographyDue} para repasar</span><button className="secondary-button" onClick={() => startOrthographySession(undefined, "weakest", orthographyCards)}>🔥 Más falladas</button></div></div>
               <div className="orthography-stat-grid">
                 <div><span>Palabras</span><strong>{orthographyCards.length}</strong><small>almacenadas individualmente</small></div>
                 <div><span>Estudiadas</span><strong>{orthographyStudied}</strong><small>{orthographyLearning} en aprendizaje</small></div>
@@ -1387,11 +1547,13 @@ export default function OpoApp() {
 
       {reviewQueue.length > 0 && reviewIndex < reviewQueue.length && currentCard && currentQueueItem && (
         <div className="review-overlay">
-          <div className={`review-top ${studyMode === "learn" ? "continuous" : ""}`}>
+          <div className={`review-top ${isContinuousStudyMode(studyMode) ? "continuous" : ""}`}>
             <button onClick={() => setReviewQueue([])}>×</button>
-            {studyMode === "learn" ? <div className="learn-session-title"><strong>Modo Aprender</strong><small>Las difíciles vuelven más; tú decides cuándo parar.</small></div> : <div className="session-progress"><span style={{ width: `${Math.round((reviewIndex / reviewQueue.length) * 100)}%` }} /> </div>}
-            <span>{studyMode === "learn" ? `${sessionDone} repasos` : `${reviewIndex + 1}/${reviewQueue.length}`}</span>
-            {studyMode === "learn" && <button className="finish-learn-button" onClick={() => setReviewQueue([])}>Terminar sesión</button>}
+            {isContinuousStudyMode(studyMode)
+              ? <div className="learn-session-title"><strong>{studyMode === "weakest" ? "Más falladas" : "Modo Aprender"}</strong><small>{studyMode === "weakest" ? "Priorizamos tus errores históricos y recientes; tú decides cuándo parar." : "Las difíciles vuelven más; tú decides cuándo parar."}</small></div>
+              : <div className="session-progress"><span style={{ width: `${Math.round((reviewIndex / reviewQueue.length) * 100)}%` }} /> </div>}
+            <span>{isContinuousStudyMode(studyMode) ? `${sessionDone} repasos` : `${reviewIndex + 1}/${reviewQueue.length}`}</span>
+            {isContinuousStudyMode(studyMode) && <button className="finish-learn-button" onClick={() => setReviewQueue([])}>Terminar</button>}
           </div>
           <div className="review-stage">
             <span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span>
@@ -1425,11 +1587,11 @@ export default function OpoApp() {
               )}
             </div>
             {isMultipleChoiceCard(currentCard) && !revealed && <button className="check-button" disabled={isMultipleAnswerTest(currentCard) ? selectedOptions.length === 0 : selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}
-            {revealed && <div className="rating-bar"><p>{isMultipleChoiceCard(currentCard) ? currentSelectionIsCorrect(currentCard) ? "¡Correcto! ¿Cómo te ha resultado?" : "No es correcto. La tarjeta ganará prioridad en esta sesión." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{studyMode === "learn" ? "Aprendizaje activo · FSRS solo consolida el primer intento" : personalModelLabel(personalModel)}</span></p><div>
-              <button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>{studyMode === "learn" ? "prioridad máxima" : "↻ tras 2 tarjetas"}</small></button>
-              <button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>{studyMode === "learn" ? "saldrá más" : "↻ tras 4 tarjetas"}</small></button>
-              <button className="good" onClick={() => rateCurrent("good")}><strong>Bien</strong><small>{studyMode === "learn" ? "baja prioridad" : fsrsDueLabel(currentCard, "good")}</small></button>
-              <button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{studyMode === "learn" ? "prioridad mínima" : fsrsDueLabel(currentCard, "easy")}</small></button>
+            {revealed && <div className="rating-bar"><p>{isMultipleChoiceCard(currentCard) ? currentSelectionIsCorrect(currentCard) ? "¡Correcto! ¿Cómo te ha resultado?" : "No es correcto. La tarjeta ganará prioridad en esta sesión." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{isContinuousStudyMode(studyMode) ? (studyMode === "weakest" ? "Refuerzo de errores · FSRS solo consolida el primer intento" : "Aprendizaje activo · FSRS solo consolida el primer intento") : personalModelLabel(personalModel)}</span></p><div>
+              <button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>{isContinuousStudyMode(studyMode) ? "prioridad máxima" : "↻ tras 2 tarjetas"}</small></button>
+              <button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>{isContinuousStudyMode(studyMode) ? "saldrá más" : "↻ tras 4 tarjetas"}</small></button>
+              <button className="good" onClick={() => rateCurrent("good")}><strong>Bien</strong><small>{isContinuousStudyMode(studyMode) ? "baja prioridad" : fsrsDueLabel(currentCard, "good")}</small></button>
+              <button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{isContinuousStudyMode(studyMode) ? "prioridad mínima" : fsrsDueLabel(currentCard, "easy")}</small></button>
             </div></div>}
           </div>
         </div>
@@ -1439,7 +1601,7 @@ export default function OpoApp() {
         <ImageLightbox attachment={currentCard.attachment} title={plainRichText(currentCard.back) || plainRichText(currentCard.front) || "Respuesta visual"} onClose={() => setViewingStudyImage(false)} />
       )}
 
-      {studyMode !== "learn" && reviewQueue.length > 0 && reviewIndex >= reviewQueue.length && (
+      {!isContinuousStudyMode(studyMode) && reviewQueue.length > 0 && reviewIndex >= reviewQueue.length && (
         <div className="review-overlay complete"><div className="complete-card"><span className="complete-icon">✓</span><span className="section-label">SESIÓN COMPLETADA</span><h2>Buen trabajo, Marc</h2><p>Has repasado {sessionDone} tarjetas. El motor ya ha recalculado cuándo debes volver a ver cada una.</p><button className="primary-button" onClick={() => setReviewQueue([])}>Volver a Hoy</button></div></div>
       )}
 

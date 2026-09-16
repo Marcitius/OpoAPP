@@ -1,17 +1,17 @@
 {
-  "version": "opogc-v9-orthography-dynamic-srs",
-  "date": "2026-09-15",
+  "version": "opogc-v9.3-mobile-bulk-selection",
+  "date": "2026-09-16",
   "features": [
-    "dynamic orthography study with four-word groups",
-    "orthography words stored and scheduled individually",
-    "randomized companions and positions on every group",
-    "per-word correction and spaced repetition updates",
-    "weak spelling items gain same-session priority",
-    "Tema to Subtema orthography scope",
-    "orthography progress statistics",
-    "ChatGPT JSON prompt with orthography, flashcards, vocabulary and tests",
+    "mobile viewport locked to device width without horizontal page drift",
+    "iOS input zoom prevention",
+    "long flashcard answers scroll naturally without rating controls covering content",
+    "compact continuous-study header on mobile",
+    "bulk flashcard selection inside Tema and Subtema",
+    "move selected cards to another Tema or Subtema",
+    "delete selected cards in one action",
+    "Most failed review mode",
+    "dynamic orthography study with per-word SRS",
     "single-answer and multiple-answer tests",
-    "continuous Learn mode and FSRS-6 long-term scheduling",
-    "personal recall model, answer images, handwriting and PDF tools"
+    "FSRS-6 long-term scheduling and personal recall model"
   ]
 }

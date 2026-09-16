@@ -1,0 +1,24 @@
+OpoGC v9.3 · móvil + selección múltiple
+
+CAMBIOS
+- Corrige desbordamiento horizontal y desplazamiento lateral en iPhone/PWA.
+- Bloquea el zoom/pinch de la interfaz y evita el zoom automático de iOS al enfocar inputs.
+- Las respuestas largas de flashcards se desplazan de forma natural; los botones Otra vez/Difícil/Bien/Fácil ya no tapan el contenido.
+- Cabecera de Modo Aprender más compacta en móvil.
+- Añade selección múltiple en las tarjetas visibles de un Tema/Subtema.
+- Permite seleccionar todas, mover las seleccionadas a cualquier Tema/Subtema y eliminar varias de una vez.
+- No cambia FSRS, modelo personal, Más falladas, Ortografía, tests ni persistencia.
+
+ARCHIVOS A SUSTITUIR
+app/OpoApp.tsx
+app/globals.css
+app/layout.tsx
+public/sw.js
+public/version.json
+
+COMPROBACIÓN
+Después del despliegue, /version.json debe indicar:
+opogc-v9.3-mobile-bulk-selection
+
+NOTA
+La edición del contenido (pregunta/respuesta) sigue siendo individual. La edición masiva se aplica a la organización: mover varias tarjetas de tema/subtema y eliminación múltiple, evitando cambios accidentales en el contenido de varias tarjetas a la vez.
