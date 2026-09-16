@@ -1,0 +1,20 @@
+OpoGC v9.4 — estudio de tarjetas seleccionadas
+
+Cambios:
+- En el modo Seleccionar de Tema/Subtema, las tarjetas elegidas se pueden estudiar sin afectar al resto.
+- Opciones sobre la selección: Repaso programado, Más falladas, Aleatorias y Aprender.
+- Aprender mantiene la sesión continua y prioriza dentro de las tarjetas seleccionadas.
+- Aleatorias mezcla únicamente las seleccionadas.
+- Más falladas usa únicamente las seleccionadas con historial de fallo.
+- Repaso programado respeta FSRS dentro del conjunto seleccionado.
+- No se modifica D1 ni el modelo de datos.
+- Ortografía puede estudiarse desde selección si toda la selección es de ortografía. No se permite mezclar ortografía con otros tipos en una misma sesión porque usan interfaces de estudio diferentes.
+
+Archivos a desplegar:
+app/OpoApp.tsx
+app/globals.css
+public/sw.js
+public/version.json
+
+Versión esperada:
+opogc-v9.4-selected-study

@@ -745,6 +745,13 @@ export default function OpoApp() {
     notify(`${total} ${total === 1 ? "tarjeta eliminada" : "tarjetas eliminadas"}`);
   }
 
+  function studySelectedCards(mode: StudyMode) {
+    if (!state || !selectedCardIds.length) return;
+    const ids = selectedCardIds.filter((id) => state.cards.some((card) => card.id === id));
+    if (!ids.length) return notify("No hay tarjetas válidas en la selección");
+    startReview(activeFolder?.id, mode, ids);
+  }
+
   function startOrthographySession(folderId: string | undefined, mode: StudyMode, scope: Card[]) {
     if (!state) return;
     const words = scope.filter(isOrthographyCard);
@@ -878,14 +885,26 @@ export default function OpoApp() {
     orthographyPreviousGroupRef.current = [];
   }
 
-  function startReview(folderId?: string, mode: StudyMode = "recommended") {
+  function startReview(folderId?: string, mode: StudyMode = "recommended", explicitCardIds?: string[]) {
     if (!state) return;
-    const fullScope = cardsInFolderScope(state, folderId);
+    const explicitIds = explicitCardIds?.length ? new Set(explicitCardIds) : null;
+    const fullScope = explicitIds
+      ? state.cards.filter((card) => explicitIds.has(card.id) && isStudyableCard(card))
+      : cardsInFolderScope(state, folderId);
+
+    if (!fullScope.length) {
+      return notify(explicitIds ? "La selección no contiene tarjetas disponibles para estudiar" : "Aún no hay tarjetas para estudiar");
+    }
+
     const orthographyScope = fullScope.filter(isOrthographyCard);
     if (orthographyScope.length && orthographyScope.length === fullScope.length) {
       startOrthographySession(folderId, mode, orthographyScope);
       return;
     }
+    if (explicitIds && orthographyScope.length > 0) {
+      return notify("No se puede mezclar Ortografía con otros tipos en una misma selección de estudio");
+    }
+
     let scope = fullScope.filter((card) => !isOrthographyCard(card));
     const now = new Date();
     let selectedPool: Card[] = [];
@@ -1350,6 +1369,13 @@ export default function OpoApp() {
                         </select>
                         <button className="secondary-button" disabled={!selectedCardIds.length || !bulkTargetFolderId} onClick={() => moveSelectedCards(bulkTargetFolderId)}>Mover</button>
                         <button className="secondary-button danger" disabled={!selectedCardIds.length} onClick={deleteSelectedCards}>Eliminar</button>
+                      </div>
+                      <div className="bulk-study-actions">
+                        <span>ESTUDIAR SELECCIÓN</span>
+                        <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("recommended")}>Repaso programado</button>
+                        <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("weakest")}>🔥 Más falladas</button>
+                        <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("random")}>🎲 Aleatorias</button>
+                        <button className="primary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("learn")}>◎ Aprender</button>
                       </div>
                     </div>
                   )}

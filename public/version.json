@@ -1,7 +1,9 @@
 {
-  "version": "opogc-v9.3-mobile-bulk-selection",
+  "version": "opogc-v9.4-selected-study",
   "date": "2026-09-16",
   "features": [
+    "study only the flashcards selected in bulk selection mode",
+    "selected-card study supports scheduled review, most failed, random and continuous Learn modes",
     "mobile viewport locked to device width without horizontal page drift",
     "iOS input zoom prevention",
     "long flashcard answers scroll naturally without rating controls covering content",
