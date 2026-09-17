@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
+import LocalDataManager from "./LocalDataManager";
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
 
@@ -25,5 +26,12 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="es"><body className={geist.variable}>{children}</body></html>;
+  return (
+    <html lang="es">
+      <body className={geist.variable}>
+        <LocalDataManager />
+        {children}
+      </body>
+    </html>
+  );
 }

@@ -1,0 +1,39 @@
+OpoGC v9.7 — LOCAL + JSON + NUBE MANUAL
+========================================
+
+OBJETIVO
+- Estudiar sin consumir escrituras D1 durante el uso normal.
+- Mantener todo el progreso en el dispositivo mediante IndexedDB.
+- Poder pasar el progreso entre iPhone, iPad y Mac con un JSON guardado en iCloud Drive.
+- Conservar D1 solamente como copia en nube manual opcional.
+
+ARCHIVOS A SUBIR
+- app/LocalDataManager.tsx   (nuevo)
+- app/layout.tsx             (sustituir)
+- public/sw.js               (sustituir)
+- public/version.json        (sustituir)
+
+NO CAMBIAR
+- app/OpoApp.tsx
+- db/storage.ts
+- db/incremental-storage.ts
+- app/api/state/route.ts
+
+MIGRACIÓN DEL PROGRESO ACTUAL
+La primera vez que un dispositivo abre v9.7 y todavía no tiene copia local, el Service Worker consulta /api/state en D1, devuelve ese progreso a OpoGC y lo guarda inmediatamente en IndexedDB. A partir de ahí, ese dispositivo trabaja localmente.
+
+Si existiera ya una copia local procedente de v9.6, se conserva y tiene prioridad para no perder trabajo pendiente.
+
+USO ENTRE DISPOSITIVOS
+1. En el dispositivo que contiene el progreso más reciente: Datos > Exportar progreso.
+2. Guardar el JSON en iCloud Drive / Archivos.
+3. En el otro dispositivo: Datos > Importar y fusionar.
+4. OpoGC une reviews, tarjetas y psicotécnicos. Para cada tarjeta conserva el estado FSRS más avanzado.
+
+COPIA EN NUBE
+Datos > Crear copia en nube ahora hace un único PUT explícito a D1. El backend incremental de v9.5 sigue activo y solo escribe las diferencias necesarias.
+
+IMPORTANTE
+- El JSON contiene el estado/progreso y las referencias a imágenes/PDF. Los binarios de imágenes/PDF siguen en R2.
+- Evitar editar la misma tarjeta de forma divergente en dos dispositivos antes de fusionar; no existe un updatedAt por tarjeta para resolver perfectamente ese caso.
+- Después del deploy, cerrar y volver a abrir la PWA una vez para que el Service Worker v9.7 tome el control.

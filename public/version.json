@@ -1,13 +1,14 @@
 {
-  "version": "opogc-v9.5-incremental-d1-storage",
-  "date": "2026-09-16",
+  "version": "opogc-v9.7-local-json-manual-cloud",
+  "date": "2026-09-17",
   "features": [
-    "incremental D1 persistence instead of full snapshot rewrite on every save",
-    "new reviews are appended individually",
-    "only changed cards, folders, tests and attempts are written",
-    "stable active sync token during normal saves",
-    "legacy full-state backup removed from normal save path",
-    "stale overlapping study saves cannot reduce card review counters",
-    "existing v9.4 selected-study, mobile, FSRS-6, orthography and most-failed features preserved"
+    "study progress stored locally in IndexedDB with no automatic D1 writes",
+    "automatic one-time bootstrap from existing D1 progress when a device has no local copy",
+    "export complete study progress to JSON for iCloud Drive or Files",
+    "import and merge JSON progress without deleting local review history",
+    "preserve the most advanced FSRS scheduling state per card during import",
+    "manual cloud backup button as the only normal D1 write path",
+    "existing v9.5 incremental D1 backend retained for manual cloud backups",
+    "existing selected-study, mobile, FSRS-6, orthography and most-failed features preserved"
   ]
 }
