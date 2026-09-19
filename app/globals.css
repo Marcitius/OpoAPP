@@ -566,3 +566,130 @@ img, video, canvas, svg { max-width: 100%; }
   .study-card, .study-card.answer-side { padding-left: 11px; padding-right: 11px; }
   .answer-box { padding: 14px 11px; }
 }
+
+.review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: #f3f0e8;
+  overflow: hidden;
+}
+
+.review-top {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 5;
+  background: #f3f0e8;
+}
+
+.review-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 20px 16px 20px;
+  overflow: hidden;
+}
+
+.deck-label,
+.study-card,
+.check-button,
+.rating-bar {
+  width: min(920px, 100%);
+  position: relative;
+  z-index: 2;
+}
+
+.study-card {
+  min-height: 0;
+  max-height: calc(100dvh - 230px);
+  padding: 24px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: center;
+}
+
+.study-card.question-side,
+.study-card.answer-side {
+  justify-content: flex-start;
+}
+
+.study-card-type {
+  display: block;
+  text-align: center;
+}
+
+.study-front,
+.answer-side-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.study-front {
+  overflow-wrap: anywhere;
+}
+
+.study-front > *:first-child,
+.answer-side-content > *:first-child {
+  margin-top: 0;
+}
+
+.answer-side-content {
+  display: grid;
+  gap: 12px;
+}
+
+.answer-box {
+  width: 100%;
+  max-width: 100%;
+}
+
+.rating-bar {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding-top: 8px;
+  background: #f3f0e8;
+}
+
+.rating-bar > p {
+  margin: 0 0 10px;
+}
+
+@media (max-width: 780px) {
+  .review-stage {
+    padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .deck-label,
+  .study-card,
+  .check-button,
+  .rating-bar {
+    width: 100%;
+  }
+
+  .study-card {
+    max-height: calc(100dvh - 270px);
+    padding: 18px 16px 20px;
+    border-radius: 20px;
+  }
+
+  .study-card h2 {
+    font-size: clamp(22px, 8vw, 32px);
+    line-height: 1.15;
+  }
+
+  .answer-box p {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+}
