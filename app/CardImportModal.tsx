@@ -2,8 +2,35 @@
 
 import { useMemo, useRef, useState } from "react";
 
-export type ImportItemType = "flashcard" | "vocabulario" | "test" | "ortografia";
+export const ALLOWED_IMPORT_TYPES = ["flashcard", "vocabulario", "test", "ortografia", "respuesta_escrita"] as const;
+export type ImportItemType = (typeof ALLOWED_IMPORT_TYPES)[number];
 export type AnswerLetter = "A" | "B" | "C" | "D";
+
+export type WrittenCriterion = {
+  id: string;
+  esperado: string;
+  alternativas: string[];
+  puntos: number;
+  literal: boolean;
+  critico: boolean;
+  maximoSiFalla: number | null;
+  minimoSimilitud: number;
+};
+
+export type WrittenEvaluation = {
+  normalizacion: {
+    ignorarMayusculas: boolean;
+    ignorarPuntuacion: boolean;
+    ignorarAcentos: boolean;
+    ignorarEspaciosExtra: boolean;
+  };
+  criterios: WrittenCriterion[];
+  umbrales: {
+    otraVezHasta: number;
+    dificilHasta: number;
+    bienHasta: number;
+  };
+};
 
 export type ParsedImportItem = {
   tipo: ImportItemType;
@@ -19,6 +46,7 @@ export type ParsedImportItem = {
   formaCorrecta: string;
   explicacion: string;
   fuente: string;
+  evaluacion: WrittenEvaluation | null;
 };
 
 export type ImportResult = {
@@ -30,73 +58,90 @@ export type ImportResult = {
 export const OPOGC_CHATGPT_PROMPT = `Convierte únicamente el contenido que te adjunte o pegue en contenido compatible con OpoGC.
 
 REGLAS OBLIGATORIAS:
-1. Devuelve exclusivamente un bloque de código JSON que contenga JSON válido. No añadas ninguna introducción ni explicación fuera del bloque.
-2. La raíz debe ser exactamente un objeto con "version": 1 y un array llamado "items".
-3. Puedes mezclar flashcards, vocabulario, tests y ortografía en el mismo array. OpoGC los organizará automáticamente.
-4. No inventes datos. Si una respuesta no puede obtenerse de la fuente, omite ese elemento.
-5. Crea una sola idea examinable por elemento, evita duplicados y conserva literalmente artículos, cifras, fechas, plazos, excepciones, grafías y nombres propios.
-6. Para una pregunta-respuesta usa "tipo": "flashcard", con "pregunta" y "respuesta".
-7. Para antónimos, sinónimos, analogías u otras preguntas de vocabulario usa "tipo": "vocabulario", exactamente cuatro "opciones" y "correcta" como letra "A", "B", "C" o "D". El vocabulario siempre es de respuesta única.
-8. Para preguntas de examen con cuatro opciones que NO sean de vocabulario usa "tipo": "test". Si solo hay una respuesta correcta usa "correcta": "A". Si hay varias respuestas correctas usa "correctas": ["A", "C"]. No uses ambos campos a la vez.
-9. Para ejercicios de ortografía NO construyas tests fijos de cuatro opciones. Cada palabra debe ser un elemento independiente con "tipo": "ortografia", "palabra", "es_correcta" y "forma_correcta". "es_correcta" debe ser boolean: true o false, sin comillas. Si la palabra está mal escrita, "forma_correcta" debe contener su grafía correcta. Si ya está bien escrita, "forma_correcta" puede coincidir con "palabra".
-10. En ortografía conserva cada palabra de la fuente como una unidad independiente. No agrupes cuatro palabras en un mismo elemento: OpoGC formará los grupos dinámicamente y cambiará sus posiciones y acompañantes en cada sesión.
-11. Usa "tema" para la agrupación principal y "subtema" para la categoría concreta. OpoGC creará una jerarquía Tema → Subtema. Ejemplo: tema "Ortografía" y subtema "Ejercicio 1".
-12. En "fuente", indica tema, artículo, ejercicio y/o página cuando se conozcan; en caso contrario usa una cadena vacía.
-13. "explicacion" es opcional, pero cuando exista debe ser breve y servir para entender la respuesta o la grafía correcta.
-14. Todos los campos son texto salvo "opciones" (array de cuatro textos), "correctas" (array de letras) y "es_correcta" (boolean). Usa comillas rectas dobles y no uses comas finales.
+1. Devuelve exclusivamente un bloque de código JSON válido. No añadas introducción ni explicación fuera del JSON.
+2. La raíz debe ser exactamente un objeto con "version": 1 y un array "items".
+3. Puedes mezclar "flashcard", "vocabulario", "test", "ortografia" y "respuesta_escrita".
+4. No inventes datos. Usa únicamente la fuente proporcionada. Si algo no puede obtenerse de ella, omítelo.
+5. Conserva literalmente artículos, cifras, fechas, plazos, excepciones, expresiones jurídicas y nombres propios.
+6. Para flashcards usa "tipo": "flashcard", "pregunta" y "respuesta".
+7. Para vocabulario usa cuatro "opciones" y una "correcta" A-D.
+8. Para test usa cuatro "opciones" y "correcta" o "correctas" si hay varias.
+9. Para ortografía cada palabra debe ser un elemento independiente con "palabra", "es_correcta" y "forma_correcta".
+10. Para práctica de respuesta escrita usa "tipo": "respuesta_escrita". ChatGPT debe definir TODA la rúbrica; OpoGC no decidirá qué palabras son importantes. Incluye "pregunta", "respuesta", "evaluacion.normalizacion", "evaluacion.criterios" y "evaluacion.umbrales".
+11. Cada criterio de respuesta escrita debe tener "id", "esperado", "alternativas", "puntos", "literal", "critico", "maximo_si_falla" y "minimo_similitud". Los puntos representan la importancia del concepto y pueden sumar cualquier cantidad; OpoGC los normalizará a 100 %.
+12. Si una expresión debe ser exactamente esa (por ejemplo "interés general"), usa "literal": true y no incluyas como alternativa una expresión jurídicamente distinta.
+13. Si aceptas formas equivalentes, decláralas explícitamente en "alternativas". Para "literal": false, "minimo_similitud" define de 0 a 1 el porcentaje mínimo de palabras del criterio que deben aparecer para considerarlo cumplido.
+14. "critico": true sirve para identificar conceptos esenciales. Si fallarlo debe limitar la nota máxima, define "maximo_si_falla" (0-100); si no quieres límite usa null.
+15. "umbrales" debe definir "otra_vez_hasta", "dificil_hasta" y "bien_hasta". Ejemplo 59, 79 y 94 produce: 0-59 Otra vez; 60-79 Difícil; 80-94 Bien; 95-100 Fácil.
+16. Usa "tema" y "subtema" para organizar. En "fuente" indica artículo, tema, ejercicio o página cuando se conozca.
 
-ESTRUCTURA EXACTA:
+EJEMPLO DE RESPUESTA ESCRITA:
 {
   "version": 1,
   "items": [
     {
-      "tipo": "flashcard",
+      "tipo": "respuesta_escrita",
       "tema": "Tema 1: Derecho Constitucional",
-      "subtema": "Título Preliminar",
-      "pregunta": "Pregunta clara y autosuficiente",
-      "respuesta": "Respuesta exacta y suficiente",
-      "explicacion": "Explicación breve opcional",
-      "fuente": "Artículo o página"
-    },
-    {
-      "tipo": "vocabulario",
-      "tema": "Vocabulario",
-      "subtema": "Antónimos",
-      "pregunta": "¿Cuál es el antónimo de DÍSCOLO?",
-      "opciones": ["Acucioso", "Obediente", "Vergonzoso", "Resuelto"],
-      "correcta": "B",
-      "explicacion": "Díscolo significa desobediente o indócil.",
-      "fuente": ""
-    },
-    {
-      "tipo": "test",
-      "tema": "Tema 1: Derecho Constitucional",
-      "subtema": "Título Preliminar",
-      "pregunta": "Selecciona todas las respuestas correctas",
-      "opciones": ["Opción A", "Opción B", "Opción C", "Opción D"],
-      "correctas": ["A", "C"],
-      "explicacion": "Explicación breve opcional",
-      "fuente": ""
-    },
-    {
-      "tipo": "ortografia",
-      "tema": "Ortografía",
-      "subtema": "Ejercicio 1",
-      "palabra": "haciago",
-      "es_correcta": false,
-      "forma_correcta": "aciago",
-      "explicacion": "La forma correcta es «aciago».",
-      "fuente": "Ejercicio 1, p. 13"
-    },
-    {
-      "tipo": "ortografia",
-      "tema": "Ortografía",
-      "subtema": "Ejercicio 1",
-      "palabra": "reventar",
-      "es_correcta": true,
-      "forma_correcta": "reventar",
+      "subtema": "Artículo 2",
+      "pregunta": "La Constitución se fundamenta en...",
+      "respuesta": "la indisoluble unidad de la Nación española, patria común e indivisible de todos los españoles",
+      "evaluacion": {
+        "normalizacion": {
+          "ignorar_mayusculas": true,
+          "ignorar_puntuacion": true,
+          "ignorar_acentos": false,
+          "ignorar_espacios_extra": true
+        },
+        "criterios": [
+          {
+            "id": "unidad",
+            "esperado": "indisoluble unidad",
+            "alternativas": [],
+            "puntos": 30,
+            "literal": true,
+            "critico": true,
+            "maximo_si_falla": 79,
+            "minimo_similitud": 1
+          },
+          {
+            "id": "nacion",
+            "esperado": "Nación española",
+            "alternativas": [],
+            "puntos": 20,
+            "literal": true,
+            "critico": true,
+            "maximo_si_falla": 79,
+            "minimo_similitud": 1
+          },
+          {
+            "id": "patria",
+            "esperado": "patria común e indivisible",
+            "alternativas": [],
+            "puntos": 30,
+            "literal": true,
+            "critico": true,
+            "maximo_si_falla": 79,
+            "minimo_similitud": 1
+          },
+          {
+            "id": "todos",
+            "esperado": "todos los españoles",
+            "alternativas": [],
+            "puntos": 20,
+            "literal": false,
+            "critico": false,
+            "maximo_si_falla": null,
+            "minimo_similitud": 0.8
+          }
+        ],
+        "umbrales": {
+          "otra_vez_hasta": 59,
+          "dificil_hasta": 79,
+          "bien_hasta": 94
+        }
+      },
       "explicacion": "",
-      "fuente": "Ejercicio 1, p. 13"
+      "fuente": "Artículo 2 CE"
     }
   ]
 }
@@ -111,6 +156,11 @@ function stripCodeFence(value: string) {
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function asImportType(value: unknown): ImportItemType | null {
+  const tipo = asString(value).toLocaleLowerCase("es");
+  return (ALLOWED_IMPORT_TYPES as readonly string[]).includes(tipo) ? tipo as ImportItemType : null;
 }
 
 function asLetter(value: unknown): AnswerLetter | "" {
@@ -133,14 +183,76 @@ function emptyItemBase(tipo: ImportItemType, tema: string, subtema: string, expl
     formaCorrecta: "",
     explicacion,
     fuente,
+    evaluacion: null,
+  };
+}
+
+function asNumber(value: unknown, fallback = NaN) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function asBoolean(value: unknown, fallback: boolean) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function parseWrittenEvaluation(value: unknown, index: number): WrittenEvaluation {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Elemento ${index + 1}: respuesta_escrita necesita "evaluacion"`);
+  const evaluation = value as Record<string, unknown>;
+  const normalizationRaw = evaluation.normalizacion;
+  if (!normalizationRaw || typeof normalizationRaw !== "object" || Array.isArray(normalizationRaw)) throw new Error(`Elemento ${index + 1}: falta "evaluacion.normalizacion"`);
+  const normalization = normalizationRaw as Record<string, unknown>;
+
+  if (!Array.isArray(evaluation.criterios) || !evaluation.criterios.length) throw new Error(`Elemento ${index + 1}: "evaluacion.criterios" debe contener al menos un criterio`);
+  const ids = new Set<string>();
+  const criterios = evaluation.criterios.map((raw, criterionIndex): WrittenCriterion => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error(`Elemento ${index + 1}, criterio ${criterionIndex + 1}: formato no válido`);
+    const row = raw as Record<string, unknown>;
+    const id = asString(row.id);
+    const esperado = asString(row.esperado);
+    const puntos = asNumber(row.puntos);
+    if (!id || ids.has(id)) throw new Error(`Elemento ${index + 1}, criterio ${criterionIndex + 1}: "id" vacío o duplicado`);
+    ids.add(id);
+    if (!esperado) throw new Error(`Elemento ${index + 1}, criterio ${criterionIndex + 1}: falta "esperado"`);
+    if (!(puntos > 0)) throw new Error(`Elemento ${index + 1}, criterio ${criterionIndex + 1}: "puntos" debe ser mayor que 0`);
+    const alternativas = Array.isArray(row.alternativas) ? row.alternativas.map(asString).filter(Boolean) : [];
+    const literal = asBoolean(row.literal, true);
+    const critico = asBoolean(row.critico, false);
+    const maxRaw = row.maximo_si_falla;
+    const maximoSiFalla = maxRaw === null || maxRaw === undefined ? null : asNumber(maxRaw);
+    if (maximoSiFalla !== null && (maximoSiFalla < 0 || maximoSiFalla > 100)) throw new Error(`Elemento ${index + 1}, criterio ${criterionIndex + 1}: "maximo_si_falla" debe estar entre 0 y 100 o ser null`);
+    const minimoSimilitud = asNumber(row.minimo_similitud, literal ? 1 : 0.8);
+    if (minimoSimilitud < 0 || minimoSimilitud > 1) throw new Error(`Elemento ${index + 1}, criterio ${criterionIndex + 1}: "minimo_similitud" debe estar entre 0 y 1`);
+    return { id, esperado, alternativas, puntos, literal, critico, maximoSiFalla, minimoSimilitud };
+  });
+
+  const thresholdsRaw = evaluation.umbrales;
+  if (!thresholdsRaw || typeof thresholdsRaw !== "object" || Array.isArray(thresholdsRaw)) throw new Error(`Elemento ${index + 1}: falta "evaluacion.umbrales"`);
+  const thresholds = thresholdsRaw as Record<string, unknown>;
+  const otraVezHasta = asNumber(thresholds.otra_vez_hasta);
+  const dificilHasta = asNumber(thresholds.dificil_hasta);
+  const bienHasta = asNumber(thresholds.bien_hasta);
+  if (![otraVezHasta, dificilHasta, bienHasta].every((value) => value >= 0 && value <= 100) || !(otraVezHasta < dificilHasta && dificilHasta < bienHasta)) {
+    throw new Error(`Elemento ${index + 1}: umbrales inválidos; deben ser crecientes entre 0 y 100`);
+  }
+
+  return {
+    normalizacion: {
+      ignorarMayusculas: asBoolean(normalization.ignorar_mayusculas, true),
+      ignorarPuntuacion: asBoolean(normalization.ignorar_puntuacion, true),
+      ignorarAcentos: asBoolean(normalization.ignorar_acentos, false),
+      ignorarEspaciosExtra: asBoolean(normalization.ignorar_espacios_extra, true),
+    },
+    criterios,
+    umbrales: { otraVezHasta, dificilHasta, bienHasta },
   };
 }
 
 function parseItem(value: unknown, index: number): ParsedImportItem {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Elemento ${index + 1}: debe ser un objeto`);
   const row = value as Record<string, unknown>;
-  const tipo = asString(row.tipo).toLocaleLowerCase("es") as ImportItemType;
-  if (!["flashcard", "vocabulario", "test", "ortografia"].includes(tipo)) throw new Error(`Elemento ${index + 1}: tipo no válido`);
+  const tipo = asImportType(row.tipo);
+  if (!tipo) throw new Error(`Elemento ${index + 1}: tipo no válido`);
 
   const rawTema = asString(row.tema);
   const tema = rawTema || (tipo === "ortografia" ? "" : "Importado");
@@ -168,6 +280,13 @@ function parseItem(value: unknown, index: number): ParsedImportItem {
     const respuesta = asString(row.respuesta);
     if (!respuesta) throw new Error(`Elemento ${index + 1}: la flashcard necesita respuesta`);
     return { ...base, pregunta, respuesta };
+  }
+
+  if (tipo === "respuesta_escrita") {
+    const respuesta = asString(row.respuesta);
+    if (!respuesta) throw new Error(`Elemento ${index + 1}: respuesta_escrita necesita "respuesta"`);
+    const evaluacion = parseWrittenEvaluation(row.evaluacion, index);
+    return { ...base, pregunta, respuesta, evaluacion };
   }
 
   const opciones = Array.isArray(row.opciones) ? row.opciones.map(asString) : [];
@@ -207,6 +326,10 @@ function itemTitle(item: ParsedImportItem) {
   return item.tipo === "ortografia" ? item.palabra : item.pregunta;
 }
 
+function itemKindLabel(item: ParsedImportItem) {
+  return item.tipo === "respuesta_escrita" ? "respuesta escrita" : item.tipo;
+}
+
 export default function CardImportModal({ onClose, onImport }: { onClose: () => void; onImport: (items: ParsedImportItem[]) => ImportResult }) {
   const [raw, setRaw] = useState("");
   const [error, setError] = useState("");
@@ -216,7 +339,7 @@ export default function CardImportModal({ onClose, onImport }: { onClose: () => 
 
   const summary = useMemo(() => {
     if (!preview) return null;
-    const counts = { flashcard: 0, vocabulario: 0, test: 0, ortografia: 0, multiple: 0 };
+    const counts = { flashcard: 0, vocabulario: 0, test: 0, ortografia: 0, respuesta_escrita: 0, multiple: 0 };
     const themes = new Set<string>();
     preview.forEach((item) => {
       counts[item.tipo] += 1;
@@ -260,11 +383,11 @@ export default function CardImportModal({ onClose, onImport }: { onClose: () => 
         <button className="modal-close" onClick={onClose}>×</button>
         <span className="section-label">CHATGPT + JSON</span>
         <h2>Crear o importar contenido con IA</h2>
-        <p className="modal-subtitle">Copia el prompt en ChatGPT, adjunta o pega tu material y después importa el JSON. OpoGC detectará Tema → Subtema, flashcards, vocabulario, tests y palabras de ortografía.</p>
+        <p className="modal-subtitle">Copia el prompt en ChatGPT, adjunta o pega tu material y después importa el JSON. OpoGC detectará Tema → Subtema, flashcards, vocabulario, tests, ortografía y respuestas escritas.</p>
 
         <div className="import-workflow">
           <section className="import-step">
-            <div className="import-step-head"><span>1</span><div><strong>Genera el JSON en ChatGPT</strong><small>El prompt incluye tests múltiples y ortografía como unidades individuales.</small></div></div>
+            <div className="import-step-head"><span>1</span><div><strong>Genera el JSON en ChatGPT</strong><small>El prompt incluye tests múltiples, ortografía y rúbricas completas para respuesta escrita.</small></div></div>
             <div className="prompt-preview">{OPOGC_CHATGPT_PROMPT}</div>
             <button type="button" className="secondary-button full-width" onClick={() => void copyPrompt()}>{copied ? "✓ Prompt copiado" : "Copiar prompt para ChatGPT"}</button>
           </section>
@@ -279,10 +402,10 @@ export default function CardImportModal({ onClose, onImport }: { onClose: () => 
 
         {preview && summary && (
           <section className="import-preview">
-            <div className="import-preview-head"><div><span className="section-label">PREVISUALIZACIÓN</span><h3>{preview.length} elementos válidos</h3></div><div className="import-counts"><span>{summary.counts.flashcard} flashcards</span><span>{summary.counts.vocabulario} vocabulario</span><span>{summary.counts.test} tests</span><span>{summary.counts.ortografia} ortografía</span>{summary.counts.multiple > 0 && <span>{summary.counts.multiple} tests múltiples</span>}</div></div>
+            <div className="import-preview-head"><div><span className="section-label">PREVISUALIZACIÓN</span><h3>{preview.length} elementos válidos</h3></div><div className="import-counts"><span>{summary.counts.flashcard} flashcards</span><span>{summary.counts.vocabulario} vocabulario</span><span>{summary.counts.test} tests</span><span>{summary.counts.ortografia} ortografía</span><span>{summary.counts.respuesta_escrita} escritas</span>{summary.counts.multiple > 0 && <span>{summary.counts.multiple} tests múltiples</span>}</div></div>
             <p><strong>Temas:</strong> {summary.themes.join(" · ")}</p>
             <div className="import-preview-list">
-              {preview.slice(0, 8).map((item, index) => <div key={`${itemTitle(item)}-${index}`}><span className={`import-kind ${item.tipo}`}>{item.tipo}</span><strong>{itemTitle(item)}</strong><small>{item.tema}{item.subtema ? ` · ${item.subtema}` : ""}{item.tipo === "test" && item.correctas.length > 1 ? " · respuesta múltiple" : item.tipo === "ortografia" ? item.esCorrecta ? " · correcta" : ` · → ${item.formaCorrecta}` : ""}</small></div>)}
+              {preview.slice(0, 8).map((item, index) => <div key={`${itemTitle(item)}-${index}`}><span className={`import-kind ${item.tipo}`}>{itemKindLabel(item)}</span><strong>{itemTitle(item)}</strong><small>{item.tema}{item.subtema ? ` · ${item.subtema}` : ""}{item.tipo === "test" && item.correctas.length > 1 ? " · respuesta múltiple" : item.tipo === "ortografia" ? item.esCorrecta ? " · correcta" : ` · → ${item.formaCorrecta}` : item.tipo === "respuesta_escrita" ? ` · ${item.evaluacion?.criterios.length ?? 0} criterios` : ""}</small></div>)}
               {preview.length > 8 && <p className="muted">…y {preview.length - 8} elementos más.</p>}
             </div>
             <button className="primary-button full" onClick={doImport}>Importar {preview.length} elementos</button>

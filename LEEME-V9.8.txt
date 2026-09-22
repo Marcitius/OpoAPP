@@ -1,0 +1,24 @@
+OpoGC v9.8 · Respuesta escrita con rúbrica JSON
+
+ARCHIVOS A SUBIR RESPETANDO ESTAS RUTAS:
+- app/OpoApp.tsx
+- app/CardImportModal.tsx
+- app/globals.css
+- app/LocalDataManager.tsx
+- public/version.json
+
+NO requiere migración D1.
+La rúbrica y el historial de precisión se guardan en options_json, que ya existe.
+
+Flujo:
+1. En ChatGPT / JSON copia el prompt actualizado.
+2. ChatGPT puede generar items con tipo "respuesta_escrita".
+3. ChatGPT define respuesta modelo, criterios, puntos, literalidad, alternativas, criticidad, límites y umbrales.
+4. OpoGC solo ejecuta la rúbrica y calcula el porcentaje.
+5. El porcentaje alimenta la prioridad de Aprender / Mas falladas y los umbrales asignan automáticamente Again/Hard/Good/Easy para FSRS.
+
+La práctica se puede lanzar desde un tema/subtema con el botón "✍ Respuesta escrita" cuando haya tarjetas de ese tipo.
+
+No se ha modificado la persistencia local-first ni el mecanismo de exportar/importar progreso.
+
+Además, la exportación en iOS comparte únicamente el JSON (sin título adjunto), evitando los ficheros texto.txt de 23 bytes.

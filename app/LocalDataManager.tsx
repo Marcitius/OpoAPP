@@ -74,6 +74,14 @@ function compareScores(a: number[], b: number[]) {
   return 0;
 }
 
+const WRITTEN_RUBRIC_PREFIX = "__OPOGC_WRITTEN_RUBRIC__:";
+const WRITTEN_STATS_PREFIX = "__OPOGC_WRITTEN_STATS__:";
+
+function writtenOption(card: AnyRecord, prefix: string) {
+  const options = Array.isArray(card.options) ? card.options : [];
+  return options.find((item: unknown) => typeof item === "string" && item.startsWith(prefix)) as string | undefined;
+}
+
 const CARD_PROGRESS_FIELDS = [
   "dueAt",
   "lastReviewedAt",
@@ -100,6 +108,11 @@ function mergeCard(local: AnyRecord, incoming: AnyRecord) {
     : local;
   for (const field of CARD_PROGRESS_FIELDS) {
     if (field in progressSource) merged[field] = progressSource[field];
+  }
+  if (merged.type === "written") {
+    const rubric = writtenOption(incoming, WRITTEN_RUBRIC_PREFIX) ?? writtenOption(local, WRITTEN_RUBRIC_PREFIX);
+    const stats = writtenOption(progressSource, WRITTEN_STATS_PREFIX);
+    merged.options = [rubric, stats].filter((item): item is string => Boolean(item));
   }
   return merged;
 }
@@ -199,7 +212,7 @@ export default function LocalDataManager() {
         share?: (data?: ShareData) => Promise<void>;
       };
       if (shareNavigator.share && shareNavigator.canShare?.({ files: [file] })) {
-        await shareNavigator.share({ files: [file], title: "Copia de progreso OpoGC" });
+        await shareNavigator.share({ files: [file] });
         setNotice("Copia preparada. Puedes guardarla en iCloud Drive desde Compartir.");
       } else {
         const url = URL.createObjectURL(file);

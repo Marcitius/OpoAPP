@@ -1,14 +1,15 @@
 {
-  "version": "opogc-v9.7-local-json-manual-cloud",
-  "date": "2026-09-17",
+  "version": "opogc-v9.8-respuesta-escrita-rubrica-json",
+  "date": "2026-09-22",
   "features": [
-    "study progress stored locally in IndexedDB with no automatic D1 writes",
-    "automatic one-time bootstrap from existing D1 progress when a device has no local copy",
-    "export complete study progress to JSON for iCloud Drive or Files",
-    "import and merge JSON progress without deleting local review history",
-    "preserve the most advanced FSRS scheduling state per card during import",
-    "manual cloud backup button as the only normal D1 write path",
-    "existing v9.5 incremental D1 backend retained for manual cloud backups",
-    "existing selected-study, mobile, FSRS-6, orthography and most-failed features preserved"
+    "new respuesta_escrita study type generated from ChatGPT JSON",
+    "ChatGPT defines the complete scoring rubric, key concepts, weights, accepted variants and thresholds",
+    "OpoGC evaluates written answers locally and returns a weighted precision percentage",
+    "critical criteria can cap the maximum score when missed",
+    "written precision history is stored inside the card using existing options persistence, so no D1 schema migration is required",
+    "FSRS rating is assigned automatically from JSON thresholds",
+    "Aprender and Mas falladas prioritize written cards using recent precision in addition to the existing memory model",
+    "dedicated Respuesta escrita study button appears in folders that contain written cards",
+    "existing flashcards, tests, vocabulary, orthography, local JSON storage and manual cloud backup remain unchanged"
   ]
 }
