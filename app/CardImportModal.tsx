@@ -69,11 +69,12 @@ REGLAS OBLIGATORIAS:
 9. Para ortografía cada palabra debe ser un elemento independiente con "palabra", "es_correcta" y "forma_correcta".
 10. Para práctica de respuesta escrita usa "tipo": "respuesta_escrita". ChatGPT debe definir TODA la rúbrica; OpoGC no decidirá qué palabras son importantes. Incluye "pregunta", "respuesta", "evaluacion.normalizacion", "evaluacion.criterios" y "evaluacion.umbrales".
 11. Cada criterio de respuesta escrita debe tener "id", "esperado", "alternativas", "puntos", "literal", "critico", "maximo_si_falla" y "minimo_similitud". Los puntos representan la importancia del concepto y pueden sumar cualquier cantidad; OpoGC los normalizará a 100 %.
-12. Si una expresión debe ser exactamente esa (por ejemplo "interés general"), usa "literal": true y no incluyas como alternativa una expresión jurídicamente distinta.
-13. Si aceptas formas equivalentes, decláralas explícitamente en "alternativas". Para "literal": false, "minimo_similitud" define de 0 a 1 el porcentaje mínimo de palabras del criterio que deben aparecer para considerarlo cumplido.
-14. "critico": true sirve para identificar conceptos esenciales. Si fallarlo debe limitar la nota máxima, define "maximo_si_falla" (0-100); si no quieres límite usa null.
-15. "umbrales" debe definir "otra_vez_hasta", "dificil_hasta" y "bien_hasta". Ejemplo 59, 79 y 94 produce: 0-59 Otra vez; 60-79 Difícil; 80-94 Bien; 95-100 Fácil.
-16. Usa "tema" y "subtema" para organizar. En "fuente" indica artículo, tema, ejercicio o página cuando se conozca.
+12. Si una expresión debe ser exactamente esa (por ejemplo "interés general"), usa "literal": true y no incluyas como alternativa una expresión jurídicamente distinta. No marques como literal una frase larga completa solo por ser texto jurídico: divide la respuesta en conceptos pequeños y usa literal únicamente cuando el orden o la expresión exacta sean realmente esenciales.
+13. Si aceptas formas equivalentes, cambios de orden que no alteran el concepto o respuestas que contienen las mismas ideas con distinta redacción, usa "literal": false y decláralas cuando sea útil en "alternativas". Para "literal": false, "minimo_similitud" define de 0 a 1 el porcentaje mínimo de palabras del criterio que deben aparecer para considerarlo cumplido.
+14. Evita criterios excesivamente grandes. Es preferible repartir una respuesta en varios conceptos evaluables para que un pequeño fallo no convierta en 0 una respuesta sustancialmente correcta.
+15. "critico": true sirve para identificar conceptos esenciales. Si fallarlo debe limitar la nota máxima, define "maximo_si_falla" (0-100); si no quieres límite usa null.
+16. "umbrales" debe definir "otra_vez_hasta", "dificil_hasta" y "bien_hasta". Ejemplo 59, 79 y 94 produce: 0-59 Otra vez; 60-79 Difícil; 80-94 Bien; 95-100 Fácil.
+17. Usa "tema" y "subtema" para organizar. En "fuente" indica artículo, tema, ejercicio o página cuando se conozca.
 
 EJEMPLO DE RESPUESTA ESCRITA:
 {

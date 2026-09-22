@@ -1,0 +1,17 @@
+OpoGC v9.9 · Editor de rúbrica de respuesta escrita
+
+ARCHIVOS A SUBIR CONSERVANDO RUTAS:
+- app/OpoApp.tsx
+- app/CardImportModal.tsx
+- app/globals.css
+- app/LocalDataManager.tsx
+- public/version.json
+
+CAMBIOS:
+- Respuesta escrita aparece como quinto tipo en el editor. En una tarjeta nueva se muestra deshabilitado porque estas tarjetas siguen creándose desde ChatGPT/JSON.
+- Al editar una respuesta escrita importada se puede modificar toda la rúbrica: criterios, texto esperado, alternativas, puntos, literalidad, criticidad, similitud mínima, máximo si falla, normalización y umbrales.
+- La precisión deja de ser totalmente binaria por criterio: si no se alcanza el criterio completo, se conceden puntos parciales según cobertura de palabras. La condición de criterio cumplido sigue siendo estricta y mantiene los límites por fallo crítico/literal.
+- El prompt de ChatGPT pide criterios más pequeños y evita marcar frases largas enteras como literales cuando no sea necesario.
+- Se mantiene el arreglo de exportación iOS para compartir únicamente el JSON.
+
+No requiere migración D1. La rúbrica y estadísticas siguen persistiendo en los campos ya existentes de la tarjeta.

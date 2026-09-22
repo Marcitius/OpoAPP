@@ -6,7 +6,7 @@ import { AnnotatedCardImage, ImageAnnotator, ImageLightbox } from "./CardImage";
 import RichTextEditor, { plainRichText, RichContent, sanitizeRichHtml } from "./RichTextEditor";
 import { applyFsrsReview, fsrsCurrentRetrievability, fsrsDueLabel } from "./fsrs";
 import { fitPersonalMemoryModel, personalModelLabel, predictPersonalRecall } from "./memoryModel";
-import CardImportModal, { type ParsedImportItem, type WrittenEvaluation } from "./CardImportModal";
+import CardImportModal, { type ParsedImportItem, type WrittenCriterion, type WrittenEvaluation } from "./CardImportModal";
 import OrthographyStudy, { type OrthographyStudyCard, type OrthographyStudyResult } from "./OrthographyStudy";
 
 type Tab = "today" | "library" | "psych" | "progress";
@@ -266,7 +266,9 @@ function evaluateWrittenAnswer(card: Card, answer: string): WrittenAnswerResult 
       id: criterion.id,
       esperado: criterion.esperado,
       puntos: criterion.puntos,
-      conseguido: passed ? criterion.puntos : 0,
+      // La nota usa precisión gradual aunque el criterio no llegue al umbral.
+      // "cumplido" sigue siendo binario para aplicar criticidad y límites máximos.
+      conseguido: passed ? criterion.puntos : criterion.puntos * bestSimilarity,
       cumplido: passed,
       critico: criterion.critico,
       similitud: bestSimilarity,
@@ -1792,7 +1794,7 @@ export default function OpoApp() {
                     <>
                       <div className={`written-score ${writtenResult.rating}`}><span>PRECISIÓN</span><strong>{writtenResult.accuracy}%</strong><small>{writtenResult.rating === "again" ? "Otra vez" : writtenResult.rating === "hard" ? "Difícil" : writtenResult.rating === "good" ? "Bien" : "Fácil"}</small></div>
                       <div className="written-user-answer"><span>TU RESPUESTA</span><p>{writtenAnswer}</p></div>
-                      <div className="written-criteria-list">{writtenResult.criteria.map((criterion) => <div key={criterion.id} className={criterion.cumplido ? "ok" : "miss"}><span>{criterion.cumplido ? "✓" : "×"}</span><div><strong>{criterion.esperado}</strong><small>{criterion.cumplido ? `${criterion.puntos} puntos` : `0/${criterion.puntos} puntos${criterion.critico ? " · concepto crítico" : ""}`}</small></div></div>)}</div>
+                      <div className="written-criteria-list">{writtenResult.criteria.map((criterion) => <div key={criterion.id} className={criterion.cumplido ? "ok" : "miss"}><span>{criterion.cumplido ? "✓" : "×"}</span><div><strong>{criterion.esperado}</strong><small>{`${Math.round(criterion.conseguido * 10) / 10}/${criterion.puntos} puntos${criterion.critico ? " · concepto crítico" : ""}${!criterion.cumplido && criterion.similitud > 0 ? ` · ${Math.round(criterion.similitud * 100)}% coincidencia` : ""}`}</small></div></div>)}</div>
                       {plainRichText(currentCard.back) && <div className="answer-box written-model-answer"><small>RESPUESTA MODELO</small><RichContent html={currentCard.back} /></div>}
                       <button className="primary-button written-continue-button" onClick={() => rateCurrent(writtenResult.rating, writtenResult)}>Continuar</button>
                     </>
@@ -1897,6 +1899,25 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
   const [orthographyCorrectForm, setOrthographyCorrectForm] = useState(initialCard?.type === "orthography" ? initialCard.orthographyCorrectForm : "");
   const [orthographyExplanation, setOrthographyExplanation] = useState(initialCard?.type === "orthography" ? initialCard.orthographyExplanation : "");
   const [orthographySource, setOrthographySource] = useState(initialCard?.type === "orthography" ? initialCard.orthographySource : "");
+  const [writtenEvaluation, setWrittenEvaluation] = useState<WrittenEvaluation | null>(() => initialCard?.type === "written" ? writtenRubric(initialCard) : null);
+  const [writtenEditorError, setWrittenEditorError] = useState("");
+
+  function updateWrittenCriterion(index: number, updater: (criterion: WrittenCriterion) => WrittenCriterion) {
+    setWrittenEvaluation((current) => current ? { ...current, criterios: current.criterios.map((criterion, criterionIndex) => criterionIndex === index ? updater(criterion) : criterion) } : current);
+    setWrittenEditorError("");
+  }
+
+  function addWrittenCriterion() {
+    setWrittenEvaluation((current) => {
+      if (!current) return current;
+      const number = current.criterios.length + 1;
+      return { ...current, criterios: [...current.criterios, { id: `criterio_${number}`, esperado: "", alternativas: [], puntos: 10, literal: false, critico: false, maximoSiFalla: null, minimoSimilitud: 0.8 }] };
+    });
+  }
+
+  function removeWrittenCriterion(index: number) {
+    setWrittenEvaluation((current) => current ? { ...current, criterios: current.criterios.filter((_, criterionIndex) => criterionIndex !== index) } : current);
+  }
 
   async function compressIfNeeded(file: File) {
     if (file.size <= 5.5 * 1024 * 1024) return file;
@@ -2008,7 +2029,27 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
     };
     if (type === "orthography" && !orthographyWord.trim()) return;
     if (type === "orthography" && !orthographyIsCorrect && !orthographyCorrectForm.trim()) return;
+    if (type === "written") {
+      if (!writtenEvaluation || !writtenEvaluation.criterios.length) { setWrittenEditorError("La respuesta escrita necesita al menos un criterio de corrección."); return; }
+      const ids = new Set<string>();
+      for (const criterion of writtenEvaluation.criterios) {
+        if (!criterion.id.trim() || ids.has(criterion.id.trim())) { setWrittenEditorError("Cada criterio necesita un ID único."); return; }
+        ids.add(criterion.id.trim());
+        if (!criterion.esperado.trim()) { setWrittenEditorError("Todos los criterios necesitan un texto esperado."); return; }
+        if (!(criterion.puntos > 0)) { setWrittenEditorError("Los puntos de cada criterio deben ser mayores que 0."); return; }
+        if (criterion.minimoSimilitud < 0 || criterion.minimoSimilitud > 1) { setWrittenEditorError("La similitud mínima debe estar entre 0 y 1."); return; }
+      }
+      const { otraVezHasta, dificilHasta, bienHasta } = writtenEvaluation.umbrales;
+      if (!(otraVezHasta >= 0 && otraVezHasta < dificilHasta && dificilHasta < bienHasta && bienHasta < 100)) {
+        setWrittenEditorError("Los umbrales deben cumplir: Otra vez < Difícil < Bien < 100.");
+        return;
+      }
+    }
+    setWrittenEditorError("");
     const finalOrthographyForm = orthographyIsCorrect ? (orthographyCorrectForm.trim() || orthographyWord.trim()) : orthographyCorrectForm.trim();
+    const writtenOptions = type === "written" && writtenEvaluation
+      ? [...(initialCard?.options ?? []).filter((item) => !item.startsWith(WRITTEN_RUBRIC_PREFIX)), encodeWrittenRubric(writtenEvaluation)]
+      : (initialCard?.options ?? []);
     onSave({
       ...base,
       folderId,
@@ -2017,7 +2058,7 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
       back: type === "orthography"
         ? orthographyBackHtml(orthographyWord.trim(), orthographyIsCorrect, finalOrthographyForm, orthographyExplanation.trim(), orthographySource.trim())
         : sanitizeRichHtml(back),
-      options: type === "written" ? (initialCard?.options ?? []) : isMultipleChoiceType(type) ? options.slice(0, 4).map((option) => option.trim()) : [],
+      options: type === "written" ? writtenOptions : isMultipleChoiceType(type) ? options.slice(0, 4).map((option) => option.trim()) : [],
       correctOption: isMultipleChoiceType(type) ? ((type === "test" && multipleAnswers ? [...new Set(correctOptions)].sort((a, b) => a - b)[0] : correctOption) ?? 0) : 0,
       correctOptions: isMultipleChoiceType(type) ? (type === "test" && multipleAnswers ? ([...new Set(correctOptions)].sort((a, b) => a - b).length ? [...new Set(correctOptions)].sort((a, b) => a - b) : [0]) : [Math.min(correctOption, 3)]) : [],
       attachment: type === "orthography" ? null : attachment,
@@ -2029,9 +2070,16 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
     });
   }
 
-  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="Crea flashcards, vocabulario, tests u ortografía. Las respuestas escritas con rúbrica se crean desde ChatGPT / JSON." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
+  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="Crea flashcards, vocabulario, tests u ortografía. Las respuestas escritas con rúbrica se crean desde ChatGPT / JSON y después pueden editarse aquí." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
     <form onSubmit={submit}>
-      {type === "written" ? <div className="written-import-note"><strong>Respuesta escrita</strong><span>La rúbrica de corrección se conserva desde el JSON importado. Aquí puedes editar la pregunta y la respuesta modelo sin cambiar los criterios.</span></div> : <div className="segmented four-types"><button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Flashcard</button><button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Vocabulario</button><button type="button" className={type === "test" ? "active" : ""} onClick={() => setType("test")}>Tipo test</button><button type="button" className={type === "orthography" ? "active" : ""} onClick={() => setType("orthography")}>Ortografía</button></div>}
+      <div className="segmented five-types">
+        <button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Flashcard</button>
+        <button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Vocabulario</button>
+        <button type="button" className={type === "test" ? "active" : ""} onClick={() => setType("test")}>Tipo test</button>
+        <button type="button" className={type === "orthography" ? "active" : ""} onClick={() => setType("orthography")}>Ortografía</button>
+        <button type="button" className={type === "written" ? "active" : ""} disabled={!initialCard || initialCard.type !== "written"} title={!initialCard ? "Las respuestas escritas se crean desde ChatGPT / JSON" : initialCard.type !== "written" ? "No se convierte una tarjeta existente a respuesta escrita" : "Editar respuesta escrita"} onClick={() => initialCard?.type === "written" && setType("written")}>Respuesta escrita</button>
+      </div>
+      {type === "written" && <div className="written-import-note"><strong>Respuesta escrita</strong><span>Edita aquí la rúbrica importada. OpoGC seguirá usando estos criterios para calcular la precisión.</span></div>}
       <label>Tema / subtema<select value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Sin carpeta</option>{folders.filter((folder) => !folder.parentId).flatMap((theme) => [<option key={theme.id} value={theme.id}>{theme.name}</option>, ...folders.filter((folder) => folder.parentId === theme.id).map((child) => <option key={child.id} value={child.id}>↳ {child.name}</option>)])}</select></label>
       {type === "orthography" ? (
         <div className="orthography-manual-editor">
@@ -2073,9 +2121,54 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
               {imageError && <p className="form-error">{imageError}</p>}
             </div>
           </div>
+
+          {type === "written" && writtenEvaluation && (
+            <div className="written-rubric-editor">
+              <div className="written-rubric-head"><div><span className="flashcard-side-label">RÚBRICA DE CORRECCIÓN</span><strong>{writtenEvaluation.criterios.length} criterios</strong></div><button type="button" className="secondary-button" onClick={addWrittenCriterion}>＋ Criterio</button></div>
+              <p className="field-help">Puedes aflojar o endurecer cada criterio. Si el orden exacto no importa, desactiva «Literal» y ajusta la similitud mínima.</p>
+              <div className="written-normalization-grid">
+                <label><input type="checkbox" checked={writtenEvaluation.normalizacion.ignorarMayusculas} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, normalizacion: { ...writtenEvaluation.normalizacion, ignorarMayusculas: event.target.checked } })} /> Ignorar mayúsculas</label>
+                <label><input type="checkbox" checked={writtenEvaluation.normalizacion.ignorarPuntuacion} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, normalizacion: { ...writtenEvaluation.normalizacion, ignorarPuntuacion: event.target.checked } })} /> Ignorar puntuación</label>
+                <label><input type="checkbox" checked={writtenEvaluation.normalizacion.ignorarAcentos} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, normalizacion: { ...writtenEvaluation.normalizacion, ignorarAcentos: event.target.checked } })} /> Ignorar acentos</label>
+                <label><input type="checkbox" checked={writtenEvaluation.normalizacion.ignorarEspaciosExtra} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, normalizacion: { ...writtenEvaluation.normalizacion, ignorarEspaciosExtra: event.target.checked } })} /> Ignorar espacios extra</label>
+              </div>
+
+              <div className="written-rubric-criteria">
+                {writtenEvaluation.criterios.map((criterion, index) => (
+                  <section className="written-rubric-criterion" key={`${criterion.id}-${index}`}>
+                    <div className="written-rubric-criterion-head"><strong>Criterio {index + 1}</strong><button type="button" className="text-button danger-text" disabled={writtenEvaluation.criterios.length <= 1} onClick={() => removeWrittenCriterion(index)}>Eliminar</button></div>
+                    <div className="form-grid">
+                      <label>ID<input value={criterion.id} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, id: event.target.value }))} /></label>
+                      <label>Puntos<input type="number" min="0.1" step="0.1" value={criterion.puntos} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, puntos: Number(event.target.value) }))} /></label>
+                    </div>
+                    <label>Texto esperado<textarea value={criterion.esperado} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, esperado: event.target.value }))} /></label>
+                    <label>Alternativas aceptadas <small>(una por línea)</small><textarea value={criterion.alternativas.join("\n")} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, alternativas: event.target.value.split(/\n/).map((value) => value.trim()).filter(Boolean) }))} /></label>
+                    <div className="written-rubric-flags">
+                      <label><input type="checkbox" checked={criterion.literal} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, literal: event.target.checked }))} /> Literal</label>
+                      <label><input type="checkbox" checked={criterion.critico} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, critico: event.target.checked }))} /> Crítico</label>
+                    </div>
+                    <div className="form-grid">
+                      <label>Similitud mínima<input type="number" min="0" max="1" step="0.05" value={criterion.minimoSimilitud} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, minimoSimilitud: Number(event.target.value) }))} /></label>
+                      <label>Máximo si falla <small>(vacío = sin límite)</small><input type="number" min="0" max="100" step="1" value={criterion.maximoSiFalla ?? ""} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, maximoSiFalla: event.target.value === "" ? null : Number(event.target.value) }))} /></label>
+                    </div>
+                  </section>
+                ))}
+              </div>
+
+              <div className="written-thresholds">
+                <span className="flashcard-side-label">UMBRALES AUTOMÁTICOS</span>
+                <div className="form-grid three">
+                  <label>Otra vez hasta<input type="number" min="0" max="99" value={writtenEvaluation.umbrales.otraVezHasta} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, umbrales: { ...writtenEvaluation.umbrales, otraVezHasta: Number(event.target.value) } })} /></label>
+                  <label>Difícil hasta<input type="number" min="1" max="99" value={writtenEvaluation.umbrales.dificilHasta} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, umbrales: { ...writtenEvaluation.umbrales, dificilHasta: Number(event.target.value) } })} /></label>
+                  <label>Bien hasta<input type="number" min="2" max="99" value={writtenEvaluation.umbrales.bienHasta} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, umbrales: { ...writtenEvaluation.umbrales, bienHasta: Number(event.target.value) } })} /></label>
+                </div>
+              </div>
+              {writtenEditorError && <p className="form-error">{writtenEditorError}</p>}
+            </div>
+          )}
         </>
       )}
-      <button className="primary-button full" disabled={uploadingImage || (type === "orthography" && (!orthographyWord.trim() || (!orthographyIsCorrect && !orthographyCorrectForm.trim())))}>{initialCard ? "Guardar cambios" : type === "orthography" ? "Guardar palabra" : "Guardar tarjeta"}</button>
+      <button className="primary-button full" disabled={uploadingImage || (type === "orthography" && (!orthographyWord.trim() || (!orthographyIsCorrect && !orthographyCorrectForm.trim()))) || (type === "written" && !writtenEvaluation)}>{initialCard ? "Guardar cambios" : type === "orthography" ? "Guardar palabra" : "Guardar tarjeta"}</button>
     </form>
     {editingImage && attachment && <ImageAnnotator attachment={attachment} title={plainRichText(back) || plainRichText(front) || "Respuesta visual"} onClose={() => setEditingImage(false)} />}
   </ModalShell>;

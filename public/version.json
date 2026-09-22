@@ -1,15 +1,13 @@
 {
-  "version": "opogc-v9.8-respuesta-escrita-rubrica-json",
+  "version": "opogc-v9.9-editor-rubrica-respuesta-escrita",
   "date": "2026-09-22",
   "features": [
-    "new respuesta_escrita study type generated from ChatGPT JSON",
-    "ChatGPT defines the complete scoring rubric, key concepts, weights, accepted variants and thresholds",
-    "OpoGC evaluates written answers locally and returns a weighted precision percentage",
-    "critical criteria can cap the maximum score when missed",
-    "written precision history is stored inside the card using existing options persistence, so no D1 schema migration is required",
-    "FSRS rating is assigned automatically from JSON thresholds",
-    "Aprender and Mas falladas prioritize written cards using recent precision in addition to the existing memory model",
-    "dedicated Respuesta escrita study button appears in folders that contain written cards",
-    "existing flashcards, tests, vocabulary, orthography, local JSON storage and manual cloud backup remain unchanged"
+    "Respuesta escrita appears as a fifth card type in the editor; creation remains JSON-only while imported rubrics are editable",
+    "editable written-answer rubric: expected text, alternatives, points, literal/critical flags, similarity threshold and score cap",
+    "editable normalization and automatic rating thresholds",
+    "written scoring now grants proportional partial credit from token coverage instead of forcing an all-or-nothing zero for each missed criterion",
+    "critical and literal rules still control whether a criterion is fully satisfied and can still cap the maximum score",
+    "ChatGPT prompt now discourages oversized literal criteria and asks for smaller concept-level rubrics",
+    "existing FSRS, local JSON storage, orthography, tests, vocabulary, flashcards and manual cloud backup remain unchanged"
   ]
 }
