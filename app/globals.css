@@ -631,3 +631,427 @@ img, video, canvas, svg { max-width: 100%; }
   .written-normalization-grid, .written-rubric-flags { grid-template-columns: 1fr; }
   .written-rubric-criterion .form-grid, .written-thresholds .form-grid.three { grid-template-columns: 1fr; }
 }
+
+/* V9.10 · iPad/tablet layout + restore isolated study overlay */
+/*
+   El iPad en vertical queda por encima del breakpoint móvil (780px), pero con
+   mucho menos ancho útil que un escritorio porque la barra lateral sigue
+   ocupando 250px. Estas reglas cubren explícitamente ese rango sin modificar
+   el diseño de móvil ni el de escritorio ancho.
+*/
+
+/* El overlay de estudio siempre es una capa independiente. */
+.review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #f3f0e8;
+  overflow: hidden;
+}
+
+.review-top {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 5;
+  background: #f3f0e8;
+}
+
+.review-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 20px 16px 20px;
+  overflow: hidden;
+}
+
+.deck-label,
+.study-card,
+.check-button,
+.rating-bar {
+  width: min(920px, 100%);
+  position: relative;
+  z-index: 2;
+}
+
+.study-card,
+.study-card.question-side,
+.study-card.answer-side {
+  min-height: 0;
+  max-height: calc(100dvh - 230px);
+  flex: 0 1 auto;
+  padding: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: center;
+}
+
+.study-card-type { display: block; text-align: center; }
+.study-front,
+.answer-side-content { width: 100%; max-width: 100%; min-width: 0; }
+.study-front { overflow-wrap: anywhere; }
+.study-front > *:first-child,
+.answer-side-content > *:first-child { margin-top: 0; }
+.answer-side-content { display: grid; gap: 12px; }
+.answer-box { width: 100%; max-width: 100%; }
+.rating-bar { flex: 0 0 auto; margin-top: 0; padding-top: 8px; background: #f3f0e8; }
+.rating-bar > p { margin: 0 0 10px; }
+
+/* iPad / tablets en vertical y ventanas medianas. */
+@media (min-width: 781px) and (max-width: 1180px) {
+  /* Biblioteca: no intentar mantener el layout de escritorio en ~650-800px útiles. */
+  .topbar { padding-left: 30px; padding-right: 30px; }
+  .page { padding-left: 30px; padding-right: 30px; }
+
+  .action-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .search-box { max-width: none; min-width: 0; }
+
+  .folder-title {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+  }
+  .folder-title > div:first-child { min-width: 0; }
+  .folder-title > div:last-child,
+  .folder-study-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .folder-title .secondary-button,
+  .folder-study-actions button { width: 100%; min-width: 0; margin: 0; }
+
+  .card-section-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px;
+  }
+  .card-section-actions { justify-content: flex-end; }
+
+  .bulk-card-toolbar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .bulk-card-actions {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto auto;
+    width: 100%;
+  }
+  .bulk-card-actions select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .bulk-study-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bulk-study-actions > span { grid-column: 1 / -1; }
+  .bulk-study-actions button { width: 100%; min-width: 0; }
+
+  .card-table.selecting .card-row {
+    grid-template-columns: 32px 68px minmax(0, 1fr) 88px;
+    gap: 9px;
+  }
+  .card-table.selecting .card-actions { display: none; }
+
+  /* Estudio: tipografía y alturas específicas para iPad. */
+  .review-top.continuous {
+    min-height: 72px;
+    grid-template-columns: 38px minmax(0, 1fr) auto auto;
+    gap: 12px;
+    padding: 8px 24px;
+  }
+  .learn-session-title { min-width: 0; }
+  .learn-session-title small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .review-stage {
+    padding: 16px 22px 22px;
+    overflow: hidden;
+  }
+  .deck-label,
+  .study-card,
+  .check-button,
+  .rating-bar { width: min(820px, 100%); }
+
+  .study-card,
+  .study-card.question-side,
+  .study-card.answer-side {
+    max-height: calc(100dvh - 210px);
+    padding: 24px 26px;
+    border-radius: 22px;
+  }
+  .study-front {
+    max-width: 740px;
+    margin: 12px auto 18px;
+    font-size: clamp(25px, 3.1vw, 31px);
+    line-height: 1.22;
+  }
+  .study-card h1 { font-size: 32px; line-height: 1.15; }
+  .study-card h2 { font-size: 29px; line-height: 1.18; }
+  .study-card h3 { font-size: 25px; line-height: 1.2; }
+
+  .answer-side-content { margin-top: 10px; }
+  .answer-box { padding: 18px; }
+  .answer-box .rich-content,
+  .answer-box p,
+  .answer-box li { font-size: 16px; line-height: 1.5; }
+
+  .written-answer-input { max-width: 100%; margin-top: 14px; }
+  .written-answer-input textarea { min-height: 160px; }
+  .written-score > strong { font-size: 38px; }
+
+  .rating-bar > div { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rating-bar button { min-width: 0; }
+}
+
+/* Mantener el comportamiento móvil actual, pero con la capa aislada. */
+@media (max-width: 780px) {
+  .review-stage {
+    padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+  .deck-label,
+  .study-card,
+  .check-button,
+  .rating-bar { width: 100%; }
+  .study-card,
+  .study-card.question-side,
+  .study-card.answer-side {
+    max-height: calc(100dvh - 270px);
+    padding: 18px 16px 20px;
+    border-radius: 20px;
+  }
+  .study-card h2 { font-size: clamp(22px, 8vw, 32px); line-height: 1.15; }
+  .answer-box p { font-size: 15px; line-height: 1.5; }
+}
+
+/* V9.11 · layout de estudio fluido y estable en cualquier pantalla
+   La pantalla completa de estudio usa un único scroll exterior. La tarjeta
+   crece con el contenido: no hay alturas máximas ni scroll interno que puedan
+   hacer que pregunta, respuesta o controles se monten entre sí. */
+.review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #f3f0e8;
+  overflow: hidden;
+}
+
+.review-top {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 5;
+  background: #f3f0e8;
+}
+
+.review-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: clamp(14px, 2.2vh, 26px) clamp(12px, 2.4vw, 30px) clamp(22px, 4vh, 44px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-bottom: 32px;
+}
+
+.deck-label,
+.study-card,
+.check-button,
+.rating-bar {
+  width: min(820px, 100%);
+  max-width: 820px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+}
+
+.deck-label {
+  margin: 0 0 2px;
+  min-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.study-card,
+.study-card.question-side,
+.study-card.answer-side {
+  min-height: 0;
+  height: auto;
+  max-height: none !important;
+  padding: clamp(20px, 2.8vw, 36px);
+  overflow: visible !important;
+  overscroll-behavior: auto;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: center;
+}
+
+.study-card-type {
+  display: block;
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.study-front {
+  width: 100%;
+  max-width: 760px;
+  min-width: 0;
+  margin: clamp(12px, 2vh, 20px) auto clamp(16px, 2.5vh, 26px);
+  font-size: clamp(22px, 2.2vw, 34px);
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+.study-front > * {
+  max-width: 100%;
+}
+
+.study-front > *:first-child,
+.answer-side-content > *:first-child {
+  margin-top: 0;
+}
+
+.study-front > *:last-child,
+.answer-side-content > *:last-child {
+  margin-bottom: 0;
+}
+
+.written-answer-input {
+  width: min(760px, 100%);
+  max-width: 760px;
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+}
+
+.written-answer-input textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: clamp(150px, 22vh, 230px);
+  max-height: min(38vh, 320px);
+}
+
+.answer-side-content {
+  width: min(760px, 100%);
+  max-width: 760px;
+  min-width: 0;
+  margin: 12px auto 0;
+  display: grid;
+  justify-items: stretch;
+  gap: 12px;
+}
+
+.answer-box,
+.written-user-answer,
+.written-criteria-list,
+.written-model-answer,
+.written-score,
+.answer-visual-block {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.check-button,
+.rating-bar {
+  margin-top: 0;
+}
+
+.rating-bar {
+  padding-top: 4px;
+  background: transparent;
+}
+
+/* Ventanas estrechas: mismos componentes, solo más compactos. */
+@media (max-width: 700px) {
+  .review-stage {
+    gap: 10px;
+    padding: 12px 10px calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .deck-label,
+  .study-card,
+  .check-button,
+  .rating-bar {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .study-card,
+  .study-card.question-side,
+  .study-card.answer-side {
+    padding: 18px 14px 20px;
+    border-radius: 18px;
+  }
+
+  .study-front {
+    font-size: clamp(21px, 6.2vw, 28px);
+    line-height: 1.2;
+  }
+
+  .written-answer-input textarea {
+    min-height: 180px;
+    max-height: 42vh;
+  }
+
+  .rating-bar > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Ventanas bajas de portátil: reduce algo la pregunta y el campo de escritura
+   sin cambiar el flujo ni crear un segundo scroll. */
+@media (min-width: 701px) and (max-height: 760px) {
+  .review-stage {
+    padding-top: 12px;
+  }
+  .study-front {
+    font-size: clamp(22px, 1.9vw, 30px);
+    margin-top: 10px;
+    margin-bottom: 16px;
+  }
+  .written-answer-input textarea {
+    min-height: 125px;
+    max-height: 240px;
+  }
+}

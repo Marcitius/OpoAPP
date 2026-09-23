@@ -1,13 +1,12 @@
 {
-  "version": "opogc-v9.9-editor-rubrica-respuesta-escrita",
-  "date": "2026-09-22",
+  "version": "opogc-v9.11-responsive-universal-study-layout",
+  "date": "2026-09-23",
   "features": [
-    "Respuesta escrita appears as a fifth card type in the editor; creation remains JSON-only while imported rubrics are editable",
-    "editable written-answer rubric: expected text, alternatives, points, literal/critical flags, similarity threshold and score cap",
-    "editable normalization and automatic rating thresholds",
-    "written scoring now grants proportional partial credit from token coverage instead of forcing an all-or-nothing zero for each missed criterion",
-    "critical and literal rules still control whether a criterion is fully satisfied and can still cap the maximum score",
-    "ChatGPT prompt now discourages oversized literal criteria and asks for smaller concept-level rubrics",
-    "existing FSRS, local JSON storage, orthography, tests, vocabulary, flashcards and manual cloud backup remain unchanged"
+    "single fluid study layout shared by mobile, iPad and desktop instead of device-specific card heights",
+    "review stage is the only vertical scroll container; study cards grow naturally with long questions and answers",
+    "removed internal study-card max-height and scrolling that could cause overlapping or clipped content",
+    "fluid capped question typography to avoid oversized text on wide desktop screens",
+    "written-answer textarea adapts to available viewport height without pushing content outside the card",
+    "existing FSRS, written-answer scoring, rubric editor, local JSON storage and all study logic remain unchanged"
   ]
 }

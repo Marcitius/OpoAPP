@@ -1,0 +1,15 @@
+OpoGC v9.11 · responsive universal de estudio
+
+Sube conservando las rutas:
+- app/globals.css
+- public/version.json
+
+No se ha modificado OpoApp.tsx ni ninguna lógica de estudio, FSRS, rúbricas,
+almacenamiento, JSON, D1 u ortografía.
+
+Cambio principal: la pantalla de estudio deja de depender de alturas fijas por
+dispositivo. El único scroll vertical es review-stage y la tarjeta crece con
+la pregunta/respuesta. Esto evita solapes en móvil, iPad y escritorio.
+
+Después del despliegue, /version.json debe mostrar:
+opogc-v9.11-responsive-universal-study-layout
