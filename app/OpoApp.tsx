@@ -13,7 +13,14 @@ type Tab = "today" | "library" | "psych" | "progress";
 type CardType = "basic" | "choice" | "test" | "orthography" | "written";
 type Rating = "again" | "hard" | "good" | "easy";
 type StudyMode = "recommended" | "random" | "all" | "learn" | "weakest";
-type ReviewQueueItem = { cardId: string; reinforcement: boolean; reason: "scheduled" | "again" | "hard" };
+type ReviewQueueOutcome = "rated" | "unknown";
+type ReviewQueueItem = {
+  cardId: string;
+  reinforcement: boolean;
+  reason: "scheduled" | "again" | "hard";
+  completed?: boolean;
+  outcome?: ReviewQueueOutcome;
+};
 type PsychSort = "oldest" | "recent" | "last-low" | "last-high" | "avg-low" | "avg-high" | "attempts-low" | "attempts-high" | "name";
 
 type Folder = {
@@ -58,6 +65,7 @@ type Review = {
   cardId: string;
   rating: Rating;
   correct: boolean;
+  accuracy?: number;
   reviewedAt: string;
   responseMs?: number;
   sessionMode?: StudyMode;
@@ -150,11 +158,6 @@ function orthographyBackHtml(word: string, isCorrect: boolean, correctForm: stri
   return sanitizeRichHtml(parts.join(""));
 }
 
-function normalizedQuestion(value: string) {
-  return value.trim().toLocaleLowerCase("es").replace(/\s+/g, " ");
-}
-
-
 const WRITTEN_RUBRIC_PREFIX = "__OPOGC_WRITTEN_RUBRIC__:";
 const WRITTEN_STATS_PREFIX = "__OPOGC_WRITTEN_STATS__:";
 
@@ -192,6 +195,25 @@ function writtenRubric(card: Card): WrittenEvaluation | null {
   if (!raw) return null;
   try { return JSON.parse(raw.slice(WRITTEN_RUBRIC_PREFIX.length)) as WrittenEvaluation; }
   catch { return null; }
+}
+
+function zeroWrittenAnswerResult(card: Card): WrittenAnswerResult | null {
+  const evaluation = writtenRubric(card);
+  if (!evaluation) return null;
+  return {
+    accuracy: 0,
+    rating: "again",
+    criteria: evaluation.criterios.map((criterion) => ({
+      id: criterion.id,
+      esperado: criterion.esperado,
+      puntos: criterion.puntos,
+      conseguido: 0,
+      cumplido: false,
+      critico: criterion.critico,
+      similitud: 0,
+    })),
+    criticalMisses: evaluation.criterios.filter((criterion) => criterion.critico).map((criterion) => criterion.id),
+  };
 }
 
 function writtenStats(card: Card): WrittenStats {
@@ -857,6 +879,9 @@ export default function OpoApp() {
   );
   const currentQueueItem = reviewQueue[reviewIndex] ?? null;
   const currentCard = state?.cards.find((card) => card.id === currentQueueItem?.cardId) ?? null;
+  const displayedWrittenResult = currentCard && isWrittenCard(currentCard)
+    ? writtenResult ?? (currentQueueItem?.outcome === "unknown" ? zeroWrittenAnswerResult(currentCard) : null)
+    : null;
   const activeFolder = state?.folders.find((folder) => folder.id === selectedFolder) ?? null;
   const activePsych = state?.psychTests.find((test) => test.id === selectedPsych) ?? null;
   const openPsych = state?.psychTests.find((test) => test.id === editingPsych) ?? null;
@@ -867,9 +892,13 @@ export default function OpoApp() {
 
   useEffect(() => {
     if (currentCard) cardShownAtRef.current = Date.now();
+    setRevealed(Boolean(currentQueueItem?.completed));
+    setViewingStudyImage(false);
+    setSelectedOption(null);
+    setSelectedOptions([]);
     setWrittenAnswer("");
     setWrittenResult(null);
-  }, [currentCard?.id, reviewIndex]);
+  }, [currentCard?.id, currentQueueItem?.completed, reviewIndex]);
 
   useEffect(() => {
     setBulkSelectMode(false);
@@ -1118,7 +1147,7 @@ export default function OpoApp() {
 
     setStudyMode(mode);
     reinforcementCountsRef.current = new Map();
-    setReviewQueue(selectedPool.map((card) => ({ cardId: card.id, reinforcement: false, reason: "scheduled" })));
+    setReviewQueue(selectedPool.map((card) => ({ cardId: card.id, reinforcement: false, reason: "scheduled", completed: false })));
     setReviewIndex(0);
     setSessionDone(0);
     setRevealed(false);
@@ -1145,8 +1174,63 @@ export default function OpoApp() {
     setRevealed(true);
   }
 
+  function goToPreviousCard() {
+    if (reviewIndex <= 0) return;
+    setReviewIndex((value) => Math.max(0, value - 1));
+  }
+
+  function goToNextCard() {
+    if (!state || !currentCard) return;
+    const nextQueue = [...reviewQueue];
+
+    if (isContinuousStudyMode(studyMode) && reviewIndex >= nextQueue.length - 1) {
+      const scope = state.cards.filter((card) => studyScopeRef.current.includes(card.id) && isStudyableCard(card));
+      const next = chooseLearnCard(
+        scope,
+        state.reviews,
+        personalModel,
+        learnStatsRef.current,
+        Math.max(sessionDone, nextQueue.length),
+        currentCard.id,
+      );
+      if (next) {
+        const nextSeen = learnStatsRef.current.get(next.id)?.seen ?? 0;
+        nextQueue.push({
+          cardId: next.id,
+          reinforcement: nextSeen > 0,
+          reason: nextSeen > 0 ? "hard" : "scheduled",
+          completed: false,
+        });
+      }
+    }
+
+    setReviewQueue(nextQueue);
+    if (reviewIndex + 1 < nextQueue.length) {
+      setReviewIndex((value) => value + 1);
+    } else if (!isContinuousStudyMode(studyMode)) {
+      setReviewIndex(nextQueue.length);
+    } else {
+      notify("No hay otra tarjeta disponible en este ámbito");
+    }
+  }
+
+  function markCurrentUnknown() {
+    if (!currentCard || currentQueueItem?.completed) return;
+    const zeroResult = isWrittenCard(currentCard) ? zeroWrittenAnswerResult(currentCard) : null;
+    recordCurrentReview("again", zeroResult, false, "unknown");
+  }
+
   function rateCurrent(rating: Rating, writtenEvaluation?: WrittenAnswerResult | null) {
-    if (!state || !currentCard || !currentQueueItem) return;
+    recordCurrentReview(rating, writtenEvaluation, true, "rated");
+  }
+
+  function recordCurrentReview(
+    rating: Rating,
+    writtenEvaluation: WrittenAnswerResult | null | undefined,
+    advance: boolean,
+    outcome: ReviewQueueOutcome,
+  ) {
+    if (!state || !currentCard || !currentQueueItem || currentQueueItem.completed) return;
     const now = new Date();
     const choiceWasWrong = isMultipleChoiceCard(currentCard) && !currentSelectionIsCorrect(currentCard);
     const effectiveRating: Rating = choiceWasWrong ? "again" : rating;
@@ -1166,6 +1250,7 @@ export default function OpoApp() {
       cardId: currentCard.id,
       rating: effectiveRating,
       correct,
+      accuracy: outcome === "unknown" ? 0 : writtenEvaluation?.accuracy,
       reviewedAt: now.toISOString(),
       responseMs,
       sessionMode: studyMode,
@@ -1179,7 +1264,9 @@ export default function OpoApp() {
       reviews: [...current.reviews, review],
     }));
 
-    const nextQueue = [...reviewQueue];
+    const nextQueue = reviewQueue.map((item, index) => index === reviewIndex
+      ? { ...item, completed: true, outcome }
+      : item);
 
     if (continuousMode) {
       const nextTurn = sessionDone + 1;
@@ -1197,10 +1284,12 @@ export default function OpoApp() {
       const scope = state.cards
         .map((card) => card.id === updated.id ? updated : card)
         .filter((card) => studyScopeRef.current.includes(card.id) && isStudyableCard(card));
-      const next = chooseLearnCard(scope, [...state.reviews, review], personalModel, learnStatsRef.current, nextTurn, currentCard.id);
-      if (next) {
-        const nextSeen = learnStatsRef.current.get(next.id)?.seen ?? 0;
-        nextQueue.push({ cardId: next.id, reinforcement: nextSeen > 0, reason: nextSeen > 0 ? "hard" : "scheduled" });
+      if (reviewIndex >= nextQueue.length - 1) {
+        const next = chooseLearnCard(scope, [...state.reviews, review], personalModel, learnStatsRef.current, nextTurn, currentCard.id);
+        if (next) {
+          const nextSeen = learnStatsRef.current.get(next.id)?.seen ?? 0;
+          nextQueue.push({ cardId: next.id, reinforcement: nextSeen > 0, reason: nextSeen > 0 ? "hard" : "scheduled", completed: false });
+        }
       }
     } else {
       const counts = reinforcementCountsRef.current;
@@ -1211,20 +1300,20 @@ export default function OpoApp() {
         const gap = shouldReinforceAgain ? 2 : 4;
         const reason = shouldReinforceAgain ? "again" : "hard";
         const insertAt = Math.min(nextQueue.length, reviewIndex + 1 + gap);
-        nextQueue.splice(insertAt, 0, { cardId: currentCard.id, reinforcement: true, reason });
+        nextQueue.splice(insertAt, 0, { cardId: currentCard.id, reinforcement: true, reason, completed: false });
         counts.set(currentCard.id, previousCount + 1);
       }
     }
 
     setReviewQueue(nextQueue);
     setSessionDone((value) => value + 1);
-    setReviewIndex((value) => value + 1);
-    setRevealed(false);
-    setViewingStudyImage(false);
-    setSelectedOption(null);
-    setSelectedOptions([]);
-    setWrittenAnswer("");
-    setWrittenResult(null);
+    if (advance) {
+      setReviewIndex((value) => Math.min(value + 1, nextQueue.length));
+    } else {
+      setWrittenAnswer("");
+      setWrittenResult(null);
+      setRevealed(true);
+    }
   }
 
   function importGeneratedCards(items: ParsedImportItem[]) {
@@ -1238,9 +1327,8 @@ export default function OpoApp() {
     const childByParentAndName = new Map(
       folders.filter((folder) => folder.parentId).map((folder) => [`${folder.parentId}::${folder.name.trim().toLocaleLowerCase("es")}`, folder]),
     );
-    const existingKeys = new Set(cards.map((card) => `${card.folderId}::${card.type}::${normalizedQuestion(plainRichText(card.front))}`));
     let imported = 0;
-    let skipped = 0;
+    const skipped = 0;
     let foldersCreated = 0;
 
     for (const item of items) {
@@ -1269,13 +1357,6 @@ export default function OpoApp() {
       }
 
       const type: CardType = item.tipo === "ortografia" ? "orthography" : item.tipo === "respuesta_escrita" ? "written" : item.tipo === "test" ? "test" : item.tipo === "vocabulario" ? "choice" : "basic";
-      const contentKey = item.tipo === "ortografia" ? item.palabra : item.pregunta;
-      const key = `${folder.id}::${type}::${normalizedQuestion(contentKey)}`;
-      if (existingKeys.has(key)) {
-        skipped += 1;
-        continue;
-      }
-
       const correctOptions = isMultipleChoiceType(type)
         ? item.correctas.map((letter) => "ABCD".indexOf(letter)).filter((index) => index >= 0)
         : [];
@@ -1313,13 +1394,12 @@ export default function OpoApp() {
         orthographySource: isOrthography ? item.fuente : "",
         orthographyStage: 1,
       });
-      existingKeys.add(key);
       imported += 1;
     }
 
     if (imported > 0) {
       updateState((current) => ({ ...current, folders, cards }));
-      notify(`${imported} elementos importados${foldersCreated ? ` · ${foldersCreated} temas/subtemas nuevos` : ""}${skipped ? ` · ${skipped} duplicados omitidos` : ""}`);
+      notify(`${imported} elementos importados${foldersCreated ? ` · ${foldersCreated} temas/subtemas nuevos` : ""}`);
     }
     return { imported, skipped, foldersCreated };
   }
@@ -1790,13 +1870,13 @@ export default function OpoApp() {
                 </>
               ) : (
                 <div className="answer-side-content">
-                  {isWrittenCard(currentCard) && writtenResult ? (
+                  {isWrittenCard(currentCard) && displayedWrittenResult ? (
                     <>
-                      <div className={`written-score ${writtenResult.rating}`}><span>PRECISIÓN</span><strong>{writtenResult.accuracy}%</strong><small>{writtenResult.rating === "again" ? "Otra vez" : writtenResult.rating === "hard" ? "Difícil" : writtenResult.rating === "good" ? "Bien" : "Fácil"}</small></div>
-                      <div className="written-user-answer"><span>TU RESPUESTA</span><p>{writtenAnswer}</p></div>
-                      <div className="written-criteria-list">{writtenResult.criteria.map((criterion) => <div key={criterion.id} className={criterion.cumplido ? "ok" : "miss"}><span>{criterion.cumplido ? "✓" : "×"}</span><div><strong>{criterion.esperado}</strong><small>{`${Math.round(criterion.conseguido * 10) / 10}/${criterion.puntos} puntos${criterion.critico ? " · concepto crítico" : ""}${!criterion.cumplido && criterion.similitud > 0 ? ` · ${Math.round(criterion.similitud * 100)}% coincidencia` : ""}`}</small></div></div>)}</div>
+                      <div className={`written-score ${displayedWrittenResult.rating}`}><span>PRECISIÓN</span><strong>{displayedWrittenResult.accuracy}%</strong><small>{currentQueueItem.outcome === "unknown" ? "No me la sé" : displayedWrittenResult.rating === "again" ? "Otra vez" : displayedWrittenResult.rating === "hard" ? "Difícil" : displayedWrittenResult.rating === "good" ? "Bien" : "Fácil"}</small></div>
+                      <div className="written-user-answer"><span>TU RESPUESTA</span><p>{currentQueueItem.outcome === "unknown" ? "No respondida · marcada como «No me la sé»." : writtenAnswer}</p></div>
+                      <div className="written-criteria-list">{displayedWrittenResult.criteria.map((criterion) => <div key={criterion.id} className={criterion.cumplido ? "ok" : "miss"}><span>{criterion.cumplido ? "✓" : "×"}</span><div><strong>{criterion.esperado}</strong><small>{`${Math.round(criterion.conseguido * 10) / 10}/${criterion.puntos} puntos${criterion.critico ? " · concepto crítico" : ""}${!criterion.cumplido && criterion.similitud > 0 ? ` · ${Math.round(criterion.similitud * 100)}% coincidencia` : ""}`}</small></div></div>)}</div>
                       {plainRichText(currentCard.back) && <div className="answer-box written-model-answer"><small>RESPUESTA MODELO</small><RichContent html={currentCard.back} /></div>}
-                      <button className="primary-button written-continue-button" onClick={() => rateCurrent(writtenResult.rating, writtenResult)}>Continuar</button>
+                      <button className="primary-button written-continue-button" onClick={() => currentQueueItem.completed ? goToNextCard() : rateCurrent(displayedWrittenResult.rating, displayedWrittenResult)}>Continuar</button>
                     </>
                   ) : (
                     <>
@@ -1812,13 +1892,16 @@ export default function OpoApp() {
                 </div>
               )}
             </div>
-            {isMultipleChoiceCard(currentCard) && !revealed && <button className="check-button" disabled={isMultipleAnswerTest(currentCard) ? selectedOptions.length === 0 : selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}
-            {revealed && !isWrittenCard(currentCard) && <div className="rating-bar"><p>{isMultipleChoiceCard(currentCard) ? currentSelectionIsCorrect(currentCard) ? "¡Correcto! ¿Cómo te ha resultado?" : "No es correcto. La tarjeta ganará prioridad en esta sesión." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{isContinuousStudyMode(studyMode) ? (studyMode === "weakest" ? "Refuerzo de errores · FSRS solo consolida el primer intento" : "Aprendizaje activo · FSRS solo consolida el primer intento") : personalModelLabel(personalModel)}</span></p><div>
+            {!revealed && !currentQueueItem.completed && <div className="precheck-actions"><button className="secondary-button unknown-button" onClick={markCurrentUnknown}>No me la sé</button><button className="secondary-button" onClick={goToNextCard}>Pasar</button></div>}
+            {isMultipleChoiceCard(currentCard) && !revealed && !currentQueueItem.completed && <button className="check-button" disabled={isMultipleAnswerTest(currentCard) ? selectedOptions.length === 0 : selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}
+            <div className="study-navigation"><button className="secondary-button" disabled={reviewIndex <= 0} onClick={goToPreviousCard}>← Anterior</button><button className="secondary-button" onClick={goToNextCard}>Siguiente →</button></div>
+            {revealed && !isWrittenCard(currentCard) && !currentQueueItem.completed && <div className="rating-bar"><p>{isMultipleChoiceCard(currentCard) ? currentSelectionIsCorrect(currentCard) ? "¡Correcto! ¿Cómo te ha resultado?" : "No es correcto. La tarjeta ganará prioridad en esta sesión." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{isContinuousStudyMode(studyMode) ? (studyMode === "weakest" ? "Refuerzo de errores · FSRS solo consolida el primer intento" : "Aprendizaje activo · FSRS solo consolida el primer intento") : personalModelLabel(personalModel)}</span></p><div>
               <button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>{isContinuousStudyMode(studyMode) ? "prioridad máxima" : "↻ tras 2 tarjetas"}</small></button>
               <button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>{isContinuousStudyMode(studyMode) ? "saldrá más" : "↻ tras 4 tarjetas"}</small></button>
               <button className="good" onClick={() => rateCurrent("good")}><strong>Bien</strong><small>{isContinuousStudyMode(studyMode) ? "baja prioridad" : fsrsDueLabel(currentCard, "good")}</small></button>
               <button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{isContinuousStudyMode(studyMode) ? "prioridad mínima" : fsrsDueLabel(currentCard, "easy")}</small></button>
             </div></div>}
+            {currentQueueItem.completed && !(isWrittenCard(currentCard) && displayedWrittenResult) && <div className={`recorded-review ${currentQueueItem.outcome === "unknown" ? "unknown" : "rated"}`}><div><strong>{currentQueueItem.outcome === "unknown" ? "Fallo registrado · 0 %" : "Revisión ya registrada"}</strong><small>{currentQueueItem.outcome === "unknown" ? "Esta tarjeta queda en prioridad alta y volverá a aparecer según el modo de estudio." : "Puedes consultar la respuesta o continuar sin volver a modificar las estadísticas."}</small></div><button className="primary-button" onClick={goToNextCard}>Continuar</button></div>}
           </div>
         </div>
       )}
@@ -1828,7 +1911,7 @@ export default function OpoApp() {
       )}
 
       {!isContinuousStudyMode(studyMode) && reviewQueue.length > 0 && reviewIndex >= reviewQueue.length && (
-        <div className="review-overlay complete"><div className="complete-card"><span className="complete-icon">✓</span><span className="section-label">SESIÓN COMPLETADA</span><h2>Buen trabajo, Marc</h2><p>Has repasado {sessionDone} tarjetas. El motor ya ha recalculado cuándo debes volver a ver cada una.</p><button className="primary-button" onClick={() => setReviewQueue([])}>Volver a Hoy</button></div></div>
+        <div className="review-overlay complete"><div className="complete-card"><span className="complete-icon">✓</span><span className="section-label">SESIÓN COMPLETADA</span><h2>Buen trabajo, Marc</h2><p>Has registrado {sessionDone} revisiones. Las tarjetas pasadas no han modificado tus estadísticas ni el modelo.</p><div className="complete-actions"><button className="secondary-button" onClick={goToPreviousCard}>← Anterior</button><button className="primary-button" onClick={() => setReviewQueue([])}>Volver a Hoy</button></div></div></div>
       )}
 
       {modal === "folder" && <FolderModal parentId={newFolderParentId} parentName={newFolderParentId ? state.folders.find((folder) => folder.id === newFolderParentId)?.name ?? "" : ""} onClose={() => { setModal(null); setNewFolderParentId(null); }} onCreate={(folder) => { updateState((current) => ({ ...current, folders: [...current.folders, folder] })); setModal(null); setNewFolderParentId(null); notify(folder.parentId ? "Subtema creado" : "Tema creado"); }} />}

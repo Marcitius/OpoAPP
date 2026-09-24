@@ -1,12 +1,12 @@
 {
-  "version": "opogc-v9.11-responsive-universal-study-layout",
-  "date": "2026-09-23",
+  "version": "opogc-v9.12-navigation-unknown-skip-import-all",
+  "date": "2026-09-24",
   "features": [
-    "single fluid study layout shared by mobile, iPad and desktop instead of device-specific card heights",
-    "review stage is the only vertical scroll container; study cards grow naturally with long questions and answers",
-    "removed internal study-card max-height and scrolling that could cause overlapping or clipped content",
-    "fluid capped question typography to avoid oversized text on wide desktop screens",
-    "written-answer textarea adapts to available viewport height without pushing content outside the card",
-    "existing FSRS, written-answer scoring, rubric editor, local JSON storage and all study logic remain unchanged"
+    "No me la sé records a 0 percent failed review, reveals the model answer and written rubric, and raises future priority",
+    "learn mode reintroduces cards marked No me la sé while preserving the existing first-encounter FSRS behavior",
+    "Pasar and previous or next navigation move through cards without writing reviews or changing statistics and memory models",
+    "JSON import now preserves every valid item, including repeated questions with different answers or options",
+    "the v9.11 universal responsive study layout is preserved unchanged",
+    "existing FSRS, weakest-card model, imported rubrics, accuracy calculation and local persistence remain in place"
   ]
 }

@@ -75,6 +75,7 @@ REGLAS OBLIGATORIAS:
 15. "critico": true sirve para identificar conceptos esenciales. Si fallarlo debe limitar la nota máxima, define "maximo_si_falla" (0-100); si no quieres límite usa null.
 16. "umbrales" debe definir "otra_vez_hasta", "dificil_hasta" y "bien_hasta". Ejemplo 59, 79 y 94 produce: 0-59 Otra vez; 60-79 Difícil; 80-94 Bien; 95-100 Fácil.
 17. Usa "tema" y "subtema" para organizar. En "fuente" indica artículo, tema, ejercicio o página cuando se conozca.
+18. Conserva todos los elementos solicitados aunque varias preguntas tengan exactamente el mismo texto. No los unas, no los deduzcas ni elimines repetidos si sus respuestas u opciones cambian.
 
 EJEMPLO DE RESPUESTA ESCRITA:
 {
@@ -375,7 +376,7 @@ export default function CardImportModal({ onClose, onImport }: { onClose: () => 
     if (!preview) return;
     const result = onImport(preview);
     if (result.imported > 0) onClose();
-    else setError("No se ha añadido ningún elemento: todos ya existían o no eran válidos.");
+    else setError("No se ha podido añadir ningún elemento.");
   }
 
   return (
@@ -384,7 +385,7 @@ export default function CardImportModal({ onClose, onImport }: { onClose: () => 
         <button className="modal-close" onClick={onClose}>×</button>
         <span className="section-label">CHATGPT + JSON</span>
         <h2>Crear o importar contenido con IA</h2>
-        <p className="modal-subtitle">Copia el prompt en ChatGPT, adjunta o pega tu material y después importa el JSON. OpoGC detectará Tema → Subtema, flashcards, vocabulario, tests, ortografía y respuestas escritas.</p>
+        <p className="modal-subtitle">Copia el prompt en ChatGPT, adjunta o pega tu material y después importa el JSON. OpoGC añadirá todos los elementos, también cuando varias preguntas se repitan.</p>
 
         <div className="import-workflow">
           <section className="import-step">
@@ -393,7 +394,7 @@ export default function CardImportModal({ onClose, onImport }: { onClose: () => 
             <button type="button" className="secondary-button full-width" onClick={() => void copyPrompt()}>{copied ? "✓ Prompt copiado" : "Copiar prompt para ChatGPT"}</button>
           </section>
           <section className="import-step">
-            <div className="import-step-head"><span>2</span><div><strong>Pega o sube el resultado</strong><small>Acepta JSON puro o un bloque ```json … ``` copiado del chat.</small></div></div>
+            <div className="import-step-head"><span>2</span><div><strong>Pega o sube el resultado</strong><small>Acepta JSON puro o un bloque ```json … ``` y conserva cada elemento del array.</small></div></div>
             <textarea className="json-import-textarea" value={raw} onChange={(event) => { setRaw(event.target.value); setPreview(null); setError(""); }} placeholder={'{\n  "version": 1,\n  "items": [ ... ]\n}'} />
             <input ref={fileRef} hidden type="file" accept="application/json,.json,text/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) readFile(file); }} />
             <div className="import-actions-row"><button type="button" className="secondary-button" onClick={() => fileRef.current?.click()}>Subir .json</button><button type="button" className="primary-button" onClick={validate}>Validar JSON</button></div>

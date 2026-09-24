@@ -1,0 +1,19 @@
+OpoGC v9.12 · Navegación libre, «No me la sé» e importación completa
+
+ARCHIVOS A SUBIR CONSERVANDO RUTAS:
+- app/OpoApp.tsx
+- app/CardImportModal.tsx
+- app/globals.css
+- app/LocalDataManager.tsx
+- public/version.json
+
+CAMBIOS:
+- «No me la sé» registra una revisión con 0 %, marca la tarjeta como fallo y muestra inmediatamente la respuesta modelo. En respuesta escrita también muestra todos los criterios de la rúbrica a 0 puntos.
+- La tarjeta queda con prioridad alta. En Aprender se vuelve a introducir en la sesión respetando el comportamiento FSRS existente.
+- «Pasar», «← Anterior» y «Siguiente →» permiten moverse sin responder. Estas acciones no crean revisiones ni cambian estadísticas, precisión, FSRS o el modelo personal.
+- La importación JSON añade todos los elementos válidos del array, aunque la pregunta, palabra o enunciado coincida con otro ya guardado o con otro elemento del mismo JSON.
+- El prompt de importación también indica a ChatGPT que no fusione ni elimine preguntas repetidas.
+- Se integra íntegramente el responsive universal v9.11. Sus reglas existentes no se han modificado; solo se añaden estilos aislados para los botones nuevos.
+- Se mantienen el modelo de más falladas, las rúbricas importadas, el cálculo de precisión, la persistencia local, ortografía, tests, vocabulario y flashcards.
+
+No requiere migración D1 ni cambios en los datos guardados.
