@@ -1596,6 +1596,7 @@ export default function OpoApp() {
                     <div className="folder-study-actions">
                       <button className="secondary-button danger" onClick={() => deleteFolder(activeFolder.id)}>Eliminar</button>
                       {isTheme && <button className="secondary-button" onClick={() => { setNewFolderParentId(activeFolder.id); setModal("folder"); }}>＋ Subtema</button>}
+                      {isTheme && scopeCards.length > 0 && <button className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`} onClick={() => { setBulkSelectMode((value) => !value); setSelectedCardIds([]); setBulkTargetFolderId(""); }}>{bulkSelectMode ? "Cancelar selección" : "Seleccionar"}</button>}
                       <button className="secondary-button" onClick={() => startReview(activeFolder.id, "recommended")}>Repaso programado</button>
                       <button className="secondary-button" onClick={() => startReview(activeFolder.id, "weakest")}>🔥 Más falladas</button>
                       <button className="secondary-button" onClick={() => startReview(activeFolder.id, "random")}>🎲 Aleatorias</button>
@@ -1604,17 +1605,73 @@ export default function OpoApp() {
                     </div>
                   </div>
 
-                  {children.length > 0 && <section className="subtopic-section"><div className="subtopic-heading"><span className="section-label">SUBTEMAS</span><p>Estudia solo una parte o usa «Aprender» arriba para mezclar todo el tema.</p></div><div className="subtopic-grid">{children.map((child) => { const childCards = cardsInFolderScope(state, child.id); const reviewed = childCards.filter((card) => card.reviewCount > 0).length; const pct = childCards.length ? Math.round(reviewed / childCards.length * 100) : 0; return <button key={child.id} className="subtopic-card" onClick={() => setSelectedFolder(child.id)}><span className="folder-icon" style={{ background: `${child.color}18`, color: child.color }}>▰</span><div><strong>{child.name}</strong><small>{childCards.length} tarjetas · {pct}% visto</small></div><span>→</span></button>; })}</div></section>}
+                  {children.length > 0 && <section className="subtopic-section">
+                    <div className="subtopic-heading"><span className="section-label">SUBTEMAS</span><p>Estudia solo una parte o usa «Aprender» arriba para mezclar todo el tema.</p></div>
+                    <div className="subtopic-grid">
+                      {children.map((child) => {
+                        const childCards = cardsInFolderScope(state, child.id);
+                        const reviewed = childCards.filter((card) => card.reviewCount > 0).length;
+                        const pct = childCards.length ? Math.round(reviewed / childCards.length * 100) : 0;
+                        const childIds = childCards.map((card) => card.id);
+                        const childSelected = childIds.length > 0 && childIds.every((id) => selectedCardIds.includes(id));
+                        return <button
+                          key={child.id}
+                          className="subtopic-card"
+                          disabled={bulkSelectMode && childIds.length === 0}
+                          onClick={() => {
+                            if (!bulkSelectMode) {
+                              setSelectedFolder(child.id);
+                              return;
+                            }
+                            setSelectedCardIds((current) => {
+                              const next = new Set(current);
+                              const allSelected = childIds.length > 0 && childIds.every((id) => next.has(id));
+                              if (allSelected) childIds.forEach((id) => next.delete(id));
+                              else childIds.forEach((id) => next.add(id));
+                              return [...next];
+                            });
+                          }}
+                        >
+                          {bulkSelectMode
+                            ? <span className="card-select-check" style={childSelected ? { borderColor: "var(--green)", background: "var(--green)" } : undefined}>{childSelected ? "✓" : ""}</span>
+                            : <span className="folder-icon" style={{ background: `${child.color}18`, color: child.color }}>▰</span>}
+                          <div><strong>{child.name}</strong><small>{childCards.length} tarjetas · {pct}% visto</small></div>
+                          {bulkSelectMode ? <span /> : <span>→</span>}
+                        </button>;
+                      })}
+                    </div>
+                    {bulkSelectMode && isTheme && (
+                      <div className="bulk-card-toolbar" style={{ marginTop: 12 }}>
+                        <div className="bulk-card-summary">
+                          <strong>{selectedCardIds.length} seleccionada{selectedCardIds.length === 1 ? "" : "s"}</strong>
+                          <button type="button" className="text-button" onClick={() => {
+                            const scopeIds = scopeCards.map((card) => card.id);
+                            const allSelected = scopeIds.length > 0 && scopeIds.every((id) => selectedCardIds.includes(id));
+                            setSelectedCardIds(allSelected ? [] : scopeIds);
+                          }}>
+                            {scopeCards.length > 0 && scopeCards.every((card) => selectedCardIds.includes(card.id)) ? "Quitar todas" : "Seleccionar todas"}
+                          </button>
+                        </div>
+                        <div className="bulk-study-actions">
+                          <span>ESTUDIAR SELECCIÓN</span>
+                          <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("recommended")}>Repaso programado</button>
+                          <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("weakest")}>🔥 Más falladas</button>
+                          <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("random")}>🎲 Aleatorias</button>
+                          <button className="primary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("learn")}>◎ Aprender</button>
+                        </div>
+                      </div>
+                    )}
+                  </section>}
 
                   <div className="card-section-head">
                     <div><span className="section-label">{isTheme ? "TARJETAS SIN SUBTEMA" : "TARJETAS DEL SUBTEMA"}</span><h3>{directCards.length ? `${directCards.length} tarjetas` : "Sin tarjetas directas"}</h3></div>
                     <div className="card-section-actions">
-                      {directCards.length > 0 && <button className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`} onClick={() => { setBulkSelectMode((value) => !value); setSelectedCardIds([]); setBulkTargetFolderId(""); }}>{bulkSelectMode ? "Cancelar selección" : "Seleccionar"}</button>}
+                      {directCards.length > 0 && !isTheme && <button className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`} onClick={() => { setBulkSelectMode((value) => !value); setSelectedCardIds([]); setBulkTargetFolderId(""); }}>{bulkSelectMode ? "Cancelar selección" : "Seleccionar"}</button>}
                       <button className="secondary-button" onClick={() => { setEditingCard(null); setModal("card"); }}>＋ Tarjeta aquí</button>
                     </div>
                   </div>
 
-                  {bulkSelectMode && directCards.length > 0 && (
+                  {bulkSelectMode && directCards.length > 0 && !isTheme && (
                     <div className="bulk-card-toolbar">
                       <div className="bulk-card-summary">
                         <strong>{selectedCardIds.length} seleccionada{selectedCardIds.length === 1 ? "" : "s"}</strong>
