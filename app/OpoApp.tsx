@@ -9,7 +9,7 @@ import { fitPersonalMemoryModel, personalModelLabel, predictPersonalRecall } fro
 import CardImportModal, { type ParsedImportItem, type WrittenCriterion, type WrittenEvaluation } from "./CardImportModal";
 import OrthographyStudy, { type OrthographyStudyCard, type OrthographyStudyResult } from "./OrthographyStudy";
 
-type Tab = "today" | "library" | "psych" | "progress";
+type Tab = "today" | "library" | "study" | "psych" | "progress";
 type CardType = "basic" | "choice" | "test" | "orthography" | "written";
 type Rating = "again" | "hard" | "good" | "easy";
 type StudyMode = "recommended" | "random" | "all" | "learn" | "weakest";
@@ -22,6 +22,29 @@ type ReviewQueueItem = {
   outcome?: ReviewQueueOutcome;
 };
 type PsychSort = "oldest" | "recent" | "last-low" | "last-high" | "avg-low" | "avg-high" | "attempts-low" | "attempts-high" | "name";
+
+type StudyView = "today" | "tree" | "history";
+type StudyTaskStatus = "pending" | "done";
+type StudyAssessment = "bien" | "regular" | "mal" | null;
+type StudyNode = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  createdAt: string;
+};
+type StudyTask = {
+  id: string;
+  nodeId: string;
+  plannedFor: string;
+  note: string;
+  reason: string;
+  status: StudyTaskStatus;
+  createdAt: string;
+  completedAt: string | null;
+  assessment: StudyAssessment;
+  sourceCardId?: string | null;
+};
+type StudyImportNode = { id?: string; name: string; children: StudyImportNode[] };
 
 type Folder = {
   id: string;
@@ -110,6 +133,8 @@ type AppState = {
   cards: Card[];
   reviews: Review[];
   psychTests: PsychTest[];
+  studyNodes: StudyNode[];
+  studyTasks: StudyTask[];
   settings: { dailyReviewGoal: number; dailyNewLimit: number; seedVersion?: number };
 };
 
@@ -119,6 +144,181 @@ const uid = () => typeof crypto !== "undefined" && "randomUUID" in crypto
   : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 const nowIso = () => new Date().toISOString();
 const todayKey = () => new Date().toISOString().slice(0, 10);
+const localDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+const addDaysKey = (days: number) => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  return localDateKey(date);
+};
+const normalizeStudyLabel = (value: string) => value
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .trim()
+  .toLocaleLowerCase("es")
+  .replace(/\s+/g, " ");
+
+function studyNodePath(nodes: StudyNode[], nodeId: string) {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const names: string[] = [];
+  let current = byId.get(nodeId) ?? null;
+  const seen = new Set<string>();
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    names.unshift(current.name);
+    current = current.parentId ? byId.get(current.parentId) ?? null : null;
+  }
+  return names;
+}
+
+function studyNodeDepth(nodes: StudyNode[], nodeId: string) {
+  return Math.max(0, studyNodePath(nodes, nodeId).length - 1);
+}
+
+function studyDescendantIds(nodes: StudyNode[], rootId: string) {
+  const ids = new Set<string>([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const node of nodes) {
+      if (node.parentId && ids.has(node.parentId) && !ids.has(node.id)) {
+        ids.add(node.id);
+        changed = true;
+      }
+    }
+  }
+  return ids;
+}
+
+function flattenStudyTree(nodes: StudyNode[]) {
+  const result: StudyNode[] = [];
+  const walk = (parentId: string | null) => {
+    nodes.filter((node) => node.parentId === parentId).forEach((node) => {
+      result.push(node);
+      walk(node.id);
+    });
+  };
+  walk(null);
+  return result;
+}
+
+function studyImportRoots(value: unknown): StudyImportNode[] {
+  const normalizeNode = (raw: any): StudyImportNode | null => {
+    if (!raw || typeof raw !== "object") return null;
+    const name = String(raw.name ?? raw.nombre ?? raw.title ?? raw.titulo ?? "").trim();
+    if (!name) return null;
+    const childrenRaw = raw.children ?? raw.hijos ?? raw.apartados ?? raw.subapartados ?? raw.items ?? [];
+    const children = Array.isArray(childrenRaw) ? childrenRaw.map(normalizeNode).filter(Boolean) as StudyImportNode[] : [];
+    return { id: raw.id ? String(raw.id) : undefined, name, children };
+  };
+  if (Array.isArray(value)) return value.map(normalizeNode).filter(Boolean) as StudyImportNode[];
+  if (!value || typeof value !== "object") return [];
+  const raw: any = value;
+  const collection = raw.topics ?? raw.temas ?? raw.tree ?? raw.arbol ?? raw.items;
+  if (Array.isArray(collection)) return collection.map(normalizeNode).filter(Boolean) as StudyImportNode[];
+  const single = normalizeNode(raw);
+  return single ? [single] : [];
+}
+
+function parseStudyTextTree(raw: string): StudyImportNode[] {
+  const source = raw.replace(/\r/g, "").trim();
+  if (!source) return [];
+  if (source.startsWith("{") || source.startsWith("[")) {
+    try { return studyImportRoots(JSON.parse(source)); } catch { /* fall through to text parser */ }
+  }
+  const lines = source.split("\n").map((line) => line.replace(/\s+$/, "")).filter((line) => line.trim());
+  const roots: StudyImportNode[] = [];
+  const stack: { rank: number; node: StudyImportNode }[] = [];
+  const semanticRank = (text: string, bullet: boolean) => {
+    const clean = normalizeStudyLabel(text);
+    if (/^(tema|bloque)\b/.test(clean)) return 0;
+    if (/^titulo\b/.test(clean)) return 10;
+    if (/^capitulo\b/.test(clean)) return 20;
+    if (/^seccion\b/.test(clean)) return 30;
+    if (/^articulo\b/.test(clean)) return 40;
+    if (bullet) return 50;
+    return stack.length ? stack[stack.length - 1].rank + 1 : 0;
+  };
+  for (const rawLine of lines) {
+    const expanded = rawLine.replace(/\t/g, "  ");
+    const trimmed = expanded.trim();
+    const bullet = /^[-*•–—]\s+/.test(trimmed);
+    const text = trimmed.replace(/^[-*•–—]\s+/, "").replace(/^\d+[.)]\s+/, "").trim();
+    if (!text) continue;
+    const rank = semanticRank(text, bullet);
+    const node: StudyImportNode = { name: text, children: [] };
+    while (stack.length && stack[stack.length - 1].rank >= rank) stack.pop();
+    if (stack.length) stack[stack.length - 1].node.children.push(node);
+    else roots.push(node);
+    stack.push({ rank, node });
+  }
+  return roots;
+}
+
+function countStudyImportNodes(roots: StudyImportNode[]) {
+  let total = 0;
+  const walk = (nodes: StudyImportNode[]) => nodes.forEach((node) => { total += 1; walk(node.children); });
+  walk(roots);
+  return total;
+}
+
+function mergeStudyImport(existing: StudyNode[], roots: StudyImportNode[]) {
+  const nodes = [...existing];
+  let created = 0;
+  const mergeLevel = (items: StudyImportNode[], parentId: string | null) => {
+    for (const item of items) {
+      const key = normalizeStudyLabel(item.name);
+      let node = item.id ? nodes.find((candidate) => candidate.id === item.id) : undefined;
+      if (!node) node = nodes.find((candidate) => candidate.parentId === parentId && normalizeStudyLabel(candidate.name) === key);
+      if (!node) {
+        node = { id: item.id && !nodes.some((candidate) => candidate.id === item.id) ? item.id : uid(), name: item.name, parentId, createdAt: nowIso() };
+        nodes.push(node);
+        created += 1;
+      } else if (node.name !== item.name || node.parentId !== parentId) {
+        const index = nodes.findIndex((candidate) => candidate.id === node!.id);
+        nodes[index] = { ...node, name: item.name, parentId };
+        node = nodes[index];
+      }
+      mergeLevel(item.children, node.id);
+    }
+  };
+  mergeLevel(roots, null);
+  return { nodes, created };
+}
+
+function inferStudyNodeForCard(card: Card, nodes: StudyNode[], folders: Folder[]) {
+  if (!nodes.length) return null;
+  const front = plainRichText(card.front);
+  const article = front.match(/art(?:í|i)culo\s+(\d+(?:\.\d+)?)/i)?.[1];
+  if (article) {
+    const articleRe = new RegExp(`^art(?:í|i)culo\\s+${article.replace(".", "\\.")}(?:\\b|\\s|\\.)`, "i");
+    const articleNode = nodes.find((node) => articleRe.test(node.name));
+    if (articleNode) return articleNode.id;
+  }
+  const folder = folders.find((item) => item.id === card.folderId);
+  if (folder) {
+    const folderKey = normalizeStudyLabel(folder.name);
+    const candidates = nodes.filter((node) => normalizeStudyLabel(node.name) === folderKey);
+    if (candidates.length) return candidates.sort((a, b) => studyNodeDepth(nodes, b.id) - studyNodeDepth(nodes, a.id))[0].id;
+  }
+  return null;
+}
+
+function studyTreeForExport(nodes: StudyNode[], rootIds?: Set<string>) {
+  const allowed = rootIds ?? new Set(nodes.map((node) => node.id));
+  const build = (parentId: string | null): any[] => nodes
+    .filter((node) => node.parentId === parentId && allowed.has(node.id))
+    .map((node) => ({ id: node.id, name: node.name, children: build(node.id) }));
+  if (!rootIds) return build(null);
+  const roots = nodes.filter((node) => allowed.has(node.id) && (!node.parentId || !allowed.has(node.parentId)));
+  const buildScoped = (node: StudyNode): any => ({ id: node.id, name: node.name, children: nodes.filter((child) => child.parentId === node.id && allowed.has(child.id)).map(buildScoped) });
+  return roots.map(buildScoped);
+}
 const isMultipleChoiceType = (type: CardType) => type === "choice" || type === "test";
 const isMultipleChoiceCard = (card: Card) => isMultipleChoiceType(card.type);
 const isOrthographyCard = (card: Card) => card.type === "orthography";
@@ -377,6 +577,8 @@ function initialState(): AppState {
     ],
     reviews: [],
     psychTests: [],
+    studyNodes: [],
+    studyTasks: [],
     settings: { dailyReviewGoal: 30, dailyNewLimit: 12, seedVersion: 0 },
   };
 }
@@ -426,6 +628,17 @@ function normalizeAndSeed(state: AppState) {
   let changed = false;
   const seedVersion = Number(state.settings.seedVersion ?? 0);
   let folders = [...state.folders];
+  const studyNodes: StudyNode[] = Array.isArray((state as any).studyNodes)
+    ? (state as any).studyNodes.map((node: any) => ({ id: String(node.id), name: String(node.name ?? ""), parentId: node.parentId ? String(node.parentId) : null, createdAt: String(node.createdAt ?? nowIso()) })).filter((node: StudyNode) => node.id && node.name.trim())
+    : [];
+  const studyTasks: StudyTask[] = Array.isArray((state as any).studyTasks)
+    ? (state as any).studyTasks.map((task: any) => ({
+      id: String(task.id), nodeId: String(task.nodeId), plannedFor: String(task.plannedFor ?? localDateKey()), note: String(task.note ?? ""), reason: String(task.reason ?? ""),
+      status: task.status === "done" ? "done" : "pending", createdAt: String(task.createdAt ?? nowIso()), completedAt: task.completedAt ? String(task.completedAt) : null,
+      assessment: task.assessment === "bien" || task.assessment === "regular" || task.assessment === "mal" ? task.assessment : null, sourceCardId: task.sourceCardId ? String(task.sourceCardId) : null,
+    })).filter((task: StudyTask) => task.id && task.nodeId)
+    : [];
+  if (!Array.isArray((state as any).studyNodes) || !Array.isArray((state as any).studyTasks)) changed = true;
   let cards = state.cards.map((card) => {
     const normalized = {
       ...card,
@@ -480,7 +693,7 @@ function normalizeAndSeed(state: AppState) {
 
   const nextSeedVersion = Math.max(seedVersion, 2);
   if (nextSeedVersion !== seedVersion) changed = true;
-  return { state: { ...state, folders, cards, settings: { ...state.settings, seedVersion: nextSeedVersion } }, changed };
+  return { state: { ...state, folders, cards, studyNodes, studyTasks, settings: { ...state.settings, seedVersion: nextSeedVersion } }, changed };
 }
 
 
@@ -758,6 +971,12 @@ function orthographyStudyCard(card: Card): OrthographyStudyCard {
 
 export default function OpoApp() {
   const [tab, setTab] = useState<Tab>("today");
+  const [studyView, setStudyView] = useState<StudyView>("today");
+  const [studyQuickOpen, setStudyQuickOpen] = useState(false);
+  const [studyQuickDefaultNodeId, setStudyQuickDefaultNodeId] = useState<string | null>(null);
+  const [studyQuickSourceCardId, setStudyQuickSourceCardId] = useState<string | null>(null);
+  const [studyImportOpen, setStudyImportOpen] = useState(false);
+  const [studyHistoryRoot, setStudyHistoryRoot] = useState("all");
   const [state, setState] = useState<AppState | null>(null);
   const [sync, setSync] = useState<"loading" | "saved" | "saving" | "error">("loading");
   const [modal, setModal] = useState<null | "folder" | "card" | "import" | "psych" | "attempt">(null);
@@ -857,6 +1076,126 @@ export default function OpoApp() {
   function notify(message: string) {
     setToast(message);
     setTimeout(() => setToast(null), 2600);
+  }
+
+
+  function openStudyQuick(nodeId?: string | null, sourceCardId?: string | null) {
+    if (!state) return;
+    if (!state.studyNodes.length) {
+      setTab("study");
+      setStudyView("tree");
+      setStudyImportOpen(true);
+      notify("Importa primero el temario para poder vincular repasos");
+      return;
+    }
+    let resolved = nodeId ?? null;
+    if (!resolved && sourceCardId) {
+      const card = state.cards.find((item) => item.id === sourceCardId);
+      if (card) resolved = inferStudyNodeForCard(card, state.studyNodes, state.folders);
+    }
+    setStudyQuickDefaultNodeId(resolved);
+    setStudyQuickSourceCardId(sourceCardId ?? null);
+    setStudyQuickOpen(true);
+  }
+
+  function saveStudyTask(input: { nodeId: string; plannedFor: string; note: string; reason: string }) {
+    const task: StudyTask = {
+      id: uid(),
+      nodeId: input.nodeId,
+      plannedFor: input.plannedFor,
+      note: input.note.trim(),
+      reason: input.reason,
+      status: "pending",
+      createdAt: nowIso(),
+      completedAt: null,
+      assessment: null,
+      sourceCardId: studyQuickSourceCardId,
+    };
+    updateState((current) => ({ ...current, studyTasks: [...current.studyTasks, task] }));
+    setStudyQuickOpen(false);
+    setStudyQuickDefaultNodeId(null);
+    setStudyQuickSourceCardId(null);
+    notify(`Repaso guardado para ${task.plannedFor === localDateKey() ? "hoy" : task.plannedFor === addDaysKey(1) ? "mañana" : dateLabel(task.plannedFor)}`);
+  }
+
+  function completeStudyTask(taskId: string, assessment: Exclude<StudyAssessment, null>) {
+    updateState((current) => ({
+      ...current,
+      studyTasks: current.studyTasks.map((task) => task.id === taskId ? { ...task, status: "done", completedAt: nowIso(), assessment } : task),
+    }));
+    notify(assessment === "bien" ? "Repaso completado" : assessment === "regular" ? "Repaso completado · conviene volver" : "Repaso completado · prioridad alta");
+  }
+
+  function postponeStudyTask(taskId: string, days = 1) {
+    updateState((current) => ({
+      ...current,
+      studyTasks: current.studyTasks.map((task) => task.id === taskId ? { ...task, plannedFor: addDaysKey(days) } : task),
+    }));
+    notify(days === 1 ? "Movido a mañana" : `Movido +${days} días`);
+  }
+
+  function deleteStudyTask(taskId: string) {
+    updateState((current) => ({ ...current, studyTasks: current.studyTasks.filter((task) => task.id !== taskId) }));
+    notify("Anotación eliminada");
+  }
+
+  function importStudyTree(roots: StudyImportNode[]) {
+    if (!roots.length) return;
+    const merged = mergeStudyImport(state?.studyNodes ?? [], roots);
+    updateState((current) => ({ ...current, studyNodes: mergeStudyImport(current.studyNodes, roots).nodes }));
+    setStudyImportOpen(false);
+    setStudyView("tree");
+    notify(merged.created ? `${merged.created} elementos nuevos añadidos al temario` : "Temario actualizado sin duplicados");
+  }
+
+  function exportStudyData(rootId?: string) {
+    if (!state || !state.studyNodes.length) return notify("No hay temario de estudio para exportar");
+    const ids = rootId ? studyDescendantIds(state.studyNodes, rootId) : new Set(state.studyNodes.map((node) => node.id));
+    const scopedNodes = state.studyNodes.filter((node) => ids.has(node.id));
+    const scopedTasks = state.studyTasks.filter((task) => ids.has(task.nodeId));
+    const items = scopedNodes.map((node) => {
+      const tasks = scopedTasks.filter((task) => task.nodeId === node.id);
+      const done = tasks.filter((task) => task.status === "done" && task.completedAt).sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+      const pending = tasks.filter((task) => task.status === "pending").sort((a, b) => a.plannedFor.localeCompare(b.plannedFor));
+      const latest = done[0] ?? null;
+      return {
+        id: node.id,
+        nombre: node.name,
+        ruta: studyNodePath(state.studyNodes, node.id),
+        ultima_revision: latest?.completedAt ?? null,
+        proxima_revision: pending[0]?.plannedFor ?? null,
+        numero_repasos: done.length,
+        estado: latest?.assessment ?? (pending.length ? "pendiente" : "sin_datos"),
+        notas: tasks.filter((task) => task.note).slice(-12).map((task) => task.note),
+        motivos: [...new Set(tasks.map((task) => task.reason).filter(Boolean))],
+        pendientes: pending.map((task) => ({ fecha: task.plannedFor, nota: task.note, motivo: task.reason })),
+        historial: done.slice(0, 20).map((task) => ({ fecha: task.completedAt, resultado: task.assessment, nota: task.note, motivo: task.reason })),
+      };
+    });
+    const root = rootId ? state.studyNodes.find((node) => node.id === rootId) : null;
+    const payload = {
+      version: 1,
+      fecha_exportacion: nowIso(),
+      alcance: root ? studyNodePath(state.studyNodes, root.id).join(" > ") : "Todo el estudio",
+      resumen: {
+        elementos: scopedNodes.length,
+        repasos_completados: scopedTasks.filter((task) => task.status === "done").length,
+        pendientes: scopedTasks.filter((task) => task.status === "pending").length,
+      },
+      arbol: studyTreeForExport(state.studyNodes, ids),
+      elementos: items,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const base = root?.name ?? "estudio-completo";
+    anchor.href = url;
+    anchor.download = `${base.toLocaleLowerCase("es").replace(/[^a-z0-9áéíóúüñ]+/gi, "-").replace(/^-|-$/g, "") || "estudio"}-${localDateKey()}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    notify(root ? `Exportado: ${root.name}` : "Estudio completo exportado");
   }
 
   const personalModel = useMemo(
@@ -1487,6 +1826,14 @@ export default function OpoApp() {
   const psychAttemptedCount = state.psychTests.filter((test) => test.attempts.length > 0).length;
   const latestPsychScores = state.psychTests.map((test) => psychStats(test).last?.score).filter((score): score is number => score !== undefined);
   const latestPsychAverage = latestPsychScores.length ? latestPsychScores.reduce((sum, score) => sum + score, 0) / latestPsychScores.length : null;
+  const studyRoots = state.studyNodes.filter((node) => !node.parentId);
+  const studyPending = state.studyTasks.filter((task) => task.status === "pending").sort((a, b) => a.plannedFor.localeCompare(b.plannedFor) || a.createdAt.localeCompare(b.createdAt));
+  const studyDue = studyPending.filter((task) => task.plannedFor <= localDateKey());
+  const studyUpcoming = studyPending.filter((task) => task.plannedFor > localDateKey()).slice(0, 8);
+  const studyCompleted = state.studyTasks.filter((task) => task.status === "done").sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+  const studyHistoryIds = studyHistoryRoot === "all" ? null : studyDescendantIds(state.studyNodes, studyHistoryRoot);
+  const filteredStudyCompleted = studyHistoryIds ? studyCompleted.filter((task) => studyHistoryIds.has(task.nodeId)) : studyCompleted;
+  const studyWeakCount = studyCompleted.filter((task) => task.assessment === "mal" || task.assessment === "regular").length;
 
   return (
     <div className="app-shell">
@@ -1507,7 +1854,7 @@ export default function OpoApp() {
         <header className="topbar">
           <div>
             <span className="eyebrow">{new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}</span>
-            <h1>{tab === "today" ? "Tu sesión de hoy" : tab === "library" ? "Biblioteca" : tab === "psych" ? "Psicotécnicos" : "Tu progreso"}</h1>
+            <h1>{tab === "today" ? "Tu sesión de hoy" : tab === "library" ? "Biblioteca" : tab === "study" ? "Organización de estudio" : tab === "psych" ? "Psicotécnicos" : "Tu progreso"}</h1>
           </div>
           <button className="avatar" aria-label="Perfil">M</button>
         </header>
@@ -1725,6 +2072,77 @@ export default function OpoApp() {
           </section>
         )}
 
+        {tab === "study" && (
+          <section className="page study-organizer-page">
+            <div className="study-organizer-toolbar">
+              <div className="study-view-switch" role="tablist" aria-label="Organización de estudio">
+                <button className={studyView === "today" ? "active" : ""} onClick={() => setStudyView("today")}>Hoy</button>
+                <button className={studyView === "tree" ? "active" : ""} onClick={() => setStudyView("tree")}>Temario</button>
+                <button className={studyView === "history" ? "active" : ""} onClick={() => setStudyView("history")}>Historial</button>
+              </div>
+              <div className="study-organizer-actions">
+                <button className="secondary-button" onClick={() => setStudyImportOpen(true)}>⇧ Importar temario</button>
+                <button className="secondary-button" disabled={!state.studyNodes.length} onClick={() => exportStudyData()}>↓ Exportar todo</button>
+                <button className="primary-button" disabled={!state.studyNodes.length} onClick={() => openStudyQuick()}>＋ Repaso rápido</button>
+              </div>
+            </div>
+
+            {!state.studyNodes.length ? (
+              <div className="study-empty-state">
+                <span className="study-empty-icon">▤</span>
+                <span className="section-label">ORGANIZACIÓN DE ESTUDIO</span>
+                <h2>Importa tu temario una vez y anota los repasos en segundos</h2>
+                <p>Puedes pegar un árbol en JSON, pegar un índice en texto o cargar un archivo .json/.txt. Después solo tendrás que marcar qué quieres revisar y cuándo.</p>
+                <button className="primary-button" onClick={() => setStudyImportOpen(true)}>Importar mi temario</button>
+              </div>
+            ) : studyView === "today" ? (
+              <>
+                <div className="study-summary-grid">
+                  <article><span>PARA HOY</span><strong>{studyDue.length}</strong><small>incluye atrasados</small></article>
+                  <article><span>PRÓXIMOS</span><strong>{studyPending.filter((task) => task.plannedFor > localDateKey()).length}</strong><small>repasos programados</small></article>
+                  <article><span>A REFORZAR</span><strong>{studyWeakCount}</strong><small>marcados regular o mal</small></article>
+                </div>
+
+                <section className="panel study-tasks-panel">
+                  <div className="panel-head"><div><span className="section-label">COLA PERSONAL</span><h3>{studyDue.length ? "Lo que toca revisar" : "Nada obligatorio para hoy"}</h3></div><button className="text-button" onClick={() => openStudyQuick()}>＋ Añadir</button></div>
+                  {studyDue.length ? <div className="study-task-list">{studyDue.map((task) => <StudyTaskCard key={task.id} task={task} node={state.studyNodes.find((node) => node.id === task.nodeId) ?? null} nodes={state.studyNodes} onComplete={completeStudyTask} onPostpone={postponeStudyTask} onDelete={deleteStudyTask} />)}</div> : <div className="study-inline-empty"><strong>La cola está limpia.</strong><span>Puedes añadir un repaso manual o seguir estudiando y marcar algo desde una tarjeta.</span></div>}
+                </section>
+
+                {studyUpcoming.length > 0 && <section className="panel study-upcoming-panel">
+                  <div className="panel-head"><div><span className="section-label">DESPUÉS</span><h3>Próximos repasos</h3></div></div>
+                  <div className="study-upcoming-list">{studyUpcoming.map((task) => {
+                    const node = state.studyNodes.find((item) => item.id === task.nodeId);
+                    return <div key={task.id}><span><strong>{node?.name ?? "Elemento eliminado"}</strong><small>{task.note || studyNodePath(state.studyNodes, task.nodeId).slice(0, -1).join(" · ") || "Sin nota"}</small></span><time>{dateLabel(task.plannedFor)}</time></div>;
+                  })}</div>
+                </section>}
+              </>
+            ) : studyView === "tree" ? (
+              <>
+                <div className="section-heading study-tree-heading"><div><span className="section-label">TEMARIO IMPORTADO</span><h2>{studyRoots.length} {studyRoots.length === 1 ? "tema" : "temas"} · {state.studyNodes.length} elementos</h2><p>El árbol admite tantos niveles como necesites. Importar de nuevo añade lo nuevo y conserva historial y anotaciones de los elementos existentes.</p></div></div>
+                <div className="study-tree-list">
+                  {studyRoots.map((root) => <StudyTreeBranch key={root.id} node={root} nodes={state.studyNodes} tasks={state.studyTasks} depth={0} onQuick={openStudyQuick} onExport={exportStudyData} />)}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="study-history-toolbar">
+                  <div><span className="section-label">REGISTRO</span><h2>Historial de repasos</h2></div>
+                  <select value={studyHistoryRoot} onChange={(event) => setStudyHistoryRoot(event.target.value)}>
+                    <option value="all">Todos los temas</option>
+                    {studyRoots.map((root) => <option key={root.id} value={root.id}>{root.name}</option>)}
+                  </select>
+                </div>
+                <section className="panel study-history-panel">
+                  {filteredStudyCompleted.length ? <div className="study-history-list">{filteredStudyCompleted.slice(0, 100).map((task) => {
+                    const node = state.studyNodes.find((item) => item.id === task.nodeId);
+                    return <div className="study-history-row" key={task.id}><span className={`study-assessment-dot ${task.assessment ?? ""}`} /><div><strong>{node?.name ?? "Elemento eliminado"}</strong><small>{studyNodePath(state.studyNodes, task.nodeId).join(" · ")}</small>{task.note && <p>{task.note}</p>}</div><span className={`study-result ${task.assessment ?? ""}`}>{task.assessment ?? "—"}</span><time>{dateLabel(task.completedAt)}</time></div>;
+                  })}</div> : <div className="study-inline-empty"><strong>Aún no hay repasos completados.</strong><span>Cuando marques un pendiente como Bien, Regular o Mal aparecerá aquí.</span></div>}
+                </section>
+              </>
+            )}
+          </section>
+        )}
+
         {tab === "psych" && (
           <section className="page psych-page">
             {detailPsych ? (() => {
@@ -1902,7 +2320,10 @@ export default function OpoApp() {
             {isContinuousStudyMode(studyMode) && <button className="finish-learn-button" onClick={() => setReviewQueue([])}>Terminar</button>}
           </div>
           <div className="review-stage">
-            <span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span>
+            <div className="study-context-row">
+              <span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span>
+              <button className="quick-review-note-button" onClick={() => openStudyQuick(null, currentCard.id)}>＋ Repasar</button>
+            </div>
             <div className={`study-card ${revealed ? "revealed answer-side" : "question-side"}`}>
               <span className="study-card-type">{currentQueueItem.reinforcement ? "REFUERZO · " : ""}{revealed ? (isWrittenCard(currentCard) ? "CORRECCIÓN" : "RESPUESTA") : isWrittenCard(currentCard) ? "RESPUESTA ESCRITA" : currentCard.type === "test" ? isMultipleAnswerTest(currentCard) ? "TEST · RESPUESTA MÚLTIPLE" : "PREGUNTA TIPO TEST" : currentCard.type === "choice" ? "VOCABULARIO" : "RECUERDA EL CONCEPTO"}</span>
               {!revealed ? (
@@ -1982,6 +2403,8 @@ export default function OpoApp() {
       {modal === "import" && <CardImportModal onClose={() => setModal(null)} onImport={importGeneratedCards} />}
       {modal === "psych" && <PsychModal initialTest={openPsychTest} onClose={() => { setModal(null); setEditingPsychTest(null); }} onSave={(test) => { updateState((current) => ({ ...current, psychTests: openPsychTest ? current.psychTests.map((item) => item.id === test.id ? test : item) : [...current.psychTests, test] })); setModal(null); setEditingPsychTest(null); setPsychDetail(test.id); notify(openPsychTest ? "Psicotécnico actualizado" : "Psicotécnico guardado"); }} />}
       {modal === "attempt" && activePsych && <AttemptModal test={activePsych} initialAttempt={openAttempt} onClose={() => { setModal(null); setSelectedPsych(null); setEditingAttempt(null); }} onSave={(attempt) => { updateState((current) => ({ ...current, psychTests: current.psychTests.map((test) => test.id === activePsych.id ? { ...test, attempts: openAttempt ? test.attempts.map((item) => item.id === attempt.id ? attempt : item) : [...test.attempts, attempt] } : test) })); setModal(null); setSelectedPsych(null); setEditingAttempt(null); setPsychDetail(activePsych.id); notify(openAttempt ? "Intento actualizado" : "Intento registrado"); }} />}
+      {studyQuickOpen && <StudyQuickModal nodes={state.studyNodes} defaultNodeId={studyQuickDefaultNodeId} onClose={() => { setStudyQuickOpen(false); setStudyQuickDefaultNodeId(null); setStudyQuickSourceCardId(null); }} onSave={saveStudyTask} />}
+      {studyImportOpen && <StudyImportModal onClose={() => setStudyImportOpen(false)} onImport={importStudyTree} />}
       {openPsych?.attachment?.type === "application/pdf" && <PdfAnnotator attachment={openPsych.attachment} title={openPsych.name} onClose={() => setEditingPsych(null)} />}
       {toast && <div className="toast">✓ {toast}</div>}
     </div>
@@ -1991,12 +2414,132 @@ export default function OpoApp() {
 const navItems: { id: Tab; label: string; icon: string }[] = [
   { id: "today", label: "Hoy", icon: "⌂" },
   { id: "library", label: "Biblioteca", icon: "▰" },
+  { id: "study", label: "Estudio", icon: "▤" },
   { id: "psych", label: "Psicotécnicos", icon: "◇" },
   { id: "progress", label: "Progreso", icon: "↗" },
 ];
 
 function NavButton({ item, active, onClick }: { item: (typeof navItems)[number]; active: boolean; onClick: () => void }) {
   return <button className={active ? "active" : ""} onClick={onClick}><span>{item.icon}</span>{item.label}</button>;
+}
+
+function StudyTaskCard({ task, node, nodes, onComplete, onPostpone, onDelete }: {
+  task: StudyTask;
+  node: StudyNode | null;
+  nodes: StudyNode[];
+  onComplete: (taskId: string, assessment: Exclude<StudyAssessment, null>) => void;
+  onPostpone: (taskId: string, days?: number) => void;
+  onDelete: (taskId: string) => void;
+}) {
+  const overdue = task.plannedFor < localDateKey();
+  const path = node ? studyNodePath(nodes, node.id) : [];
+  const reasonLabels: Record<string, string> = { olvido: "Olvido", confusion: "Confusión", literalidad: "Literalidad", plazo_cifra: "Plazo / cifra", afianzar: "Afianzar" };
+  return <article className={`study-task-card ${overdue ? "overdue" : ""}`}>
+    <div className="study-task-main">
+      <div className="study-task-title-row"><strong>{node?.name ?? "Elemento eliminado"}</strong><span className={overdue ? "overdue" : "today"}>{overdue ? "Atrasado" : "Hoy"}</span></div>
+      <small>{path.slice(0, -1).join(" · ") || "Temario"}</small>
+      {task.note && <p>{task.note}</p>}
+      {task.reason && <span className="study-reason-chip">{reasonLabels[task.reason] ?? task.reason}</span>}
+    </div>
+    <div className="study-task-actions">
+      <div className="study-assessment-actions" aria-label="Resultado del repaso">
+        <button className="bad" onClick={() => onComplete(task.id, "mal")}>Mal</button>
+        <button className="mid" onClick={() => onComplete(task.id, "regular")}>Regular</button>
+        <button className="good" onClick={() => onComplete(task.id, "bien")}>Bien</button>
+      </div>
+      <div className="study-task-secondary-actions"><button onClick={() => onPostpone(task.id, 1)}>Mañana</button><button aria-label="Eliminar anotación" title="Eliminar anotación" onClick={() => onDelete(task.id)}>×</button></div>
+    </div>
+  </article>;
+}
+
+function StudyTreeBranch({ node, nodes, tasks, depth, onQuick, onExport }: {
+  node: StudyNode;
+  nodes: StudyNode[];
+  tasks: StudyTask[];
+  depth: number;
+  onQuick: (nodeId?: string | null, sourceCardId?: string | null) => void;
+  onExport: (rootId?: string) => void;
+}) {
+  const [open, setOpen] = useState(depth === 0);
+  const children = nodes.filter((child) => child.parentId === node.id);
+  const scopedIds = studyDescendantIds(nodes, node.id);
+  const scopedTasks = tasks.filter((task) => scopedIds.has(task.nodeId));
+  const pending = scopedTasks.filter((task) => task.status === "pending");
+  const completed = scopedTasks.filter((task) => task.status === "done" && task.completedAt).sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+  const latest = completed[0] ?? null;
+  return <div className={`study-tree-branch depth-${Math.min(depth, 5)}`}>
+    <div className="study-tree-row">
+      <button className={`study-tree-toggle ${children.length ? "has-children" : "leaf"}`} onClick={() => children.length && setOpen((value) => !value)} aria-label={children.length ? (open ? "Cerrar" : "Abrir") : "Sin subapartados"}>{children.length ? (open ? "⌄" : "›") : "·"}</button>
+      <div className="study-tree-name"><strong>{node.name}</strong><small>{pending.length ? `${pending.length} pendiente${pending.length === 1 ? "" : "s"}` : latest ? `Último repaso ${dateLabel(latest.completedAt)}` : "Sin repasos registrados"}</small></div>
+      <div className="study-tree-metrics"><span>{completed.length} repasos</span>{latest?.assessment && <span className={`study-result ${latest.assessment}`}>{latest.assessment}</span>}</div>
+      <div className="study-tree-actions"><button className="secondary-button" onClick={() => onQuick(node.id)}>＋ Repasar</button><button className={`tree-export-button ${depth === 0 ? "root" : ""}`} onClick={() => onExport(node.id)} title="Exportar este apartado">{depth === 0 ? "↓ Exportar" : "↓"}</button></div>
+    </div>
+    {open && children.length > 0 && <div className="study-tree-children">{children.map((child) => <StudyTreeBranch key={child.id} node={child} nodes={nodes} tasks={tasks} depth={depth + 1} onQuick={onQuick} onExport={onExport} />)}</div>}
+  </div>;
+}
+
+function StudyQuickModal({ nodes, defaultNodeId, onClose, onSave }: {
+  nodes: StudyNode[];
+  defaultNodeId: string | null;
+  onClose: () => void;
+  onSave: (input: { nodeId: string; plannedFor: string; note: string; reason: string }) => void;
+}) {
+  const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
+  const [nodeId, setNodeId] = useState(defaultNodeId && nodes.some((node) => node.id === defaultNodeId) ? defaultNodeId : "");
+  const [plannedFor, setPlannedFor] = useState(addDaysKey(1));
+  const [note, setNote] = useState("");
+  const [reason, setReason] = useState("");
+  const selected = nodes.find((node) => node.id === nodeId) ?? null;
+  return <ModalShell title="Anotar próximo repaso" subtitle="Guárdalo sin salir del flujo de estudio. La nota es opcional." label="REPASO RÁPIDO" onClose={onClose}>
+    <form onSubmit={(event) => { event.preventDefault(); if (nodeId && plannedFor) onSave({ nodeId, plannedFor, note, reason }); }}>
+      <label>Elemento del temario<select value={nodeId} onChange={(event) => setNodeId(event.target.value)}><option value="" disabled>Selecciona tema, apartado o artículo…</option>{ordered.map((node) => <option key={node.id} value={node.id}>{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>)}</select></label>
+      {selected && <p className="study-selected-path">{studyNodePath(nodes, selected.id).join(" › ")}</p>}
+      <fieldset><legend>Cuándo</legend><div className="study-date-presets"><button type="button" className={plannedFor === localDateKey() ? "active" : ""} onClick={() => setPlannedFor(localDateKey())}>Hoy</button><button type="button" className={plannedFor === addDaysKey(1) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(1))}>Mañana</button><button type="button" className={plannedFor === addDaysKey(3) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(3))}>+3 días</button><button type="button" className={plannedFor === addDaysKey(7) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(7))}>+7 días</button></div></fieldset>
+      <label>Fecha<input type="date" value={plannedFor} onChange={(event) => setPlannedFor(event.target.value)} /></label>
+      <label>Motivo <small>(opcional)</small><select value={reason} onChange={(event) => setReason(event.target.value)}><option value="">Sin indicar</option><option value="olvido">Olvido</option><option value="confusion">Confusión</option><option value="literalidad">Literalidad</option><option value="plazo_cifra">Plazo / cifra</option><option value="afianzar">Quiero afianzarlo</option></select></label>
+      <label>Nota <small>(opcional)</small><textarea autoFocus={Boolean(defaultNodeId)} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ej. No olvidar iniciativa de 1/4 y mayoría absoluta" /></label>
+      <button className="primary-button full" disabled={!nodeId || !plannedFor}>Guardar repaso</button>
+    </form>
+  </ModalShell>;
+}
+
+function StudyImportModal({ onClose, onImport }: { onClose: () => void; onImport: (roots: StudyImportNode[]) => void }) {
+  const [raw, setRaw] = useState("");
+  const [fileName, setFileName] = useState("");
+  const parsed = useMemo(() => parseStudyTextTree(raw), [raw]);
+  const total = countStudyImportNodes(parsed);
+  async function loadFile(file: File | null) {
+    if (!file) return;
+    setFileName(file.name);
+    setRaw(await file.text());
+  }
+  return <div className="modal-backdrop study-import-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+    <section className="modal study-import-modal">
+      <button className="modal-close" onClick={onClose}>×</button>
+      <span className="section-label">IMPORTAR TEMARIO</span>
+      <h2>Crea el árbol sin hacerlo a mano</h2>
+      <p className="modal-subtitle">Pega JSON o un índice en texto. También puedes cargar un .json o .txt. La importación es incremental: no borra tu historial y evita duplicados con el mismo nombre dentro del mismo apartado.</p>
+      <label className="study-import-file"><input type="file" accept=".json,.txt,application/json,text/plain" onChange={(event) => loadFile(event.target.files?.[0] ?? null)} /><span>⇧</span><strong>{fileName || "Cargar archivo .json o .txt"}</strong></label>
+      <div className="study-import-or"><span>o pega el contenido</span></div>
+      <textarea className="study-import-textarea" value={raw} onChange={(event) => { setRaw(event.target.value); setFileName(""); }} placeholder={'Constitución Española\nTítulo IV. Gobierno y Administración\nArtículo 97\nArtículo 98\nArtículo 102\n  - Responsabilidad criminal\n  - Delitos de traición o contra la seguridad del Estado'} />
+      <details className="study-import-help"><summary>Formato JSON compatible</summary><pre>{`{
+  "nombre": "Constitución Española",
+  "hijos": [
+    {
+      "nombre": "Título IV",
+      "hijos": [
+        { "nombre": "Artículo 102", "hijos": [] }
+      ]
+    }
+  ]
+}`}</pre></details>
+      <div className={`study-import-preview ${total ? "ready" : ""}`}>
+        <div><span className="section-label">PREVISUALIZACIÓN</span><strong>{total ? `${total} elementos detectados` : "Pega o carga un temario"}</strong></div>
+        {parsed.length > 0 && <div className="study-import-root-chips">{parsed.slice(0, 6).map((node) => <span key={node.name}>{node.name}</span>)}{parsed.length > 6 && <span>+{parsed.length - 6}</span>}</div>}
+      </div>
+      <div className="study-import-actions"><button className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={!total} onClick={() => onImport(parsed)}>Importar / actualizar</button></div>
+    </section>
+  </div>;
 }
 
 function StatCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: string }) {
