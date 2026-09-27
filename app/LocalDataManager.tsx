@@ -9,6 +9,8 @@ type AppStateLike = {
   cards: AnyRecord[];
   reviews: AnyRecord[];
   psychTests: AnyRecord[];
+  studyNodes?: AnyRecord[];
+  studyTasks?: AnyRecord[];
   settings: AnyRecord;
 };
 
@@ -149,6 +151,36 @@ function mergePsychTests(local: AnyRecord[], incoming: AnyRecord[]) {
   return [...result.values()];
 }
 
+function mergeStudyTasks(local: AnyRecord[], incoming: AnyRecord[]) {
+  const result = byId(local);
+  for (const task of incoming) {
+    if (!task || typeof task.id !== "string" || !task.id) continue;
+    const existing = result.get(task.id);
+    if (!existing) {
+      result.set(task.id, task);
+      continue;
+    }
+
+    // A completed review must never become pending again when an older
+    // backup is imported on another device. If both are completed, keep
+    // the copy with the newest completion timestamp.
+    const localDone = existing.status === "done";
+    const incomingDone = task.status === "done";
+    if (localDone && !incomingDone) {
+      result.set(task.id, existing);
+    } else if (!localDone && incomingDone) {
+      result.set(task.id, task);
+    } else if (localDone && incomingDone) {
+      result.set(task.id, timestamp(task.completedAt) >= timestamp(existing.completedAt) ? task : existing);
+    } else {
+      // Import is an explicit action: for still-pending entries, the
+      // imported note/date wins while keeping any fields only present locally.
+      result.set(task.id, { ...existing, ...task });
+    }
+  }
+  return [...result.values()];
+}
+
 function mergeStates(local: AppStateLike, incoming: AppStateLike): AppStateLike {
   const localSeed = Number(local.settings?.seedVersion ?? 0);
   const incomingSeed = Number(incoming.settings?.seedVersion ?? 0);
@@ -158,6 +190,14 @@ function mergeStates(local: AppStateLike, incoming: AppStateLike): AppStateLike 
     cards: mergeCards(local.cards, incoming.cards),
     reviews: unionById(local.reviews, incoming.reviews),
     psychTests: mergePsychTests(local.psychTests, incoming.psychTests),
+    studyNodes: unionById(
+      Array.isArray(local.studyNodes) ? local.studyNodes : [],
+      Array.isArray(incoming.studyNodes) ? incoming.studyNodes : [],
+    ),
+    studyTasks: mergeStudyTasks(
+      Array.isArray(local.studyTasks) ? local.studyTasks : [],
+      Array.isArray(incoming.studyTasks) ? incoming.studyTasks : [],
+    ),
     settings: {
       ...local.settings,
       ...incoming.settings,
@@ -257,7 +297,13 @@ export default function LocalDataManager() {
 
       const addedReviews = Math.max(0, merged.reviews.length - local.reviews.length);
       const addedCards = Math.max(0, merged.cards.length - local.cards.length);
-      alert(`Importación completada. Se han fusionado los datos sin borrar el historial local.\n\nTarjetas nuevas: ${addedCards}\nRespuestas nuevas: ${addedReviews}`);
+      const localStudyNodes = Array.isArray(local.studyNodes) ? local.studyNodes.length : 0;
+      const localStudyTasks = Array.isArray(local.studyTasks) ? local.studyTasks.length : 0;
+      const mergedStudyNodes = Array.isArray(merged.studyNodes) ? merged.studyNodes.length : 0;
+      const mergedStudyTasks = Array.isArray(merged.studyTasks) ? merged.studyTasks.length : 0;
+      const addedStudyNodes = Math.max(0, mergedStudyNodes - localStudyNodes);
+      const addedStudyTasks = Math.max(0, mergedStudyTasks - localStudyTasks);
+      alert(`Importación completada. Se han fusionado los datos sin borrar el historial local.\n\nTarjetas nuevas: ${addedCards}\nRespuestas nuevas: ${addedReviews}\nElementos de temario nuevos: ${addedStudyNodes}\nRegistros de estudio nuevos: ${addedStudyTasks}`);
       window.location.reload();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No se pudo importar el progreso");
@@ -324,7 +370,7 @@ export default function LocalDataManager() {
             </div>
 
             <div style={infoStyle}>
-              Para cambiar de dispositivo: exporta el JSON, guárdalo en iCloud Drive e impórtalo en el otro dispositivo. La importación fusiona el historial y conserva el progreso FSRS más avanzado de cada tarjeta.
+              Para cambiar de dispositivo: exporta el JSON, guárdalo en iCloud Drive e impórtalo en el otro dispositivo. Se transfieren tarjetas, historial, psicotécnicos y también Temario, pendientes, notas e historial de la sección Estudio. La importación fusiona los datos y conserva el progreso FSRS más avanzado de cada tarjeta.
             </div>
 
             <button type="button" onClick={exportProgress} disabled={Boolean(busy)} style={primaryButtonStyle}>

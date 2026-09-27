@@ -267,7 +267,7 @@ function countStudyImportNodes(roots: StudyImportNode[]) {
   return total;
 }
 
-function mergeStudyImport(existing: StudyNode[], roots: StudyImportNode[]) {
+function mergeStudyImport(existing: StudyNode[], roots: StudyImportNode[], rootParentId: string | null = null) {
   const nodes = [...existing];
   let created = 0;
   const mergeLevel = (items: StudyImportNode[], parentId: string | null) => {
@@ -287,7 +287,8 @@ function mergeStudyImport(existing: StudyNode[], roots: StudyImportNode[]) {
       mergeLevel(item.children, node.id);
     }
   };
-  mergeLevel(roots, null);
+  const safeRootParentId = rootParentId && nodes.some((node) => node.id === rootParentId) ? rootParentId : null;
+  mergeLevel(roots, safeRootParentId);
   return { nodes, created };
 }
 
@@ -976,6 +977,12 @@ export default function OpoApp() {
   const [studyQuickDefaultNodeId, setStudyQuickDefaultNodeId] = useState<string | null>(null);
   const [studyQuickSourceCardId, setStudyQuickSourceCardId] = useState<string | null>(null);
   const [studyImportOpen, setStudyImportOpen] = useState(false);
+  const [studyImportParentId, setStudyImportParentId] = useState<string | null>(null);
+  const [studyNodeEditorOpen, setStudyNodeEditorOpen] = useState(false);
+  const [studyNodeEditorParentId, setStudyNodeEditorParentId] = useState<string | null>(null);
+  const [studyEditingNodeId, setStudyEditingNodeId] = useState<string | null>(null);
+  const [studySelectMode, setStudySelectMode] = useState(false);
+  const [selectedStudyNodeIds, setSelectedStudyNodeIds] = useState<string[]>([]);
   const [studyHistoryRoot, setStudyHistoryRoot] = useState("all");
   const [state, setState] = useState<AppState | null>(null);
   const [sync, setSync] = useState<"loading" | "saved" | "saving" | "error">("loading");
@@ -1079,13 +1086,79 @@ export default function OpoApp() {
   }
 
 
+  function openStudyImport(parentId: string | null = null) {
+    setStudySelectMode(false);
+    setSelectedStudyNodeIds([]);
+    setStudyImportParentId(parentId);
+    setStudyImportOpen(true);
+    setStudyView("tree");
+  }
+
+  function openStudyNodeEditor(parentId: string | null = null, nodeId: string | null = null) {
+    setStudySelectMode(false);
+    setSelectedStudyNodeIds([]);
+    setStudyNodeEditorParentId(parentId);
+    setStudyEditingNodeId(nodeId);
+    setStudyNodeEditorOpen(true);
+    setStudyView("tree");
+  }
+
+  function saveStudyNode(input: { id: string | null; name: string; parentId: string | null }) {
+    if (!state) return;
+    const name = input.name.trim();
+    if (!name) return;
+    let parentId = input.parentId && state.studyNodes.some((node) => node.id === input.parentId) ? input.parentId : null;
+    if (input.id) {
+      const protectedIds = studyDescendantIds(state.studyNodes, input.id);
+      if (parentId && protectedIds.has(parentId)) parentId = state.studyNodes.find((node) => node.id === input.id)?.parentId ?? null;
+    }
+    const duplicate = state.studyNodes.some((node) => node.id !== input.id && node.parentId === parentId && normalizeStudyLabel(node.name) === normalizeStudyLabel(name));
+    if (duplicate) return notify("Ya existe un elemento con ese nombre dentro de esa rama");
+    const finalParentId = parentId;
+    updateState((current) => input.id
+      ? { ...current, studyNodes: current.studyNodes.map((node) => node.id === input.id ? { ...node, name, parentId: finalParentId } : node) }
+      : { ...current, studyNodes: [...current.studyNodes, { id: uid(), name, parentId: finalParentId, createdAt: nowIso() }] });
+    setStudyNodeEditorOpen(false);
+    setStudyEditingNodeId(null);
+    setStudyNodeEditorParentId(null);
+    notify(input.id ? "Elemento actualizado" : "Elemento añadido al temario");
+  }
+
+  function toggleStudyNodeSelection(nodeId: string) {
+    setSelectedStudyNodeIds((current) => current.includes(nodeId) ? current.filter((id) => id !== nodeId) : [...current, nodeId]);
+  }
+
+  function clearStudySelection() {
+    setSelectedStudyNodeIds([]);
+    setStudySelectMode(false);
+  }
+
+  function deleteStudyNodes(nodeIds: string[]) {
+    if (!state || !nodeIds.length) return;
+    const deleteIds = new Set<string>();
+    nodeIds.forEach((nodeId) => studyDescendantIds(state.studyNodes, nodeId).forEach((id) => deleteIds.add(id)));
+    const taskCount = state.studyTasks.filter((task) => deleteIds.has(task.nodeId)).length;
+    const message = `Se eliminarán ${deleteIds.size} elemento${deleteIds.size === 1 ? "" : "s"}${taskCount ? ` y ${taskCount} registro${taskCount === 1 ? "" : "s"} de repaso asociados` : ""}. Esta acción no se puede deshacer. ¿Continuar?`;
+    if (typeof window !== "undefined" && !window.confirm(message)) return;
+    updateState((current) => ({
+      ...current,
+      studyNodes: current.studyNodes.filter((node) => !deleteIds.has(node.id)),
+      studyTasks: current.studyTasks.filter((task) => !deleteIds.has(task.nodeId)),
+    }));
+    if (studyHistoryRoot !== "all" && deleteIds.has(studyHistoryRoot)) setStudyHistoryRoot("all");
+    setSelectedStudyNodeIds([]);
+    setStudySelectMode(false);
+    notify(`${deleteIds.size} elemento${deleteIds.size === 1 ? "" : "s"} eliminado${deleteIds.size === 1 ? "" : "s"}`);
+  }
+
   function openStudyQuick(nodeId?: string | null, sourceCardId?: string | null) {
     if (!state) return;
     if (!state.studyNodes.length) {
       setTab("study");
       setStudyView("tree");
+      setStudyImportParentId(null);
       setStudyImportOpen(true);
-      notify("Importa primero el temario para poder vincular repasos");
+      notify("Añade o importa primero el temario para poder vincular repasos");
       return;
     }
     let resolved = nodeId ?? null;
@@ -1139,13 +1212,24 @@ export default function OpoApp() {
     notify("Anotación eliminada");
   }
 
-  function importStudyTree(roots: StudyImportNode[]) {
+  function importStudyTree(roots: StudyImportNode[], parentId: string | null = null) {
     if (!roots.length) return;
-    const merged = mergeStudyImport(state?.studyNodes ?? [], roots);
-    updateState((current) => ({ ...current, studyNodes: mergeStudyImport(current.studyNodes, roots).nodes }));
+    const safeParentId = parentId && state?.studyNodes.some((node) => node.id === parentId) ? parentId : null;
+    const parent = safeParentId ? state?.studyNodes.find((node) => node.id === safeParentId) ?? null : null;
+    const effectiveRoots = parent && roots.length === 1 && normalizeStudyLabel(roots[0].name) === normalizeStudyLabel(parent.name)
+      ? roots[0].children
+      : roots;
+    if (!effectiveRoots.length) {
+      setStudyImportOpen(false);
+      setStudyImportParentId(null);
+      return notify("No hay elementos nuevos dentro de la rama seleccionada");
+    }
+    const merged = mergeStudyImport(state?.studyNodes ?? [], effectiveRoots, safeParentId);
+    updateState((current) => ({ ...current, studyNodes: mergeStudyImport(current.studyNodes, effectiveRoots, safeParentId).nodes }));
     setStudyImportOpen(false);
+    setStudyImportParentId(null);
     setStudyView("tree");
-    notify(merged.created ? `${merged.created} elementos nuevos añadidos al temario` : "Temario actualizado sin duplicados");
+    notify(merged.created ? `${merged.created} elementos nuevos añadidos${parent ? ` dentro de ${parent.name}` : " al temario"}` : "Temario actualizado sin duplicados");
   }
 
   function exportStudyData(rootId?: string) {
@@ -1834,6 +1918,9 @@ export default function OpoApp() {
   const studyHistoryIds = studyHistoryRoot === "all" ? null : studyDescendantIds(state.studyNodes, studyHistoryRoot);
   const filteredStudyCompleted = studyHistoryIds ? studyCompleted.filter((task) => studyHistoryIds.has(task.nodeId)) : studyCompleted;
   const studyWeakCount = studyCompleted.filter((task) => task.assessment === "mal" || task.assessment === "regular").length;
+  const studySelectedDeleteIds = new Set<string>();
+  selectedStudyNodeIds.forEach((nodeId) => studyDescendantIds(state.studyNodes, nodeId).forEach((id) => studySelectedDeleteIds.add(id)));
+  const studySelectedTaskCount = state.studyTasks.filter((task) => studySelectedDeleteIds.has(task.nodeId)).length;
 
   return (
     <div className="app-shell">
@@ -2076,12 +2163,14 @@ export default function OpoApp() {
           <section className="page study-organizer-page">
             <div className="study-organizer-toolbar">
               <div className="study-view-switch" role="tablist" aria-label="Organización de estudio">
-                <button className={studyView === "today" ? "active" : ""} onClick={() => setStudyView("today")}>Hoy</button>
+                <button className={studyView === "today" ? "active" : ""} onClick={() => { clearStudySelection(); setStudyView("today"); }}>Hoy</button>
                 <button className={studyView === "tree" ? "active" : ""} onClick={() => setStudyView("tree")}>Temario</button>
-                <button className={studyView === "history" ? "active" : ""} onClick={() => setStudyView("history")}>Historial</button>
+                <button className={studyView === "history" ? "active" : ""} onClick={() => { clearStudySelection(); setStudyView("history"); }}>Historial</button>
               </div>
               <div className="study-organizer-actions">
-                <button className="secondary-button" onClick={() => setStudyImportOpen(true)}>⇧ Importar temario</button>
+                <button className="secondary-button" onClick={() => openStudyNodeEditor(null, null)}>＋ Añadir elemento</button>
+                <button className="secondary-button" onClick={() => openStudyImport(null)}>⇧ Importar / actualizar</button>
+                <button className={`secondary-button ${studySelectMode ? "active" : ""}`} disabled={!state.studyNodes.length} onClick={() => { setStudyView("tree"); if (studySelectMode) clearStudySelection(); else { setStudySelectMode(true); setSelectedStudyNodeIds([]); } }}>☑ Seleccionar</button>
                 <button className="secondary-button" disabled={!state.studyNodes.length} onClick={() => exportStudyData()}>↓ Exportar todo</button>
                 <button className="primary-button" disabled={!state.studyNodes.length} onClick={() => openStudyQuick()}>＋ Repaso rápido</button>
               </div>
@@ -2092,8 +2181,8 @@ export default function OpoApp() {
                 <span className="study-empty-icon">▤</span>
                 <span className="section-label">ORGANIZACIÓN DE ESTUDIO</span>
                 <h2>Importa tu temario una vez y anota los repasos en segundos</h2>
-                <p>Puedes pegar un árbol en JSON, pegar un índice en texto o cargar un archivo .json/.txt. Después solo tendrás que marcar qué quieres revisar y cuándo.</p>
-                <button className="primary-button" onClick={() => setStudyImportOpen(true)}>Importar mi temario</button>
+                <p>Puedes pegar un árbol en JSON, pegar un índice en texto, cargar un archivo .json/.txt o empezar manualmente. Después puedes ampliar cualquier rama cuando quieras.</p>
+                <div className="study-empty-actions"><button className="primary-button" onClick={() => openStudyImport(null)}>Importar mi temario</button><button className="secondary-button" onClick={() => openStudyNodeEditor(null, null)}>＋ Crear tema manualmente</button></div>
               </div>
             ) : studyView === "today" ? (
               <>
@@ -2118,9 +2207,10 @@ export default function OpoApp() {
               </>
             ) : studyView === "tree" ? (
               <>
-                <div className="section-heading study-tree-heading"><div><span className="section-label">TEMARIO IMPORTADO</span><h2>{studyRoots.length} {studyRoots.length === 1 ? "tema" : "temas"} · {state.studyNodes.length} elementos</h2><p>El árbol admite tantos niveles como necesites. Importar de nuevo añade lo nuevo y conserva historial y anotaciones de los elementos existentes.</p></div></div>
+                <div className="section-heading study-tree-heading"><div><span className="section-label">TEMARIO</span><h2>{studyRoots.length} {studyRoots.length === 1 ? "tema" : "temas"} · {state.studyNodes.length} elementos</h2><p>Puedes añadir, renombrar, mover, actualizar por importación o borrar cualquier rama sin rehacer el árbol completo.</p></div></div>
+                {studySelectMode && <div className="study-selection-bar"><div><strong>{selectedStudyNodeIds.length ? `${selectedStudyNodeIds.length} seleccionado${selectedStudyNodeIds.length === 1 ? "" : "s"}` : "Selecciona los elementos que quieras gestionar"}</strong><small>{studySelectedDeleteIds.size > selectedStudyNodeIds.length ? `Al borrar se incluirán ${studySelectedDeleteIds.size} elementos contando sus subapartados.` : "Puedes seleccionar varios elementos o ramas."}{studySelectedTaskCount ? ` También hay ${studySelectedTaskCount} registros de repaso asociados.` : ""}</small></div><div><button className="secondary-button" onClick={() => setSelectedStudyNodeIds(state.studyNodes.map((node) => node.id))}>Seleccionar todo</button><button className="danger-button" disabled={!selectedStudyNodeIds.length} onClick={() => deleteStudyNodes(selectedStudyNodeIds)}>Eliminar seleccionados</button><button className="text-button" onClick={clearStudySelection}>Cancelar</button></div></div>}
                 <div className="study-tree-list">
-                  {studyRoots.map((root) => <StudyTreeBranch key={root.id} node={root} nodes={state.studyNodes} tasks={state.studyTasks} depth={0} onQuick={openStudyQuick} onExport={exportStudyData} />)}
+                  {studyRoots.map((root) => <StudyTreeBranch key={root.id} node={root} nodes={state.studyNodes} tasks={state.studyTasks} depth={0} onQuick={openStudyQuick} onExport={exportStudyData} onAddChild={(parentId) => openStudyNodeEditor(parentId, null)} onEdit={(nodeId) => { const node = state.studyNodes.find((item) => item.id === nodeId); openStudyNodeEditor(node?.parentId ?? null, nodeId); }} onImportInto={openStudyImport} onDelete={(nodeId) => deleteStudyNodes([nodeId])} selectionMode={studySelectMode} selectedIds={selectedStudyNodeIds} onToggleSelect={toggleStudyNodeSelection} />)}
                 </div>
               </>
             ) : (
@@ -2404,7 +2494,8 @@ export default function OpoApp() {
       {modal === "psych" && <PsychModal initialTest={openPsychTest} onClose={() => { setModal(null); setEditingPsychTest(null); }} onSave={(test) => { updateState((current) => ({ ...current, psychTests: openPsychTest ? current.psychTests.map((item) => item.id === test.id ? test : item) : [...current.psychTests, test] })); setModal(null); setEditingPsychTest(null); setPsychDetail(test.id); notify(openPsychTest ? "Psicotécnico actualizado" : "Psicotécnico guardado"); }} />}
       {modal === "attempt" && activePsych && <AttemptModal test={activePsych} initialAttempt={openAttempt} onClose={() => { setModal(null); setSelectedPsych(null); setEditingAttempt(null); }} onSave={(attempt) => { updateState((current) => ({ ...current, psychTests: current.psychTests.map((test) => test.id === activePsych.id ? { ...test, attempts: openAttempt ? test.attempts.map((item) => item.id === attempt.id ? attempt : item) : [...test.attempts, attempt] } : test) })); setModal(null); setSelectedPsych(null); setEditingAttempt(null); setPsychDetail(activePsych.id); notify(openAttempt ? "Intento actualizado" : "Intento registrado"); }} />}
       {studyQuickOpen && <StudyQuickModal nodes={state.studyNodes} defaultNodeId={studyQuickDefaultNodeId} onClose={() => { setStudyQuickOpen(false); setStudyQuickDefaultNodeId(null); setStudyQuickSourceCardId(null); }} onSave={saveStudyTask} />}
-      {studyImportOpen && <StudyImportModal onClose={() => setStudyImportOpen(false)} onImport={importStudyTree} />}
+      {studyNodeEditorOpen && <StudyNodeEditorModal nodes={state.studyNodes} nodeId={studyEditingNodeId} defaultParentId={studyNodeEditorParentId} onClose={() => { setStudyNodeEditorOpen(false); setStudyEditingNodeId(null); setStudyNodeEditorParentId(null); }} onSave={saveStudyNode} />}
+      {studyImportOpen && <StudyImportModal nodes={state.studyNodes} defaultParentId={studyImportParentId} onClose={() => { setStudyImportOpen(false); setStudyImportParentId(null); }} onImport={importStudyTree} />}
       {openPsych?.attachment?.type === "application/pdf" && <PdfAnnotator attachment={openPsych.attachment} title={openPsych.name} onClose={() => setEditingPsych(null)} />}
       {toast && <div className="toast">✓ {toast}</div>}
     </div>
@@ -2452,13 +2543,20 @@ function StudyTaskCard({ task, node, nodes, onComplete, onPostpone, onDelete }: 
   </article>;
 }
 
-function StudyTreeBranch({ node, nodes, tasks, depth, onQuick, onExport }: {
+function StudyTreeBranch({ node, nodes, tasks, depth, onQuick, onExport, onAddChild, onEdit, onImportInto, onDelete, selectionMode, selectedIds, onToggleSelect }: {
   node: StudyNode;
   nodes: StudyNode[];
   tasks: StudyTask[];
   depth: number;
   onQuick: (nodeId?: string | null, sourceCardId?: string | null) => void;
   onExport: (rootId?: string) => void;
+  onAddChild: (parentId: string) => void;
+  onEdit: (nodeId: string) => void;
+  onImportInto: (parentId: string | null) => void;
+  onDelete: (nodeId: string) => void;
+  selectionMode: boolean;
+  selectedIds: string[];
+  onToggleSelect: (nodeId: string) => void;
 }) {
   const [open, setOpen] = useState(depth === 0);
   const children = nodes.filter((child) => child.parentId === node.id);
@@ -2467,14 +2565,25 @@ function StudyTreeBranch({ node, nodes, tasks, depth, onQuick, onExport }: {
   const pending = scopedTasks.filter((task) => task.status === "pending");
   const completed = scopedTasks.filter((task) => task.status === "done" && task.completedAt).sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
   const latest = completed[0] ?? null;
+  const selected = selectedIds.includes(node.id);
+  const visibleOpen = selectionMode || open;
   return <div className={`study-tree-branch depth-${Math.min(depth, 5)}`}>
-    <div className="study-tree-row">
-      <button className={`study-tree-toggle ${children.length ? "has-children" : "leaf"}`} onClick={() => children.length && setOpen((value) => !value)} aria-label={children.length ? (open ? "Cerrar" : "Abrir") : "Sin subapartados"}>{children.length ? (open ? "⌄" : "›") : "·"}</button>
-      <div className="study-tree-name"><strong>{node.name}</strong><small>{pending.length ? `${pending.length} pendiente${pending.length === 1 ? "" : "s"}` : latest ? `Último repaso ${dateLabel(latest.completedAt)}` : "Sin repasos registrados"}</small></div>
+    <div className={`study-tree-row ${selectionMode ? "selecting" : ""} ${selected ? "selected" : ""}`}>
+      {selectionMode
+        ? <button className={`study-tree-select ${selected ? "selected" : ""}`} onClick={() => onToggleSelect(node.id)} aria-label={selected ? `Deseleccionar ${node.name}` : `Seleccionar ${node.name}`}>{selected ? "✓" : ""}</button>
+        : <button className={`study-tree-toggle ${children.length ? "has-children" : "leaf"}`} onClick={() => children.length && setOpen((value) => !value)} aria-label={children.length ? (open ? "Cerrar" : "Abrir") : "Sin subapartados"}>{children.length ? (open ? "⌄" : "›") : "·"}</button>}
+      <div className="study-tree-name"><strong>{node.name}</strong><small>{pending.length ? `${pending.length} pendiente${pending.length === 1 ? "" : "s"}` : latest ? `Último repaso ${dateLabel(latest.completedAt)}` : children.length ? `${children.length} subapartado${children.length === 1 ? "" : "s"}` : "Sin repasos registrados"}</small></div>
       <div className="study-tree-metrics"><span>{completed.length} repasos</span>{latest?.assessment && <span className={`study-result ${latest.assessment}`}>{latest.assessment}</span>}</div>
-      <div className="study-tree-actions"><button className="secondary-button" onClick={() => onQuick(node.id)}>＋ Repasar</button><button className={`tree-export-button ${depth === 0 ? "root" : ""}`} onClick={() => onExport(node.id)} title="Exportar este apartado">{depth === 0 ? "↓ Exportar" : "↓"}</button></div>
+      {!selectionMode && <div className="study-tree-actions">
+        <button className="secondary-button study-tree-review" onClick={() => onQuick(node.id)}>＋ Repasar</button>
+        <button className="study-tree-mini-button" onClick={() => onAddChild(node.id)} title="Añadir dentro" aria-label={`Añadir dentro de ${node.name}`}>＋ Añadir</button>
+        <button className="study-tree-mini-button" onClick={() => onImportInto(node.id)} title="Importar o actualizar esta rama" aria-label={`Importar dentro de ${node.name}`}>⇧ Actualizar</button>
+        <button className="study-tree-mini-button" onClick={() => onEdit(node.id)} title="Editar nombre o ubicación" aria-label={`Editar ${node.name}`}>✎ Editar</button>
+        <button className={`tree-export-button ${depth === 0 ? "root" : ""}`} onClick={() => onExport(node.id)} title="Exportar este apartado">{depth === 0 ? "↓ Exportar" : "↓"}</button>
+        <button className="study-tree-icon-button danger" onClick={() => onDelete(node.id)} title="Eliminar esta rama" aria-label={`Eliminar ${node.name}`}>×</button>
+      </div>}
     </div>
-    {open && children.length > 0 && <div className="study-tree-children">{children.map((child) => <StudyTreeBranch key={child.id} node={child} nodes={nodes} tasks={tasks} depth={depth + 1} onQuick={onQuick} onExport={onExport} />)}</div>}
+    {visibleOpen && children.length > 0 && <div className="study-tree-children">{children.map((child) => <StudyTreeBranch key={child.id} node={child} nodes={nodes} tasks={tasks} depth={depth + 1} onQuick={onQuick} onExport={onExport} onAddChild={onAddChild} onEdit={onEdit} onImportInto={onImportInto} onDelete={onDelete} selectionMode={selectionMode} selectedIds={selectedIds} onToggleSelect={onToggleSelect} />)}</div>}
   </div>;
 }
 
@@ -2503,11 +2612,47 @@ function StudyQuickModal({ nodes, defaultNodeId, onClose, onSave }: {
   </ModalShell>;
 }
 
-function StudyImportModal({ onClose, onImport }: { onClose: () => void; onImport: (roots: StudyImportNode[]) => void }) {
+function StudyNodeEditorModal({ nodes, nodeId, defaultParentId, onClose, onSave }: {
+  nodes: StudyNode[];
+  nodeId: string | null;
+  defaultParentId: string | null;
+  onClose: () => void;
+  onSave: (input: { id: string | null; name: string; parentId: string | null }) => void;
+}) {
+  const editing = nodeId ? nodes.find((node) => node.id === nodeId) ?? null : null;
+  const blockedParents = editing ? studyDescendantIds(nodes, editing.id) : new Set<string>();
+  const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
+  const initialParent = editing?.parentId ?? (defaultParentId && nodes.some((node) => node.id === defaultParentId) ? defaultParentId : null);
+  const [name, setName] = useState(editing?.name ?? "");
+  const [parentId, setParentId] = useState(initialParent ?? "");
+  const resolvedParentId = parentId || null;
+  const duplicate = Boolean(name.trim()) && nodes.some((node) => node.id !== nodeId && node.parentId === resolvedParentId && normalizeStudyLabel(node.name) === normalizeStudyLabel(name));
+  const selectedParent = resolvedParentId ? nodes.find((node) => node.id === resolvedParentId) ?? null : null;
+  return <ModalShell title={editing ? "Editar elemento del temario" : "Añadir elemento al temario"} subtitle={editing ? "Puedes cambiar el nombre o mover este elemento a otra rama. Su historial de repaso se conserva." : "Ponle el nombre que quieras y decide exactamente en qué parte del árbol debe aparecer."} label={editing ? "EDITAR TEMARIO" : "NUEVO ELEMENTO"} onClose={onClose}>
+    <form onSubmit={(event) => { event.preventDefault(); if (name.trim() && !duplicate) onSave({ id: nodeId, name, parentId: resolvedParentId }); }}>
+      <label>Nombre<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Artículo 103, Título V, Tema 2…" /></label>
+      <label>Ubicación<select value={parentId} onChange={(event) => setParentId(event.target.value)}><option value="">Nivel principal · crear como tema raíz</option>{ordered.filter((node) => !blockedParents.has(node.id)).map((node) => <option key={node.id} value={node.id}>{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>)}</select></label>
+      {selectedParent && <p className="study-selected-path">Se guardará dentro de: {studyNodePath(nodes, selectedParent.id).join(" › ")}</p>}
+      {duplicate && <p className="form-error">Ya existe un elemento con ese nombre dentro de esa misma rama.</p>}
+      {editing && <p className="study-editor-note">Mover o renombrar este elemento no elimina sus repasos, notas ni historial.</p>}
+      <button className="primary-button full" disabled={!name.trim() || duplicate}>{editing ? "Guardar cambios" : "Añadir al temario"}</button>
+    </form>
+  </ModalShell>;
+}
+
+function StudyImportModal({ nodes, defaultParentId, onClose, onImport }: {
+  nodes: StudyNode[];
+  defaultParentId: string | null;
+  onClose: () => void;
+  onImport: (roots: StudyImportNode[], parentId: string | null) => void;
+}) {
   const [raw, setRaw] = useState("");
   const [fileName, setFileName] = useState("");
+  const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
+  const [parentId, setParentId] = useState(defaultParentId && nodes.some((node) => node.id === defaultParentId) ? defaultParentId : "");
   const parsed = useMemo(() => parseStudyTextTree(raw), [raw]);
   const total = countStudyImportNodes(parsed);
+  const selectedParent = parentId ? nodes.find((node) => node.id === parentId) ?? null : null;
   async function loadFile(file: File | null) {
     if (!file) return;
     setFileName(file.name);
@@ -2516,12 +2661,14 @@ function StudyImportModal({ onClose, onImport }: { onClose: () => void; onImport
   return <div className="modal-backdrop study-import-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section className="modal study-import-modal">
       <button className="modal-close" onClick={onClose}>×</button>
-      <span className="section-label">IMPORTAR TEMARIO</span>
-      <h2>Crea el árbol sin hacerlo a mano</h2>
-      <p className="modal-subtitle">Pega JSON o un índice en texto. También puedes cargar un .json o .txt. La importación es incremental: no borra tu historial y evita duplicados con el mismo nombre dentro del mismo apartado.</p>
+      <span className="section-label">IMPORTAR / ACTUALIZAR TEMARIO</span>
+      <h2>{selectedParent ? `Añadir contenido dentro de ${selectedParent.name}` : "Importa o amplía tu árbol"}</h2>
+      <p className="modal-subtitle">Elige dónde insertar el contenido. Si un elemento con el mismo nombre ya existe en esa rama, se reutiliza y solo se añaden los apartados nuevos. No se borra el historial.</p>
+      <label>Destino<select value={parentId} onChange={(event) => setParentId(event.target.value)}><option value="">Nivel principal · temas raíz</option>{ordered.map((node) => <option key={node.id} value={node.id}>{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>)}</select></label>
+      {selectedParent && <p className="study-selected-path">Los elementos de nivel superior que pegues se añadirán dentro de: {studyNodePath(nodes, selectedParent.id).join(" › ")}</p>}
       <label className="study-import-file"><input type="file" accept=".json,.txt,application/json,text/plain" onChange={(event) => loadFile(event.target.files?.[0] ?? null)} /><span>⇧</span><strong>{fileName || "Cargar archivo .json o .txt"}</strong></label>
       <div className="study-import-or"><span>o pega el contenido</span></div>
-      <textarea className="study-import-textarea" value={raw} onChange={(event) => { setRaw(event.target.value); setFileName(""); }} placeholder={'Constitución Española\nTítulo IV. Gobierno y Administración\nArtículo 97\nArtículo 98\nArtículo 102\n  - Responsabilidad criminal\n  - Delitos de traición o contra la seguridad del Estado'} />
+      <textarea className="study-import-textarea" value={raw} onChange={(event) => { setRaw(event.target.value); setFileName(""); }} placeholder={selectedParent ? 'Artículo 103\nArtículo 104\nArtículo 105' : 'Constitución Española\nTítulo IV. Gobierno y Administración\nArtículo 97\nArtículo 98\nArtículo 102\n  - Responsabilidad criminal'} />
       <details className="study-import-help"><summary>Formato JSON compatible</summary><pre>{`{
   "nombre": "Constitución Española",
   "hijos": [
@@ -2534,10 +2681,10 @@ function StudyImportModal({ onClose, onImport }: { onClose: () => void; onImport
   ]
 }`}</pre></details>
       <div className={`study-import-preview ${total ? "ready" : ""}`}>
-        <div><span className="section-label">PREVISUALIZACIÓN</span><strong>{total ? `${total} elementos detectados` : "Pega o carga un temario"}</strong></div>
-        {parsed.length > 0 && <div className="study-import-root-chips">{parsed.slice(0, 6).map((node) => <span key={node.name}>{node.name}</span>)}{parsed.length > 6 && <span>+{parsed.length - 6}</span>}</div>}
+        <div><span className="section-label">PREVISUALIZACIÓN</span><strong>{total ? `${total} elementos detectados` : "Pega o carga un temario"}</strong><small>{selectedParent ? `Destino: ${selectedParent.name}` : "Destino: nivel principal"}</small></div>
+        {parsed.length > 0 && <div className="study-import-root-chips">{parsed.slice(0, 6).map((node, index) => <span key={`${node.name}-${index}`}>{node.name}</span>)}{parsed.length > 6 && <span>+{parsed.length - 6}</span>}</div>}
       </div>
-      <div className="study-import-actions"><button className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={!total} onClick={() => onImport(parsed)}>Importar / actualizar</button></div>
+      <div className="study-import-actions"><button className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={!total} onClick={() => onImport(parsed, parentId || null)}>Importar / actualizar</button></div>
     </section>
   </div>;
 }
