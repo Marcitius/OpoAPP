@@ -1150,3 +1150,104 @@ img, video, canvas, svg { max-width: 100%; }
   gap: 9px;
   flex-wrap: wrap;
 }
+
+/* V9.13 · corrección aislada del layout de respuesta escrita.
+   Solo afecta a la colocación de sus controles: contenido, acciones y
+   navegación forman bloques independientes dentro de la tarjeta y nunca se
+   superponen. El scroll sigue siendo el único scroll exterior de review-stage. */
+.review-overlay {
+  isolation: isolate;
+}
+
+.review-stage > .study-card,
+.review-stage > .precheck-actions,
+.review-stage > .check-button,
+.review-stage > .study-navigation,
+.review-stage > .rating-bar,
+.review-stage > .recorded-review {
+  position: relative !important;
+  inset: auto !important;
+  transform: none !important;
+}
+
+.study-card .written-controls-layer {
+  width: min(760px, 100%);
+  max-width: 760px;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 16px auto 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  flex: 0 0 auto;
+}
+
+.study-card .written-session-actions,
+.study-card .written-session-navigation {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  z-index: auto;
+  flex: 0 0 auto;
+}
+
+.study-card .written-session-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.study-card .written-session-navigation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.study-card .written-session-actions .secondary-button,
+.study-card .written-session-navigation .secondary-button {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+/* iPhone y ventanas estrechas: los tres bloques ocupan el ancho disponible
+   y mantienen alturas táctiles estables, sin fijarse sobre el contenido. */
+@media (max-width: 700px) {
+  .study-card .written-controls-layer {
+    width: 100%;
+    max-width: 100%;
+    margin-top: 14px;
+    padding-top: 12px;
+    gap: 10px;
+  }
+
+  .study-card .written-session-actions,
+  .study-card .written-session-navigation {
+    gap: 8px;
+  }
+
+  .study-card .written-session-actions .secondary-button,
+  .study-card .written-session-navigation .secondary-button {
+    min-height: 50px;
+    padding: 11px 8px;
+  }
+}
+
+/* iPad y ventanas medianas: conserva el mismo flujo, con controles centrados
+   dentro del ancho útil de la tarjeta. */
+@media (min-width: 701px) and (max-width: 1180px) {
+  .study-card .written-controls-layer {
+    width: min(760px, 100%);
+  }
+}
+

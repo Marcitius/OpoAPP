@@ -1948,10 +1948,16 @@ export default function OpoApp() {
                   )}
                 </div>
               )}
+              {isWrittenCard(currentCard) && (
+                <div className="written-controls-layer">
+                  {!revealed && !currentQueueItem.completed && <div className="precheck-actions written-session-actions"><button className="secondary-button unknown-button" onClick={markCurrentUnknown}>No me la sé</button><button className="secondary-button" onClick={goToNextCard}>Pasar</button></div>}
+                  <div className="study-navigation written-session-navigation"><button className="secondary-button" disabled={reviewIndex <= 0} onClick={goToPreviousCard}>← Anterior</button><button className="secondary-button" onClick={goToNextCard}>Siguiente →</button></div>
+                </div>
+              )}
             </div>
-            {!revealed && !currentQueueItem.completed && <div className="precheck-actions"><button className="secondary-button unknown-button" onClick={markCurrentUnknown}>No me la sé</button><button className="secondary-button" onClick={goToNextCard}>Pasar</button></div>}
+            {!isWrittenCard(currentCard) && !revealed && !currentQueueItem.completed && <div className="precheck-actions"><button className="secondary-button unknown-button" onClick={markCurrentUnknown}>No me la sé</button><button className="secondary-button" onClick={goToNextCard}>Pasar</button></div>}
             {isMultipleChoiceCard(currentCard) && !revealed && !currentQueueItem.completed && <button className="check-button" disabled={isMultipleAnswerTest(currentCard) ? selectedOptions.length === 0 : selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}
-            <div className="study-navigation"><button className="secondary-button" disabled={reviewIndex <= 0} onClick={goToPreviousCard}>← Anterior</button><button className="secondary-button" onClick={goToNextCard}>Siguiente →</button></div>
+            {!isWrittenCard(currentCard) && <div className="study-navigation"><button className="secondary-button" disabled={reviewIndex <= 0} onClick={goToPreviousCard}>← Anterior</button><button className="secondary-button" onClick={goToNextCard}>Siguiente →</button></div>}
             {revealed && !isWrittenCard(currentCard) && !currentQueueItem.completed && <div className="rating-bar"><p>{isMultipleChoiceCard(currentCard) ? currentSelectionIsCorrect(currentCard) ? "¡Correcto! ¿Cómo te ha resultado?" : "No es correcto. La tarjeta ganará prioridad en esta sesión." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{isContinuousStudyMode(studyMode) ? (studyMode === "weakest" ? "Refuerzo de errores · FSRS solo consolida el primer intento" : "Aprendizaje activo · FSRS solo consolida el primer intento") : personalModelLabel(personalModel)}</span></p><div>
               <button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>{isContinuousStudyMode(studyMode) ? "prioridad máxima" : "↻ tras 2 tarjetas"}</small></button>
               <button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>{isContinuousStudyMode(studyMode) ? "saldrá más" : "↻ tras 4 tarjetas"}</small></button>
