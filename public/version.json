@@ -1,12 +1,14 @@
 {
-  "version": "opogc-v9.12-navigation-unknown-skip-import-all",
-  "date": "2026-09-24",
+  "version": "opogc-v9.16.1-comentario-resultado-repaso",
+  "date": "2026-09-28",
   "features": [
-    "No me la sé records a 0 percent failed review, reveals the model answer and written rubric, and raises future priority",
-    "learn mode reintroduces cards marked No me la sé while preserving the existing first-encounter FSRS behavior",
-    "Pasar and previous or next navigation move through cards without writing reviews or changing statistics and memory models",
-    "JSON import now preserves every valid item, including repeated questions with different answers or options",
-    "the v9.11 universal responsive study layout is preserved unchanged",
-    "existing FSRS, weakest-card model, imported rubrics, accuracy calculation and local persistence remain in place"
+    "optional comment immediately after rating a study review as Bien, Regular or Mal",
+    "review result is saved immediately; the comment can be skipped without undoing completion",
+    "completion comments are stored separately from the pre-review note in studyTasks.completionNote",
+    "completion comments appear in Study history alongside the original review note",
+    "study export includes completion comments in both summary notes and review history",
+    "existing study tasks migrate automatically with an empty completionNote",
+    "v9.16 grouped queue, three-dot actions, ordering, study-tree editing and device transfer retained",
+    "cards, FSRS, orthography, psychotechnics and unrelated behavior unchanged"
   ]
 }

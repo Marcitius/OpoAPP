@@ -171,7 +171,17 @@ function mergeStudyTasks(local: AnyRecord[], incoming: AnyRecord[]) {
     } else if (!localDone && incomingDone) {
       result.set(task.id, task);
     } else if (localDone && incomingDone) {
-      result.set(task.id, timestamp(task.completedAt) >= timestamp(existing.completedAt) ? task : existing);
+      const incomingIsNewest = timestamp(task.completedAt) >= timestamp(existing.completedAt);
+      const newest = incomingIsNewest ? task : existing;
+      const other = incomingIsNewest ? existing : task;
+      // completionNote is written just after completing the review, so two
+      // copies can legitimately share completedAt while only one has the
+      // later comment. Never erase a non-empty comment with an older blank copy.
+      result.set(task.id, {
+        ...other,
+        ...newest,
+        completionNote: String(newest.completionNote ?? "").trim() ? newest.completionNote : (other.completionNote ?? ""),
+      });
     } else {
       // Import is an explicit action: for still-pending entries, the
       // imported note/date wins while keeping any fields only present locally.

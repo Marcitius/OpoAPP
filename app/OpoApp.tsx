@@ -24,6 +24,7 @@ type ReviewQueueItem = {
 type PsychSort = "oldest" | "recent" | "last-low" | "last-high" | "avg-low" | "avg-high" | "attempts-low" | "attempts-high" | "name";
 
 type StudyView = "today" | "tree" | "history";
+type StudyQueueMode = "grouped" | "list";
 type StudyTaskStatus = "pending" | "done";
 type StudyAssessment = "bien" | "regular" | "mal" | null;
 type StudyNode = {
@@ -42,7 +43,9 @@ type StudyTask = {
   createdAt: string;
   completedAt: string | null;
   assessment: StudyAssessment;
+  completionNote: string;
   sourceCardId?: string | null;
+  queueOrder: number;
 };
 type StudyImportNode = { id?: string; name: string; children: StudyImportNode[] };
 
@@ -632,11 +635,14 @@ function normalizeAndSeed(state: AppState) {
   const studyNodes: StudyNode[] = Array.isArray((state as any).studyNodes)
     ? (state as any).studyNodes.map((node: any) => ({ id: String(node.id), name: String(node.name ?? ""), parentId: node.parentId ? String(node.parentId) : null, createdAt: String(node.createdAt ?? nowIso()) })).filter((node: StudyNode) => node.id && node.name.trim())
     : [];
+  if (Array.isArray((state as any).studyTasks) && (state as any).studyTasks.some((task: any) => !Number.isFinite(Number(task?.queueOrder)) || typeof task?.completionNote !== "string")) changed = true;
   const studyTasks: StudyTask[] = Array.isArray((state as any).studyTasks)
-    ? (state as any).studyTasks.map((task: any) => ({
+    ? (state as any).studyTasks.map((task: any, index: number) => ({
       id: String(task.id), nodeId: String(task.nodeId), plannedFor: String(task.plannedFor ?? localDateKey()), note: String(task.note ?? ""), reason: String(task.reason ?? ""),
       status: task.status === "done" ? "done" : "pending", createdAt: String(task.createdAt ?? nowIso()), completedAt: task.completedAt ? String(task.completedAt) : null,
-      assessment: task.assessment === "bien" || task.assessment === "regular" || task.assessment === "mal" ? task.assessment : null, sourceCardId: task.sourceCardId ? String(task.sourceCardId) : null,
+      assessment: task.assessment === "bien" || task.assessment === "regular" || task.assessment === "mal" ? task.assessment : null,
+      completionNote: String(task.completionNote ?? ""), sourceCardId: task.sourceCardId ? String(task.sourceCardId) : null,
+      queueOrder: Number.isFinite(Number(task.queueOrder)) ? Number(task.queueOrder) : index,
     })).filter((task: StudyTask) => task.id && task.nodeId)
     : [];
   if (!Array.isArray((state as any).studyNodes) || !Array.isArray((state as any).studyTasks)) changed = true;
@@ -973,6 +979,9 @@ function orthographyStudyCard(card: Card): OrthographyStudyCard {
 export default function OpoApp() {
   const [tab, setTab] = useState<Tab>("today");
   const [studyView, setStudyView] = useState<StudyView>("today");
+  const [studyQueueMode, setStudyQueueMode] = useState<StudyQueueMode>("grouped");
+  const [studyTaskEditId, setStudyTaskEditId] = useState<string | null>(null);
+  const [studyCompletionPrompt, setStudyCompletionPrompt] = useState<{ taskId: string; assessment: Exclude<StudyAssessment, null> } | null>(null);
   const [studyQuickOpen, setStudyQuickOpen] = useState(false);
   const [studyQuickDefaultNodeId, setStudyQuickDefaultNodeId] = useState<string | null>(null);
   const [studyQuickSourceCardId, setStudyQuickSourceCardId] = useState<string | null>(null);
@@ -1182,7 +1191,9 @@ export default function OpoApp() {
       createdAt: nowIso(),
       completedAt: null,
       assessment: null,
+      completionNote: "",
       sourceCardId: studyQuickSourceCardId,
+      queueOrder: Math.max(-1, ...(state?.studyTasks.filter((item) => item.status === "pending").map((item) => item.queueOrder) ?? [])) + 1,
     };
     updateState((current) => ({ ...current, studyTasks: [...current.studyTasks, task] }));
     setStudyQuickOpen(false);
@@ -1191,12 +1202,61 @@ export default function OpoApp() {
     notify(`Repaso guardado para ${task.plannedFor === localDateKey() ? "hoy" : task.plannedFor === addDaysKey(1) ? "mañana" : dateLabel(task.plannedFor)}`);
   }
 
+  function editStudyTask(taskId: string) {
+    setStudyTaskEditId(taskId);
+  }
+
+  function saveStudyTaskEdits(input: { id: string; nodeId: string; plannedFor: string; note: string; reason: string }) {
+    updateState((current) => ({
+      ...current,
+      studyTasks: current.studyTasks.map((task) => task.id === input.id ? {
+        ...task,
+        nodeId: input.nodeId,
+        plannedFor: input.plannedFor,
+        note: input.note.trim(),
+        reason: input.reason,
+      } : task),
+    }));
+    setStudyTaskEditId(null);
+    notify("Repaso actualizado");
+  }
+
+  function reorderStudyTask(taskId: string, direction: -1 | 1) {
+    if (!state) return;
+    const due = state.studyTasks
+      .filter((task) => task.status === "pending" && task.plannedFor <= localDateKey())
+      .sort((a, b) => a.queueOrder - b.queueOrder || a.plannedFor.localeCompare(b.plannedFor) || a.createdAt.localeCompare(b.createdAt));
+    const index = due.findIndex((task) => task.id === taskId);
+    const target = due[index + direction];
+    if (index < 0 || !target) return;
+    const currentOrder = due[index].queueOrder;
+    const targetOrder = target.queueOrder;
+    updateState((current) => ({
+      ...current,
+      studyTasks: current.studyTasks.map((task) => task.id === taskId
+        ? { ...task, queueOrder: targetOrder }
+        : task.id === target.id
+          ? { ...task, queueOrder: currentOrder }
+          : task),
+    }));
+  }
+
   function completeStudyTask(taskId: string, assessment: Exclude<StudyAssessment, null>) {
     updateState((current) => ({
       ...current,
       studyTasks: current.studyTasks.map((task) => task.id === taskId ? { ...task, status: "done", completedAt: nowIso(), assessment } : task),
     }));
+    setStudyCompletionPrompt({ taskId, assessment });
     notify(assessment === "bien" ? "Repaso completado" : assessment === "regular" ? "Repaso completado · conviene volver" : "Repaso completado · prioridad alta");
+  }
+
+  function saveStudyCompletionNote(taskId: string, completionNote: string) {
+    updateState((current) => ({
+      ...current,
+      studyTasks: current.studyTasks.map((task) => task.id === taskId ? { ...task, completionNote: completionNote.trim() } : task),
+    }));
+    setStudyCompletionPrompt(null);
+    if (completionNote.trim()) notify("Comentario del repaso guardado");
   }
 
   function postponeStudyTask(taskId: string, days = 1) {
@@ -1208,7 +1268,9 @@ export default function OpoApp() {
   }
 
   function deleteStudyTask(taskId: string) {
+    if (typeof window !== "undefined" && !window.confirm("¿Eliminar este repaso pendiente?")) return;
     updateState((current) => ({ ...current, studyTasks: current.studyTasks.filter((task) => task.id !== taskId) }));
+    if (studyTaskEditId === taskId) setStudyTaskEditId(null);
     notify("Anotación eliminada");
   }
 
@@ -1250,10 +1312,10 @@ export default function OpoApp() {
         proxima_revision: pending[0]?.plannedFor ?? null,
         numero_repasos: done.length,
         estado: latest?.assessment ?? (pending.length ? "pendiente" : "sin_datos"),
-        notas: tasks.filter((task) => task.note).slice(-12).map((task) => task.note),
+        notas: tasks.flatMap((task) => [task.note, task.completionNote]).filter(Boolean).slice(-12),
         motivos: [...new Set(tasks.map((task) => task.reason).filter(Boolean))],
-        pendientes: pending.map((task) => ({ fecha: task.plannedFor, nota: task.note, motivo: task.reason })),
-        historial: done.slice(0, 20).map((task) => ({ fecha: task.completedAt, resultado: task.assessment, nota: task.note, motivo: task.reason })),
+        pendientes: pending.map((task) => ({ fecha: task.plannedFor, nota: task.note, motivo: task.reason, orden: task.queueOrder })),
+        historial: done.slice(0, 20).map((task) => ({ fecha: task.completedAt, resultado: task.assessment, nota_previa: task.note, comentario_resultado: task.completionNote, motivo: task.reason })),
       };
     });
     const root = rootId ? state.studyNodes.find((node) => node.id === rootId) : null;
@@ -1911,8 +1973,8 @@ export default function OpoApp() {
   const latestPsychScores = state.psychTests.map((test) => psychStats(test).last?.score).filter((score): score is number => score !== undefined);
   const latestPsychAverage = latestPsychScores.length ? latestPsychScores.reduce((sum, score) => sum + score, 0) / latestPsychScores.length : null;
   const studyRoots = state.studyNodes.filter((node) => !node.parentId);
-  const studyPending = state.studyTasks.filter((task) => task.status === "pending").sort((a, b) => a.plannedFor.localeCompare(b.plannedFor) || a.createdAt.localeCompare(b.createdAt));
-  const studyDue = studyPending.filter((task) => task.plannedFor <= localDateKey());
+  const studyPending = state.studyTasks.filter((task) => task.status === "pending").sort((a, b) => a.plannedFor.localeCompare(b.plannedFor) || a.queueOrder - b.queueOrder || a.createdAt.localeCompare(b.createdAt));
+  const studyDue = studyPending.filter((task) => task.plannedFor <= localDateKey()).sort((a, b) => a.queueOrder - b.queueOrder || a.plannedFor.localeCompare(b.plannedFor) || a.createdAt.localeCompare(b.createdAt));
   const studyUpcoming = studyPending.filter((task) => task.plannedFor > localDateKey()).slice(0, 8);
   const studyCompleted = state.studyTasks.filter((task) => task.status === "done").sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
   const studyHistoryIds = studyHistoryRoot === "all" ? null : studyDescendantIds(state.studyNodes, studyHistoryRoot);
@@ -2193,16 +2255,22 @@ export default function OpoApp() {
                 </div>
 
                 <section className="panel study-tasks-panel">
-                  <div className="panel-head"><div><span className="section-label">COLA PERSONAL</span><h3>{studyDue.length ? "Lo que toca revisar" : "Nada obligatorio para hoy"}</h3></div><button className="text-button" onClick={() => openStudyQuick()}>＋ Añadir</button></div>
-                  {studyDue.length ? <div className="study-task-list">{studyDue.map((task) => <StudyTaskCard key={task.id} task={task} node={state.studyNodes.find((node) => node.id === task.nodeId) ?? null} nodes={state.studyNodes} onComplete={completeStudyTask} onPostpone={postponeStudyTask} onDelete={deleteStudyTask} />)}</div> : <div className="study-inline-empty"><strong>La cola está limpia.</strong><span>Puedes añadir un repaso manual o seguir estudiando y marcar algo desde una tarjeta.</span></div>}
+                  <div className="panel-head study-queue-panel-head">
+                    <div><span className="section-label">COLA PERSONAL</span><h3>{studyDue.length ? "Lo que toca revisar" : "Nada obligatorio para hoy"}</h3></div>
+                    <div className="study-panel-head-actions">
+                      {studyDue.length > 1 && <div className="study-queue-switch" aria-label="Vista de la cola"><button className={studyQueueMode === "grouped" ? "active" : ""} onClick={() => setStudyQueueMode("grouped")}>Agrupado</button><button className={studyQueueMode === "list" ? "active" : ""} onClick={() => setStudyQueueMode("list")}>Lista</button></div>}
+                      <button className="text-button" onClick={() => openStudyQuick()}>＋ Añadir</button>
+                    </div>
+                  </div>
+                  {studyDue.length ? (studyQueueMode === "grouped"
+                    ? <StudyTaskGroupedList tasks={studyDue} nodes={state.studyNodes} onComplete={completeStudyTask} onPostpone={postponeStudyTask} onDelete={deleteStudyTask} onEdit={editStudyTask} />
+                    : <div className="study-task-list">{studyDue.map((task, index) => <StudyTaskCard key={task.id} task={task} node={state.studyNodes.find((node) => node.id === task.nodeId) ?? null} nodes={state.studyNodes} onComplete={completeStudyTask} onPostpone={postponeStudyTask} onDelete={deleteStudyTask} onEdit={editStudyTask} onReorder={reorderStudyTask} canMoveUp={index > 0} canMoveDown={index < studyDue.length - 1} />)}</div>)
+                    : <div className="study-inline-empty"><strong>La cola está limpia.</strong><span>Puedes añadir un repaso manual o seguir estudiando y marcar algo desde una tarjeta.</span></div>}
                 </section>
 
                 {studyUpcoming.length > 0 && <section className="panel study-upcoming-panel">
                   <div className="panel-head"><div><span className="section-label">DESPUÉS</span><h3>Próximos repasos</h3></div></div>
-                  <div className="study-upcoming-list">{studyUpcoming.map((task) => {
-                    const node = state.studyNodes.find((item) => item.id === task.nodeId);
-                    return <div key={task.id}><span><strong>{node?.name ?? "Elemento eliminado"}</strong><small>{task.note || studyNodePath(state.studyNodes, task.nodeId).slice(0, -1).join(" · ") || "Sin nota"}</small></span><time>{dateLabel(task.plannedFor)}</time></div>;
-                  })}</div>
+                  <div className="study-upcoming-list">{studyUpcoming.map((task) => <StudyUpcomingRow key={task.id} task={task} node={state.studyNodes.find((item) => item.id === task.nodeId) ?? null} nodes={state.studyNodes} onEdit={editStudyTask} onDelete={deleteStudyTask} />)}</div>
                 </section>}
               </>
             ) : studyView === "tree" ? (
@@ -2225,7 +2293,7 @@ export default function OpoApp() {
                 <section className="panel study-history-panel">
                   {filteredStudyCompleted.length ? <div className="study-history-list">{filteredStudyCompleted.slice(0, 100).map((task) => {
                     const node = state.studyNodes.find((item) => item.id === task.nodeId);
-                    return <div className="study-history-row" key={task.id}><span className={`study-assessment-dot ${task.assessment ?? ""}`} /><div><strong>{node?.name ?? "Elemento eliminado"}</strong><small>{studyNodePath(state.studyNodes, task.nodeId).join(" · ")}</small>{task.note && <p>{task.note}</p>}</div><span className={`study-result ${task.assessment ?? ""}`}>{task.assessment ?? "—"}</span><time>{dateLabel(task.completedAt)}</time></div>;
+                    return <div className="study-history-row" key={task.id}><span className={`study-assessment-dot ${task.assessment ?? ""}`} /><div><strong>{node?.name ?? "Elemento eliminado"}</strong><small>{studyNodePath(state.studyNodes, task.nodeId).join(" · ")}</small>{task.note && <p className="study-history-note"><b>Para repasar:</b> {task.note}</p>}{task.completionNote && <p className="study-history-completion-note"><b>Comentario:</b> {task.completionNote}</p>}</div><span className={`study-result ${task.assessment ?? ""}`}>{task.assessment ?? "—"}</span><time>{dateLabel(task.completedAt)}</time></div>;
                   })}</div> : <div className="study-inline-empty"><strong>Aún no hay repasos completados.</strong><span>Cuando marques un pendiente como Bien, Regular o Mal aparecerá aquí.</span></div>}
                 </section>
               </>
@@ -2494,6 +2562,8 @@ export default function OpoApp() {
       {modal === "psych" && <PsychModal initialTest={openPsychTest} onClose={() => { setModal(null); setEditingPsychTest(null); }} onSave={(test) => { updateState((current) => ({ ...current, psychTests: openPsychTest ? current.psychTests.map((item) => item.id === test.id ? test : item) : [...current.psychTests, test] })); setModal(null); setEditingPsychTest(null); setPsychDetail(test.id); notify(openPsychTest ? "Psicotécnico actualizado" : "Psicotécnico guardado"); }} />}
       {modal === "attempt" && activePsych && <AttemptModal test={activePsych} initialAttempt={openAttempt} onClose={() => { setModal(null); setSelectedPsych(null); setEditingAttempt(null); }} onSave={(attempt) => { updateState((current) => ({ ...current, psychTests: current.psychTests.map((test) => test.id === activePsych.id ? { ...test, attempts: openAttempt ? test.attempts.map((item) => item.id === attempt.id ? attempt : item) : [...test.attempts, attempt] } : test) })); setModal(null); setSelectedPsych(null); setEditingAttempt(null); setPsychDetail(activePsych.id); notify(openAttempt ? "Intento actualizado" : "Intento registrado"); }} />}
       {studyQuickOpen && <StudyQuickModal nodes={state.studyNodes} defaultNodeId={studyQuickDefaultNodeId} onClose={() => { setStudyQuickOpen(false); setStudyQuickDefaultNodeId(null); setStudyQuickSourceCardId(null); }} onSave={saveStudyTask} />}
+      {studyTaskEditId && state.studyTasks.find((task) => task.id === studyTaskEditId) && <StudyTaskEditModal task={state.studyTasks.find((task) => task.id === studyTaskEditId)!} nodes={state.studyNodes} onClose={() => setStudyTaskEditId(null)} onSave={saveStudyTaskEdits} onDelete={deleteStudyTask} />}
+      {studyCompletionPrompt && <StudyCompletionNoteModal assessment={studyCompletionPrompt.assessment} task={state.studyTasks.find((task) => task.id === studyCompletionPrompt.taskId) ?? null} nodes={state.studyNodes} onClose={() => setStudyCompletionPrompt(null)} onSave={(note) => saveStudyCompletionNote(studyCompletionPrompt.taskId, note)} />}
       {studyNodeEditorOpen && <StudyNodeEditorModal nodes={state.studyNodes} nodeId={studyEditingNodeId} defaultParentId={studyNodeEditorParentId} onClose={() => { setStudyNodeEditorOpen(false); setStudyEditingNodeId(null); setStudyNodeEditorParentId(null); }} onSave={saveStudyNode} />}
       {studyImportOpen && <StudyImportModal nodes={state.studyNodes} defaultParentId={studyImportParentId} onClose={() => { setStudyImportOpen(false); setStudyImportParentId(null); }} onImport={importStudyTree} />}
       {openPsych?.attachment?.type === "application/pdf" && <PdfAnnotator attachment={openPsych.attachment} title={openPsych.name} onClose={() => setEditingPsych(null)} />}
@@ -2514,21 +2584,28 @@ function NavButton({ item, active, onClick }: { item: (typeof navItems)[number];
   return <button className={active ? "active" : ""} onClick={onClick}><span>{item.icon}</span>{item.label}</button>;
 }
 
-function StudyTaskCard({ task, node, nodes, onComplete, onPostpone, onDelete }: {
+function StudyTaskCard({ task, node, nodes, onComplete, onPostpone, onDelete, onEdit, onReorder, canMoveUp = false, canMoveDown = false, grouped = false }: {
   task: StudyTask;
   node: StudyNode | null;
   nodes: StudyNode[];
   onComplete: (taskId: string, assessment: Exclude<StudyAssessment, null>) => void;
   onPostpone: (taskId: string, days?: number) => void;
   onDelete: (taskId: string) => void;
+  onEdit: (taskId: string) => void;
+  onReorder?: (taskId: string, direction: -1 | 1) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  grouped?: boolean;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const overdue = task.plannedFor < localDateKey();
   const path = node ? studyNodePath(nodes, node.id) : [];
   const reasonLabels: Record<string, string> = { olvido: "Olvido", confusion: "Confusión", literalidad: "Literalidad", plazo_cifra: "Plazo / cifra", afianzar: "Afianzar" };
+  const runMenuAction = (action: () => void) => { setMenuOpen(false); action(); };
   return <article className={`study-task-card ${overdue ? "overdue" : ""}`}>
     <div className="study-task-main">
       <div className="study-task-title-row"><strong>{node?.name ?? "Elemento eliminado"}</strong><span className={overdue ? "overdue" : "today"}>{overdue ? "Atrasado" : "Hoy"}</span></div>
-      <small>{path.slice(0, -1).join(" · ") || "Temario"}</small>
+      {!grouped && <small>{path.slice(0, -1).join(" · ") || "Temario"}</small>}
       {task.note && <p>{task.note}</p>}
       {task.reason && <span className="study-reason-chip">{reasonLabels[task.reason] ?? task.reason}</span>}
     </div>
@@ -2538,9 +2615,96 @@ function StudyTaskCard({ task, node, nodes, onComplete, onPostpone, onDelete }: 
         <button className="mid" onClick={() => onComplete(task.id, "regular")}>Regular</button>
         <button className="good" onClick={() => onComplete(task.id, "bien")}>Bien</button>
       </div>
-      <div className="study-task-secondary-actions"><button onClick={() => onPostpone(task.id, 1)}>Mañana</button><button aria-label="Eliminar anotación" title="Eliminar anotación" onClick={() => onDelete(task.id)}>×</button></div>
+      <div className="study-task-secondary-actions">
+        <button onClick={() => onPostpone(task.id, 1)}>Mañana</button>
+        <div className={`study-task-more-wrap ${menuOpen ? "open" : ""}`}>
+          <button className="study-task-more-button" aria-label="Más opciones" title="Más opciones" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>•••</button>
+          {menuOpen && <div className="study-task-menu" role="menu">
+            <button role="menuitem" onClick={() => runMenuAction(() => onEdit(task.id))}>✎ Editar repaso</button>
+            <button role="menuitem" onClick={() => runMenuAction(() => onPostpone(task.id, 3))}>＋3 días</button>
+            <button role="menuitem" onClick={() => runMenuAction(() => onPostpone(task.id, 7))}>＋7 días</button>
+            {onReorder && <>
+              <button role="menuitem" disabled={!canMoveUp} onClick={() => canMoveUp && runMenuAction(() => onReorder(task.id, -1))}>↑ Subir en la lista</button>
+              <button role="menuitem" disabled={!canMoveDown} onClick={() => canMoveDown && runMenuAction(() => onReorder(task.id, 1))}>↓ Bajar en la lista</button>
+            </>}
+            <button role="menuitem" className="danger" onClick={() => runMenuAction(() => onDelete(task.id))}>Eliminar</button>
+          </div>}
+        </div>
+      </div>
     </div>
   </article>;
+}
+
+function StudyTaskGroupedList({ tasks, nodes, onComplete, onPostpone, onDelete, onEdit }: {
+  tasks: StudyTask[];
+  nodes: StudyNode[];
+  onComplete: (taskId: string, assessment: Exclude<StudyAssessment, null>) => void;
+  onPostpone: (taskId: string, days?: number) => void;
+  onDelete: (taskId: string) => void;
+  onEdit: (taskId: string) => void;
+}) {
+  const validNodeIds = new Set(nodes.map((node) => node.id));
+  const orphanTasks = tasks.filter((task) => !validNodeIds.has(task.nodeId));
+  const roots = nodes.filter((node) => !node.parentId && tasks.some((task) => studyDescendantIds(nodes, node.id).has(task.nodeId)));
+  return <div className="study-task-groups">
+    {roots.map((root) => <StudyTaskGroupBranch key={root.id} node={root} nodes={nodes} tasks={tasks} depth={0} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} />)}
+    {orphanTasks.length > 0 && <div className="study-task-orphans">{orphanTasks.map((task) => <StudyTaskCard key={task.id} task={task} node={null} nodes={nodes} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} grouped />)}</div>}
+  </div>;
+}
+
+function StudyTaskGroupBranch({ node, nodes, tasks, depth, onComplete, onPostpone, onDelete, onEdit }: {
+  node: StudyNode;
+  nodes: StudyNode[];
+  tasks: StudyTask[];
+  depth: number;
+  onComplete: (taskId: string, assessment: Exclude<StudyAssessment, null>) => void;
+  onPostpone: (taskId: string, days?: number) => void;
+  onDelete: (taskId: string) => void;
+  onEdit: (taskId: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const children = nodes.filter((child) => child.parentId === node.id);
+  const directTasks = tasks.filter((task) => task.nodeId === node.id).sort((a, b) => a.queueOrder - b.queueOrder || a.createdAt.localeCompare(b.createdAt));
+  const childBranches = children.filter((child) => tasks.some((task) => studyDescendantIds(nodes, child.id).has(task.nodeId)));
+  const descendantCount = directTasks.length + childBranches.reduce((sum, child) => sum + tasks.filter((task) => studyDescendantIds(nodes, child.id).has(task.nodeId)).length, 0);
+  const isLeaf = childBranches.length === 0;
+
+  if (isLeaf && directTasks.length === 1) {
+    return <StudyTaskCard task={directTasks[0]} node={node} nodes={nodes} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} grouped />;
+  }
+
+  return <div className={`study-task-group depth-${Math.min(depth, 3)}`}>
+    <button className="study-task-group-head" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+      <span className="study-task-group-chevron">{open ? "⌄" : "›"}</span>
+      <strong>{node.name}</strong>
+      <span className="study-task-group-count">{descendantCount}</span>
+    </button>
+    {open && <div className="study-task-group-children">
+      {directTasks.map((task) => <StudyTaskCard key={task.id} task={task} node={node} nodes={nodes} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} grouped />)}
+      {childBranches.map((child) => <StudyTaskGroupBranch key={child.id} node={child} nodes={nodes} tasks={tasks} depth={depth + 1} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} />)}
+    </div>}
+  </div>;
+}
+
+function StudyUpcomingRow({ task, node, nodes, onEdit, onDelete }: {
+  task: StudyTask;
+  node: StudyNode | null;
+  nodes: StudyNode[];
+  onEdit: (taskId: string) => void;
+  onDelete: (taskId: string) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return <div className="study-upcoming-row">
+    <span><strong>{node?.name ?? "Elemento eliminado"}</strong><small>{task.note || studyNodePath(nodes, task.nodeId).slice(0, -1).join(" · ") || "Sin nota"}</small></span>
+    <time>{dateLabel(task.plannedFor)}</time>
+    <div className={`study-task-more-wrap ${menuOpen ? "open" : ""}`}>
+      <button className="study-task-more-button" aria-label="Más opciones" title="Más opciones" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>•••</button>
+      {menuOpen && <div className="study-task-menu" role="menu">
+        <button role="menuitem" onClick={() => { setMenuOpen(false); onEdit(task.id); }}>✎ Editar repaso</button>
+        <button role="menuitem" className="danger" onClick={() => { setMenuOpen(false); onDelete(task.id); }}>Eliminar</button>
+      </div>}
+    </div>
+  </div>;
 }
 
 function StudyTreeBranch({ node, nodes, tasks, depth, onQuick, onExport, onAddChild, onEdit, onImportInto, onDelete, selectionMode, selectedIds, onToggleSelect }: {
@@ -2608,6 +2772,54 @@ function StudyQuickModal({ nodes, defaultNodeId, onClose, onSave }: {
       <label>Motivo <small>(opcional)</small><select value={reason} onChange={(event) => setReason(event.target.value)}><option value="">Sin indicar</option><option value="olvido">Olvido</option><option value="confusion">Confusión</option><option value="literalidad">Literalidad</option><option value="plazo_cifra">Plazo / cifra</option><option value="afianzar">Quiero afianzarlo</option></select></label>
       <label>Nota <small>(opcional)</small><textarea autoFocus={Boolean(defaultNodeId)} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ej. No olvidar iniciativa de 1/4 y mayoría absoluta" /></label>
       <button className="primary-button full" disabled={!nodeId || !plannedFor}>Guardar repaso</button>
+    </form>
+  </ModalShell>;
+}
+
+function StudyCompletionNoteModal({ assessment, task, nodes, onClose, onSave }: {
+  assessment: Exclude<StudyAssessment, null>;
+  task: StudyTask | null;
+  nodes: StudyNode[];
+  onClose: () => void;
+  onSave: (note: string) => void;
+}) {
+  const [note, setNote] = useState(task?.completionNote ?? "");
+  const node = task ? nodes.find((item) => item.id === task.nodeId) ?? null : null;
+  const labels: Record<Exclude<StudyAssessment, null>, string> = { bien: "Bien", regular: "Regular", mal: "Mal" };
+  return <ModalShell title="Añadir comentario del repaso" subtitle="Es opcional. Úsalo para dejar constancia de qué ha fallado, qué ya tienes claro o qué quieres recordar la próxima vez." label="REPASO COMPLETADO" onClose={onClose}>
+    <div className="study-completion-summary">
+      <span className={`study-result ${assessment}`}>{labels[assessment]}</span>
+      <div><strong>{node?.name ?? "Repaso"}</strong>{node && <small>{studyNodePath(nodes, node.id).join(" · ")}</small>}</div>
+    </div>
+    <form onSubmit={(event) => { event.preventDefault(); onSave(note); }}>
+      <label>Comentario del repaso<textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ej. Ya recuerdo la iniciativa de 1/4, pero sigo confundiendo la mayoría absoluta." /></label>
+      <div className="study-completion-actions"><button type="button" className="secondary-button" onClick={onClose}>Sin comentario</button><button className="primary-button" type="submit">Guardar comentario</button></div>
+    </form>
+  </ModalShell>;
+}
+
+function StudyTaskEditModal({ task, nodes, onClose, onSave, onDelete }: {
+  task: StudyTask;
+  nodes: StudyNode[];
+  onClose: () => void;
+  onSave: (input: { id: string; nodeId: string; plannedFor: string; note: string; reason: string }) => void;
+  onDelete: (taskId: string) => void;
+}) {
+  const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
+  const [nodeId, setNodeId] = useState(nodes.some((node) => node.id === task.nodeId) ? task.nodeId : "");
+  const [plannedFor, setPlannedFor] = useState(task.plannedFor || localDateKey());
+  const [note, setNote] = useState(task.note || "");
+  const [reason, setReason] = useState(task.reason || "");
+  const selected = nodes.find((node) => node.id === nodeId) ?? null;
+  return <ModalShell title="Editar repaso" subtitle="Cambia la fecha, la nota, el motivo o el elemento del temario sin crear un repaso nuevo." label="EDITAR PENDIENTE" onClose={onClose}>
+    <form onSubmit={(event) => { event.preventDefault(); if (nodeId && plannedFor) onSave({ id: task.id, nodeId, plannedFor, note, reason }); }}>
+      <label>Elemento del temario<select value={nodeId} onChange={(event) => setNodeId(event.target.value)}><option value="" disabled>Selecciona tema, apartado o artículo…</option>{ordered.map((node) => <option key={node.id} value={node.id}>{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>)}</select></label>
+      {selected && <p className="study-selected-path">{studyNodePath(nodes, selected.id).join(" › ")}</p>}
+      <fieldset><legend>Cuándo</legend><div className="study-date-presets"><button type="button" className={plannedFor === localDateKey() ? "active" : ""} onClick={() => setPlannedFor(localDateKey())}>Hoy</button><button type="button" className={plannedFor === addDaysKey(1) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(1))}>Mañana</button><button type="button" className={plannedFor === addDaysKey(3) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(3))}>+3 días</button><button type="button" className={plannedFor === addDaysKey(7) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(7))}>+7 días</button></div></fieldset>
+      <label>Fecha<input type="date" value={plannedFor} onChange={(event) => setPlannedFor(event.target.value)} /></label>
+      <label>Motivo <small>(opcional)</small><select value={reason} onChange={(event) => setReason(event.target.value)}><option value="">Sin indicar</option><option value="olvido">Olvido</option><option value="confusion">Confusión</option><option value="literalidad">Literalidad</option><option value="plazo_cifra">Plazo / cifra</option><option value="afianzar">Quiero afianzarlo</option></select></label>
+      <label>Nota <small>(opcional)</small><textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} placeholder="Qué quieres recordar o revisar" /></label>
+      <div className="study-edit-task-actions"><button type="button" className="danger-button" onClick={() => onDelete(task.id)}>Eliminar</button><button className="primary-button" disabled={!nodeId || !plannedFor}>Guardar cambios</button></div>
     </form>
   </ModalShell>;
 }
