@@ -106,6 +106,12 @@ button { color: inherit; }
 .folder-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .folder-icon { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 13px; font-size: 20px; }.folder-icon.large { width: 54px; height: 54px; font-size: 24px; }
 .folder-menu { position: absolute; top: 22px; right: 22px; color: #949991; letter-spacing: .1em; }
+.folder-menu-action { z-index: 2; min-width: 34px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; margin: -6px -8px 0 0; border-radius: 9px; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.folder-menu-action:hover { background: var(--green-soft); color: var(--green); }
+.folder-move-summary, .folder-move-destination { display: grid; gap: 5px; margin: 14px 0; padding: 13px 14px; border: 1px solid var(--line); border-radius: 13px; background: #faf9f5; }
+.folder-move-summary span, .folder-move-destination span { color: var(--muted); font-size: 8px; font-weight: 850; letter-spacing: .13em; }
+.folder-move-summary strong, .folder-move-destination strong { font-size: 12px; line-height: 1.4; }
+.folder-move-summary small { color: var(--muted); font-size: 9px; line-height: 1.4; }
 .folder-card strong { margin: 28px 0 5px; font-family: Georgia, serif; font-size: 18px; font-weight: 500; }.folder-card small { color: var(--muted); }
 .progress-track { width: 100%; height: 4px; margin-top: auto; border-radius: 999px; background: #ebe9e2; overflow: hidden; }.progress-track span { display: block; height: 100%; border-radius: inherit; }
 .folder-progress { margin-top: 7px; color: var(--muted); font-size: 9px; }

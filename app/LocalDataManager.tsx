@@ -14,7 +14,7 @@ type AppStateLike = {
   settings: AnyRecord;
 };
 
-type BusyAction = "export" | "import" | "cloud" | null;
+type BusyAction = "export" | "import" | "cloud-upload" | "cloud-download" | null;
 
 function isObject(value: unknown): value is AnyRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -225,6 +225,61 @@ async function readCurrentState() {
   return state;
 }
 
+async function readCloudState() {
+  const response = await fetch("/api/state", {
+    cache: "no-store",
+    headers: { "x-opogc-force-cloud": "1" },
+  });
+  if (!response.ok) {
+    let message = `No se pudo leer la copia en nube (${response.status})`;
+    try {
+      const payload = await response.json();
+      if (typeof payload?.error === "string") message = payload.error;
+    } catch { /* keep status message */ }
+    throw new Error(message);
+  }
+  const payload = await response.json();
+  const state = unwrapState(payload);
+  if (!state) throw new Error("La copia en nube no contiene un progreso válido de OpoGC");
+  return state;
+}
+
+async function writeState(state: AppStateLike, cloud = false) {
+  const response = await fetch("/api/state", {
+    method: "PUT",
+    headers: {
+      "content-type": "application/json",
+      ...(cloud ? { "x-opogc-force-cloud": "1" } : {}),
+    },
+    body: JSON.stringify({ state }),
+  });
+  if (!response.ok) {
+    let message = cloud
+      ? `No se pudo guardar la copia en nube (${response.status})`
+      : `No se pudo guardar el progreso en este dispositivo (${response.status})`;
+    try {
+      const payload = await response.json();
+      if (typeof payload?.error === "string") message = payload.error;
+    } catch { /* keep status message */ }
+    throw new Error(message);
+  }
+}
+
+function studyTransferStats(before: AppStateLike, after: AppStateLike) {
+  const beforeTasks = Array.isArray(before.studyTasks) ? before.studyTasks : [];
+  const afterTasks = Array.isArray(after.studyTasks) ? after.studyTasks : [];
+  const beforeDone = beforeTasks.filter((task) => task?.status === "done").length;
+  const afterDone = afterTasks.filter((task) => task?.status === "done").length;
+  const beforePending = beforeTasks.filter((task) => task?.status === "pending").length;
+  const afterPending = afterTasks.filter((task) => task?.status === "pending").length;
+  return {
+    nodesAdded: Math.max(0, (Array.isArray(after.studyNodes) ? after.studyNodes.length : 0) - (Array.isArray(before.studyNodes) ? before.studyNodes.length : 0)),
+    tasksAdded: Math.max(0, afterTasks.length - beforeTasks.length),
+    historyAdded: Math.max(0, afterDone - beforeDone),
+    pendingAdded: Math.max(0, afterPending - beforePending),
+  };
+}
+
 function exportFilename() {
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
@@ -298,22 +353,12 @@ export default function LocalDataManager() {
 
       const local = await readCurrentState();
       const merged = mergeStates(local, incoming);
-      const response = await fetch("/api/state", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ state: merged }),
-      });
-      if (!response.ok) throw new Error("No se pudo guardar la fusión en este dispositivo");
+      await writeState(merged);
 
       const addedReviews = Math.max(0, merged.reviews.length - local.reviews.length);
       const addedCards = Math.max(0, merged.cards.length - local.cards.length);
-      const localStudyNodes = Array.isArray(local.studyNodes) ? local.studyNodes.length : 0;
-      const localStudyTasks = Array.isArray(local.studyTasks) ? local.studyTasks.length : 0;
-      const mergedStudyNodes = Array.isArray(merged.studyNodes) ? merged.studyNodes.length : 0;
-      const mergedStudyTasks = Array.isArray(merged.studyTasks) ? merged.studyTasks.length : 0;
-      const addedStudyNodes = Math.max(0, mergedStudyNodes - localStudyNodes);
-      const addedStudyTasks = Math.max(0, mergedStudyTasks - localStudyTasks);
-      alert(`Importación completada. Se han fusionado los datos sin borrar el historial local.\n\nTarjetas nuevas: ${addedCards}\nRespuestas nuevas: ${addedReviews}\nElementos de temario nuevos: ${addedStudyNodes}\nRegistros de estudio nuevos: ${addedStudyTasks}`);
+      const studyStats = studyTransferStats(local, merged);
+      alert(`Importación completada. Se han fusionado los datos sin borrar el historial local.\n\nTarjetas nuevas: ${addedCards}\nRespuestas nuevas: ${addedReviews}\nElementos de temario nuevos: ${studyStats.nodesAdded}\nRegistros de estudio nuevos: ${studyStats.tasksAdded}\nRepasos incorporados al historial: ${studyStats.historyAdded}\nPendientes nuevos: ${studyStats.pendingAdded}`);
       window.location.reload();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No se pudo importar el progreso");
@@ -324,28 +369,56 @@ export default function LocalDataManager() {
 
   async function cloudBackup() {
     try {
-      setBusy("cloud");
+      setBusy("cloud-upload");
       setNotice("");
-      const state = await readCurrentState();
-      const response = await fetch("/api/state", {
-        method: "PUT",
-        headers: {
-          "content-type": "application/json",
-          "x-opogc-force-cloud": "1",
-        },
-        body: JSON.stringify({ state }),
-      });
-      if (!response.ok) {
-        let message = `No se pudo crear la copia en nube (${response.status})`;
-        try {
-          const payload = await response.json();
-          if (typeof payload?.error === "string") message = payload.error;
-        } catch { /* keep status message */ }
-        throw new Error(message);
+      const local = await readCurrentState();
+
+      // Before uploading, merge any existing cloud copy into the local data so
+      // a device cannot accidentally erase history created on another device.
+      // Local content wins on direct conflicts because this is an explicit upload.
+      let merged = local;
+      try {
+        const cloud = await readCloudState();
+        merged = mergeStates(cloud, local);
+      } catch {
+        // A first upload may legitimately have no readable cloud copy yet.
+        merged = local;
       }
-      setNotice("Copia en nube creada. El estudio normal sigue siendo 100 % local.");
+
+      await writeState(merged);
+      await writeState(merged, true);
+      const stats = studyTransferStats(local, merged);
+      setNotice(`Copia en nube actualizada y fusionada. Historial de Estudio conservado${stats.historyAdded ? ` (+${stats.historyAdded} repasos)` : ""}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No se pudo crear la copia en nube");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function cloudRestore() {
+    try {
+      setBusy("cloud-download");
+      setNotice("");
+      const [local, cloud] = await Promise.all([readCurrentState(), readCloudState()]);
+
+      // Cloud wins on direct content conflicts because this is an explicit
+      // restore, while mergeStates still unions reviews, study history,
+      // pending reviews and psychotechnical attempts from both devices.
+      const merged = mergeStates(local, cloud);
+      await writeState(merged);
+
+      // Write the merged result back to D1 as well. This turns a restore into
+      // a safe two-way merge instead of overwriting history from either device.
+      await writeState(merged, true);
+
+      const addedReviews = Math.max(0, merged.reviews.length - local.reviews.length);
+      const addedCards = Math.max(0, merged.cards.length - local.cards.length);
+      const studyStats = studyTransferStats(local, merged);
+      alert(`Datos de la nube cargados y fusionados.\n\nTarjetas nuevas: ${addedCards}\nRespuestas nuevas: ${addedReviews}\nElementos de temario nuevos: ${studyStats.nodesAdded}\nRegistros de estudio nuevos: ${studyStats.tasksAdded}\nRepasos incorporados al historial: ${studyStats.historyAdded}\nPendientes nuevos: ${studyStats.pendingAdded}`);
+      window.location.reload();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo cargar la copia de la nube");
     } finally {
       setBusy(null);
     }
@@ -374,13 +447,13 @@ export default function LocalDataManager() {
             <div style={headerStyle}>
               <div>
                 <strong style={{ fontSize: 18 }}>Datos y copias</strong>
-                <div style={subtitleStyle}>El estudio se guarda en este dispositivo. No hay sincronización automática con D1.</div>
+                <div style={subtitleStyle}>Puedes transferir y fusionar el progreso entre dispositivos mediante JSON o nube.</div>
               </div>
               <button type="button" onClick={() => setOpen(false)} disabled={Boolean(busy)} style={closeStyle}>×</button>
             </div>
 
             <div style={infoStyle}>
-              Para cambiar de dispositivo: exporta el JSON, guárdalo en iCloud Drive e impórtalo en el otro dispositivo. Se transfieren tarjetas, historial, psicotécnicos y también Temario, pendientes, notas e historial de la sección Estudio. La importación fusiona los datos y conserva el progreso FSRS más avanzado de cada tarjeta.
+              Tanto JSON como nube transfieren y fusionan tarjetas, historial, psicotécnicos y toda la sección Estudio: árbol, pendientes, notas, resultados Bien/Regular/Mal, comentarios e historial de repasos. La fusión conserva el progreso FSRS más avanzado y no convierte en pendiente un repaso ya completado.
             </div>
 
             <button type="button" onClick={exportProgress} disabled={Boolean(busy)} style={primaryButtonStyle}>
@@ -399,11 +472,15 @@ export default function LocalDataManager() {
             />
 
             <button type="button" onClick={cloudBackup} disabled={Boolean(busy)} style={cloudButtonStyle}>
-              {busy === "cloud" ? "Guardando en nube…" : "Crear copia en nube ahora"}
+              {busy === "cloud-upload" ? "Fusionando y guardando…" : "Guardar / actualizar en nube"}
+            </button>
+
+            <button type="button" onClick={cloudRestore} disabled={Boolean(busy)} style={secondaryButtonStyle}>
+              {busy === "cloud-download" ? "Cargando y fusionando…" : "Cargar / fusionar desde nube"}
             </button>
 
             <div style={footnoteStyle}>
-              La copia en nube es manual. Si no pulsas este botón, estudiar, hacer tests o repasar ortografía no escribe en D1.
+              Para pasar datos del iPad al iPhone: primero «Guardar / actualizar en nube» en el iPad y después «Cargar / fusionar desde nube» en el iPhone. La operación es acumulativa: mantiene también el historial de Estudio de ambos dispositivos.
             </div>
 
             {notice ? <div style={noticeStyle}>{notice}</div> : null}

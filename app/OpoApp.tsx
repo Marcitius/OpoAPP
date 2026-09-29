@@ -782,6 +782,41 @@ function descendantFolderIds(folders: Folder[], folderId: string) {
   return ids;
 }
 
+function flattenFolderTree(folders: Folder[]) {
+  const result: { folder: Folder; depth: number }[] = [];
+  const seen = new Set<string>();
+  const walk = (parentId: string | null, depth: number) => {
+    for (const folder of folders.filter((item) => item.parentId === parentId)) {
+      if (seen.has(folder.id)) continue;
+      seen.add(folder.id);
+      result.push({ folder, depth });
+      walk(folder.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  // Keep any legacy/orphan folders reachable in selectors instead of hiding them.
+  for (const folder of folders) {
+    if (seen.has(folder.id)) continue;
+    seen.add(folder.id);
+    result.push({ folder, depth: 0 });
+    walk(folder.id, 1);
+  }
+  return result;
+}
+
+function folderPathLabel(folders: Folder[], folderId: string) {
+  const byId = new Map(folders.map((folder) => [folder.id, folder]));
+  const names: string[] = [];
+  const seen = new Set<string>();
+  let current = byId.get(folderId) ?? null;
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    names.unshift(current.name);
+    current = current.parentId ? byId.get(current.parentId) ?? null : null;
+  }
+  return names.join(" › ");
+}
+
 function cardsInFolderScope(state: AppState, folderId?: string) {
   if (!folderId) return state.cards.filter(isStudyableCard);
   const ids = descendantFolderIds(state.folders, folderId);
@@ -1001,6 +1036,7 @@ export default function OpoApp() {
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [bulkTargetFolderId, setBulkTargetFolderId] = useState("");
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
+  const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
   const [selectedPsych, setSelectedPsych] = useState<string | null>(null);
   const [editingPsych, setEditingPsych] = useState<string | null>(null);
   const [editingPsychTest, setEditingPsychTest] = useState<string | null>(null);
@@ -1374,6 +1410,7 @@ export default function OpoApp() {
   const detailPsych = state?.psychTests.find((test) => test.id === psychDetail) ?? null;
   const openAttempt = activePsych?.attempts.find((attempt) => attempt.id === editingAttempt) ?? null;
   const openCard = state?.cards.find((card) => card.id === editingCard) ?? null;
+  const movingFolder = state?.folders.find((folder) => folder.id === movingFolderId) ?? null;
 
   useEffect(() => {
     if (currentCard) cardShownAtRef.current = Date.now();
@@ -1913,6 +1950,29 @@ export default function OpoApp() {
     notify("Psicotécnico eliminado");
   }
 
+  function moveFolder(folderId: string, targetParentId: string | null) {
+    if (!state) return;
+    const folder = state.folders.find((item) => item.id === folderId);
+    if (!folder) return notify("No se ha encontrado el tema que quieres mover");
+    if (targetParentId === folderId) return notify("Un tema no puede estar dentro de sí mismo");
+    if (targetParentId) {
+      const descendants = descendantFolderIds(state.folders, folderId);
+      if (descendants.has(targetParentId)) return notify("No puedes mover un tema dentro de uno de sus propios apartados");
+      if (!state.folders.some((item) => item.id === targetParentId)) return notify("No se ha encontrado el destino");
+    }
+    if (folder.parentId === targetParentId) {
+      setMovingFolderId(null);
+      return;
+    }
+    const destination = targetParentId ? state.folders.find((item) => item.id === targetParentId)?.name ?? "el destino" : "Biblioteca";
+    updateState((current) => ({
+      ...current,
+      folders: current.folders.map((item) => item.id === folderId ? { ...item, parentId: targetParentId } : item),
+    }));
+    setMovingFolderId(null);
+    notify(targetParentId ? `${folder.name} movido dentro de ${destination}` : `${folder.name} movido al nivel principal`);
+  }
+
   function deleteFolder(folderId: string) {
     if (!state) return;
     const ids = descendantFolderIds(state.folders, folderId);
@@ -2070,7 +2130,7 @@ export default function OpoApp() {
                     const reviewed = cards.filter((card) => card.reviewCount > 0).length;
                     const pct = cards.length ? Math.round((reviewed / cards.length) * 100) : 0;
                     const children = state.folders.filter((item) => item.parentId === folder.id).length;
-                    return <button className="folder-card" key={folder.id} onClick={() => setSelectedFolder(folder.id)}><span className="folder-icon" style={{ background: `${folder.color}18`, color: folder.color }}>▰</span><span className="folder-menu">•••</span><strong>{folder.name}</strong><small>{cards.length} tarjetas · {children} {children === 1 ? "subtema" : "subtemas"}</small><span className="progress-track"><span style={{ width: `${pct}%`, background: folder.color }} /></span><span className="folder-progress">{pct}% visto</span></button>;
+                    return <button className="folder-card" key={folder.id} onClick={() => setSelectedFolder(folder.id)}><span className="folder-icon" style={{ background: `${folder.color}18`, color: folder.color }}>▰</span><span className="folder-menu folder-menu-action" title="Mover tema" onClick={(event) => { event.stopPropagation(); setMovingFolderId(folder.id); }}>•••</span><strong>{folder.name}</strong><small>{cards.length} tarjetas · {children} {children === 1 ? "apartado" : "apartados"}</small><span className="progress-track"><span style={{ width: `${pct}%`, background: folder.color }} /></span><span className="folder-progress">{pct}% visto</span></button>;
                   })}
                 </div>
               </>
@@ -2088,10 +2148,11 @@ export default function OpoApp() {
                     {parent && <span>{parent.name} / <strong>{activeFolder.name}</strong></span>}
                   </div>
                   <div className="folder-title">
-                    <div><span className="folder-icon large" style={{ background: `${activeFolder.color}18`, color: activeFolder.color }}>▰</span><div><span className="section-label">{isTheme ? "TEMA" : "SUBTEMA"}</span><h2>{activeFolder.name}</h2><p>{scopeCards.length} tarjetas{isTheme ? ` · ${children.length} ${children.length === 1 ? "subtema" : "subtemas"}` : ""}</p></div></div>
+                    <div><span className="folder-icon large" style={{ background: `${activeFolder.color}18`, color: activeFolder.color }}>▰</span><div><span className="section-label">{isTheme ? "TEMA" : "APARTADO"}</span><h2>{activeFolder.name}</h2><p>{scopeCards.length} tarjetas{children.length ? ` · ${children.length} ${children.length === 1 ? "apartado" : "apartados"}` : ""}</p></div></div>
                     <div className="folder-study-actions">
                       <button className="secondary-button danger" onClick={() => deleteFolder(activeFolder.id)}>Eliminar</button>
-                      {isTheme && <button className="secondary-button" onClick={() => { setNewFolderParentId(activeFolder.id); setModal("folder"); }}>＋ Subtema</button>}
+                      <button className="secondary-button" onClick={() => setMovingFolderId(activeFolder.id)}>Mover</button>
+                      <button className="secondary-button" onClick={() => { setNewFolderParentId(activeFolder.id); setModal("folder"); }}>＋ Añadir dentro</button>
                       {isTheme && scopeCards.length > 0 && <button className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`} onClick={() => { setBulkSelectMode((value) => !value); setSelectedCardIds([]); setBulkTargetFolderId(""); }}>{bulkSelectMode ? "Cancelar selección" : "Seleccionar"}</button>}
                       <button className="secondary-button" onClick={() => startReview(activeFolder.id, "recommended")}>Repaso programado</button>
                       <button className="secondary-button" onClick={() => startReview(activeFolder.id, "weakest")}>🔥 Más falladas</button>
@@ -2102,7 +2163,7 @@ export default function OpoApp() {
                   </div>
 
                   {children.length > 0 && <section className="subtopic-section">
-                    <div className="subtopic-heading"><span className="section-label">SUBTEMAS</span><p>Estudia solo una parte o usa «Aprender» arriba para mezclar todo el tema.</p></div>
+                    <div className="subtopic-heading"><span className="section-label">APARTADOS</span><p>Puedes entrar en cualquier rama y seguir bajando por el árbol sin perder sus tarjetas.</p></div>
                     <div className="subtopic-grid">
                       {children.map((child) => {
                         const childCards = cardsInFolderScope(state, child.id);
@@ -2178,10 +2239,7 @@ export default function OpoApp() {
                       <div className="bulk-card-actions">
                         <select value={bulkTargetFolderId} onChange={(event) => setBulkTargetFolderId(event.target.value)} aria-label="Tema o subtema de destino">
                           <option value="">Mover a tema / subtema…</option>
-                          {state.folders.filter((folder) => !folder.parentId).flatMap((theme) => [
-                            <option key={theme.id} value={theme.id}>{theme.name}</option>,
-                            ...state.folders.filter((folder) => folder.parentId === theme.id).map((child) => <option key={child.id} value={child.id}>↳ {theme.name} · {child.name}</option>),
-                          ])}
+                          {flattenFolderTree(state.folders).map(({ folder, depth }) => <option key={folder.id} value={folder.id}>{"↳ ".repeat(depth)}{folder.name}</option>)}
                         </select>
                         <button className="secondary-button" disabled={!selectedCardIds.length || !bulkTargetFolderId} onClick={() => moveSelectedCards(bulkTargetFolderId)}>Mover</button>
                         <button className="secondary-button danger" disabled={!selectedCardIds.length} onClick={deleteSelectedCards}>Eliminar</button>
@@ -2556,7 +2614,8 @@ export default function OpoApp() {
         <div className="review-overlay complete"><div className="complete-card"><span className="complete-icon">✓</span><span className="section-label">SESIÓN COMPLETADA</span><h2>Buen trabajo, Marc</h2><p>Has registrado {sessionDone} revisiones. Las tarjetas pasadas no han modificado tus estadísticas ni el modelo.</p><div className="complete-actions"><button className="secondary-button" onClick={goToPreviousCard}>← Anterior</button><button className="primary-button" onClick={() => setReviewQueue([])}>Volver a Hoy</button></div></div></div>
       )}
 
-      {modal === "folder" && <FolderModal parentId={newFolderParentId} parentName={newFolderParentId ? state.folders.find((folder) => folder.id === newFolderParentId)?.name ?? "" : ""} onClose={() => { setModal(null); setNewFolderParentId(null); }} onCreate={(folder) => { updateState((current) => ({ ...current, folders: [...current.folders, folder] })); setModal(null); setNewFolderParentId(null); notify(folder.parentId ? "Subtema creado" : "Tema creado"); }} />}
+      {movingFolder && <MoveFolderModal folders={state.folders} folder={movingFolder} onClose={() => setMovingFolderId(null)} onMove={(targetParentId) => moveFolder(movingFolder.id, targetParentId)} />}
+      {modal === "folder" && <FolderModal parentId={newFolderParentId} parentName={newFolderParentId ? state.folders.find((folder) => folder.id === newFolderParentId)?.name ?? "" : ""} onClose={() => { setModal(null); setNewFolderParentId(null); }} onCreate={(folder) => { updateState((current) => ({ ...current, folders: [...current.folders, folder] })); setModal(null); setNewFolderParentId(null); notify(folder.parentId ? "Apartado creado" : "Tema creado"); }} />}
       {modal === "card" && <CardModal folders={state.folders} defaultFolder={selectedFolder} initialCard={openCard} onClose={() => { setModal(null); setEditingCard(null); }} onSave={(card) => { updateState((current) => ({ ...current, cards: openCard ? current.cards.map((item) => item.id === card.id ? card : item) : [...current.cards, card] })); setModal(null); setEditingCard(null); notify(openCard ? "Tarjeta actualizada" : "Tarjeta guardada"); }} />}
       {modal === "import" && <CardImportModal onClose={() => setModal(null)} onImport={importGeneratedCards} />}
       {modal === "psych" && <PsychModal initialTest={openPsychTest} onClose={() => { setModal(null); setEditingPsychTest(null); }} onSave={(test) => { updateState((current) => ({ ...current, psychTests: openPsychTest ? current.psychTests.map((item) => item.id === test.id ? test : item) : [...current.psychTests, test] })); setModal(null); setEditingPsychTest(null); setPsychDetail(test.id); notify(openPsychTest ? "Psicotécnico actualizado" : "Psicotécnico guardado"); }} />}
@@ -2921,8 +2980,23 @@ function ModalShell({ title, subtitle, label = "NUEVO", onClose, children }: { t
 function FolderModal({ parentId, parentName, onClose, onCreate }: { parentId: string | null; parentName: string; onClose: () => void; onCreate: (folder: Folder) => void }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState(colors[0]);
-  const isSubtopic = Boolean(parentId);
-  return <ModalShell title={isSubtopic ? "Crear subtema" : "Crear tema"} subtitle={isSubtopic ? `Se añadirá dentro de ${parentName}.` : "Crea un tema principal. Dentro podrás añadir subtemas."} onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); if (name.trim()) onCreate({ id: uid(), name: name.trim(), color, parentId, createdAt: nowIso() }); }}><label>Nombre<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder={isSubtopic ? "Ej. Título Preliminar" : "Ej. Tema 4 · Derecho Penal"} /></label><label>Color<div className="color-picker">{colors.map((item) => <button type="button" key={item} className={color === item ? "selected" : ""} style={{ background: item }} onClick={() => setColor(item)} aria-label={`Color ${item}`} />)}</div></label><button className="primary-button full" disabled={!name.trim()}>Crear {isSubtopic ? "subtema" : "tema"}</button></form></ModalShell>;
+  const isNested = Boolean(parentId);
+  return <ModalShell title={isNested ? "Añadir dentro" : "Crear tema"} subtitle={isNested ? `Se añadirá dentro de ${parentName}. Puedes seguir creando tantos niveles como necesites.` : "Crea un tema principal. Después podrás organizar dentro títulos, capítulos, artículos o cualquier otro nivel."} onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); if (name.trim()) onCreate({ id: uid(), name: name.trim(), color, parentId, createdAt: nowIso() }); }}><label>Nombre<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder={isNested ? "Ej. Título III / Artículo 76 / Apartado 1" : "Ej. Tema 4 · Derecho Penal"} /></label><label>Color<div className="color-picker">{colors.map((item) => <button type="button" key={item} className={color === item ? "selected" : ""} style={{ background: item }} onClick={() => setColor(item)} aria-label={`Color ${item}`} />)}</div></label><button className="primary-button full" disabled={!name.trim()}>Crear {isNested ? "apartado" : "tema"}</button></form></ModalShell>;
+}
+
+function MoveFolderModal({ folders, folder, onClose, onMove }: { folders: Folder[]; folder: Folder; onClose: () => void; onMove: (targetParentId: string | null) => void }) {
+  const [targetParentId, setTargetParentId] = useState(folder.parentId ?? "");
+  const blocked = descendantFolderIds(folders, folder.id);
+  const options = flattenFolderTree(folders).filter(({ folder: candidate }) => !blocked.has(candidate.id));
+  const currentPath = folderPathLabel(folders, folder.id);
+  const targetPath = targetParentId ? folderPathLabel(folders, targetParentId) : "Biblioteca · nivel principal";
+  const unchanged = (folder.parentId ?? "") === targetParentId;
+  return <ModalShell title="Mover tema o apartado" subtitle="Mueve la rama completa. Sus tarjetas, subapartados, progreso e historial se conservan." label="ORGANIZAR" onClose={onClose}>
+    <div className="folder-move-summary"><span>VAS A MOVER</span><strong>{folder.name}</strong><small>{currentPath}</small></div>
+    <label>Nuevo destino<select autoFocus value={targetParentId} onChange={(event) => setTargetParentId(event.target.value)}><option value="">Biblioteca · nivel principal</option>{options.map(({ folder: candidate, depth }) => <option key={candidate.id} value={candidate.id}>{"↳ ".repeat(depth)}{candidate.name}</option>)}</select></label>
+    <div className="folder-move-destination"><span>QUEDARÁ DENTRO DE</span><strong>{targetPath}</strong></div>
+    <div className="study-import-actions"><button className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={unchanged} onClick={() => onMove(targetParentId || null)}>Mover</button></div>
+  </ModalShell>;
 }
 
 function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { folders: Folder[]; defaultFolder: string | null; initialCard: Card | null; onClose: () => void; onSave: (card: Card) => void }) {
@@ -3128,7 +3202,7 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
         <button type="button" className={type === "written" ? "active" : ""} disabled={!initialCard || initialCard.type !== "written"} title={!initialCard ? "Las respuestas escritas se crean desde ChatGPT / JSON" : initialCard.type !== "written" ? "No se convierte una tarjeta existente a respuesta escrita" : "Editar respuesta escrita"} onClick={() => initialCard?.type === "written" && setType("written")}>Respuesta escrita</button>
       </div>
       {type === "written" && <div className="written-import-note"><strong>Respuesta escrita</strong><span>Edita aquí la rúbrica importada. OpoGC seguirá usando estos criterios para calcular la precisión.</span></div>}
-      <label>Tema / subtema<select value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Sin carpeta</option>{folders.filter((folder) => !folder.parentId).flatMap((theme) => [<option key={theme.id} value={theme.id}>{theme.name}</option>, ...folders.filter((folder) => folder.parentId === theme.id).map((child) => <option key={child.id} value={child.id}>↳ {child.name}</option>)])}</select></label>
+      <label>Tema / apartado<select value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Sin carpeta</option>{flattenFolderTree(folders).map(({ folder, depth }) => <option key={folder.id} value={folder.id}>{"↳ ".repeat(depth)}{folder.name}</option>)}</select></label>
       {type === "orthography" ? (
         <div className="orthography-manual-editor">
           <span className="flashcard-side-label">PALABRA · UNIDAD INDIVIDUAL DE ESTUDIO</span>
