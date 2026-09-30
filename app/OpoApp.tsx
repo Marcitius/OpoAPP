@@ -1000,6 +1000,111 @@ function chooseOrthographyGroup(
   return shuffled(selected);
 }
 
+function useStableOverlaySurfaces() {
+  useEffect(() => {
+    const doc = document.documentElement;
+    const body = document.body;
+    const blockingSelector = ".review-overlay, .modal-backdrop, .pdf-editor, .image-annotator, .answer-image-lightbox";
+    let locked = false;
+    let savedScrollX = 0;
+    let savedScrollY = 0;
+    let savedReviewScroll = 0;
+    let savedBodyStyles: Partial<Record<"position" | "top" | "left" | "right" | "width" | "overflow" | "paddingRight", string>> = {};
+
+    const readReviewScroll = () => {
+      const stage = document.querySelector<HTMLElement>(".review-stage");
+      if (stage) savedReviewScroll = stage.scrollTop;
+    };
+
+    const restoreReviewScroll = () => {
+      const stage = document.querySelector<HTMLElement>(".review-stage");
+      if (!stage) return;
+      requestAnimationFrame(() => {
+        stage.scrollTop = savedReviewScroll;
+        requestAnimationFrame(() => { stage.scrollTop = savedReviewScroll; });
+      });
+    };
+
+    const lock = () => {
+      if (locked) return;
+      locked = true;
+      savedScrollX = window.scrollX;
+      savedScrollY = window.scrollY;
+      readReviewScroll();
+      savedBodyStyles = {
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        width: body.style.width,
+        overflow: body.style.overflow,
+        paddingRight: body.style.paddingRight,
+      };
+      const scrollbar = Math.max(0, window.innerWidth - doc.clientWidth);
+      doc.classList.add("opogc-surface-locked");
+      body.classList.add("opogc-surface-locked");
+      body.style.position = "fixed";
+      body.style.top = `-${savedScrollY}px`;
+      body.style.left = `-${savedScrollX}px`;
+      body.style.right = "0";
+      body.style.width = "100%";
+      body.style.overflow = "hidden";
+      if (scrollbar > 0) body.style.paddingRight = `${scrollbar}px`;
+    };
+
+    const unlock = () => {
+      if (!locked) return;
+      locked = false;
+      doc.classList.remove("opogc-surface-locked");
+      body.classList.remove("opogc-surface-locked");
+      body.style.position = savedBodyStyles.position ?? "";
+      body.style.top = savedBodyStyles.top ?? "";
+      body.style.left = savedBodyStyles.left ?? "";
+      body.style.right = savedBodyStyles.right ?? "";
+      body.style.width = savedBodyStyles.width ?? "";
+      body.style.overflow = savedBodyStyles.overflow ?? "";
+      body.style.paddingRight = savedBodyStyles.paddingRight ?? "";
+      window.scrollTo(savedScrollX, savedScrollY);
+    };
+
+    const syncLock = () => {
+      const shouldLock = Boolean(document.querySelector(blockingSelector));
+      if (shouldLock) lock();
+      else unlock();
+    };
+
+    const onSuspend = () => {
+      if (document.querySelector(".review-overlay")) readReviewScroll();
+    };
+    const onResume = () => {
+      if (document.querySelector(".review-overlay")) restoreReviewScroll();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onSuspend();
+      else onResume();
+    };
+
+    const observer = new MutationObserver(syncLock);
+    observer.observe(body, { childList: true, subtree: true });
+    window.addEventListener("blur", onSuspend);
+    window.addEventListener("focus", onResume);
+    window.addEventListener("pagehide", onSuspend);
+    window.addEventListener("pageshow", onResume);
+    document.addEventListener("visibilitychange", onVisibility);
+    syncLock();
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("blur", onSuspend);
+      window.removeEventListener("focus", onResume);
+      window.removeEventListener("pagehide", onSuspend);
+      window.removeEventListener("pageshow", onResume);
+      document.removeEventListener("visibilitychange", onVisibility);
+      unlock();
+    };
+  }, []);
+}
+
 function orthographyStudyCard(card: Card): OrthographyStudyCard {
   return {
     id: card.id,
@@ -1012,6 +1117,7 @@ function orthographyStudyCard(card: Card): OrthographyStudyCard {
 }
 
 export default function OpoApp() {
+  useStableOverlaySurfaces();
   const [tab, setTab] = useState<Tab>("today");
   const [studyView, setStudyView] = useState<StudyView>("today");
   const [studyQueueMode, setStudyQueueMode] = useState<StudyQueueMode>("grouped");

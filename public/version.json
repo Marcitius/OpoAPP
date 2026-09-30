@@ -1,14 +1,13 @@
 {
-  "version": "opogc-v9.16.1-comentario-resultado-repaso",
-  "date": "2026-09-28",
+  "version": "opogc-v9.17.2-stable-overlay-surfaces",
+  "date": "2026-09-30",
   "features": [
-    "optional comment immediately after rating a study review as Bien, Regular or Mal",
-    "review result is saved immediately; the comment can be skipped without undoing completion",
-    "completion comments are stored separately from the pre-review note in studyTasks.completionNote",
-    "completion comments appear in Study history alongside the original review note",
-    "study export includes completion comments in both summary notes and review history",
-    "existing study tasks migrate automatically with an empty completionNote",
-    "v9.16 grouped queue, three-dot actions, ordering, study-tree editing and device transfer retained",
-    "cards, FSRS, orthography, psychotechnics and unrelated behavior unchanged"
+    "full-screen study and editor layers no longer combine fixed inset with dynamic 100dvh sizing",
+    "background document is frozen while study, modal, PDF, image editor or image viewer surfaces are open",
+    "body scroll position is restored exactly when the blocking surface closes",
+    "study scroll position is preserved across app switching, Control Center, visibility changes and focus return",
+    "desktop scrollbar space remains stable so opening dialogs does not shift the page horizontally",
+    "modal scrolling remains independent and responsive to the visible device viewport",
+    "all v9.17.1 cloud sync, study history, Biblioteca hierarchy and earlier functionality retained unchanged"
   ]
 }

@@ -1,0 +1,27 @@
+OpoGC v9.17.2 · capas estables en cualquier dispositivo
+
+BASE:
+- Parte directamente de OpoGC v9.17.1.
+- No se modifica la lógica de Biblioteca, Estudio, nube, FSRS, tarjetas, ortografía, psicotécnicos ni importaciones.
+
+CORRECCIÓN VISUAL / RESPONSIVE:
+- Las pantallas completas dejan de depender de 100dvh cuando ya están ancladas con position: fixed + inset: 0.
+- Esto evita cambios de altura al aparecer/desaparecer UI del sistema, barras del navegador o teclado virtual.
+- Mientras exista una pantalla de estudio, modal, editor PDF, editor de imagen o visor de imagen, el documento inferior queda congelado.
+- Al cerrar la capa superior, se recupera exactamente la posición de scroll previa del documento.
+- El scroll interno de la sesión de estudio se conserva al abrir Centro de control, cambiar temporalmente de app o volver a primer plano.
+- En escritorio se reserva de forma estable el espacio de la barra de scroll para evitar desplazamientos laterales al abrir un modal.
+- El modal superior mantiene su propio scroll independiente.
+
+DISPOSITIVOS:
+- iPhone / Safari y web app.
+- iPad / Safari y web app.
+- Mac / Safari, Chrome y navegadores de escritorio equivalentes.
+- Responsive de escritorio y móvil mantenido.
+
+SE MANTIENE SIN CAMBIOS:
+- Sincronización en nube y fusión del historial de Estudio de v9.17.1.
+- Movimiento recursivo de temas y ramas de Biblioteca.
+- Árbol editable de Estudio.
+- Cola agrupada, edición, orden, borrado y comentarios tras Bien / Regular / Mal.
+- Todo el resto de funciones existentes.

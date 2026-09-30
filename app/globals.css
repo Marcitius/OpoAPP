@@ -1513,3 +1513,79 @@ img, video, canvas, svg { max-width: 100%; }
   .study-completion-actions { flex-direction: column-reverse; }
   .study-completion-actions button { width: 100%; }
 }
+
+/* v9.17.2 · superficies estables en iPhone, iPad, Mac y navegadores de escritorio.
+   Evita que una capa inferior cambie de tamaño o salte cuando aparece otra capa,
+   cambia la UI del navegador, se abre el teclado o la app vuelve de segundo plano. */
+html {
+  scrollbar-gutter: stable;
+}
+
+html.opogc-surface-locked,
+body.opogc-surface-locked {
+  overscroll-behavior: none;
+}
+
+
+/* Inset fija los cuatro bordes. No se mezcla con 100dvh, que puede variar mientras
+   aparecen/desaparecen barras del sistema o el teclado virtual. */
+.review-overlay,
+.pdf-editor,
+.image-annotator,
+.answer-image-lightbox,
+.modal-backdrop {
+  box-sizing: border-box;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0;
+  min-height: 0;
+  inset: 0 !important;
+}
+
+.review-overlay,
+.pdf-editor,
+.image-annotator,
+.answer-image-lightbox {
+  max-width: none;
+  max-height: none;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.review-stage {
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+}
+
+.modal-backdrop,
+.answer-image-lightbox,
+.image-annotator,
+.pdf-editor {
+  overscroll-behavior: contain;
+}
+
+.modal-backdrop {
+  overflow: hidden;
+}
+
+.modal {
+  max-height: calc(100svh - 36px);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@supports not (height: 100svh) {
+  .modal { max-height: calc(100vh - 36px); }
+}
+
+@media (max-width: 780px) {
+  .study-import-modal {
+    max-height: calc(100svh - 24px);
+  }
+}
+
+@supports not (height: 100svh) {
+  @media (max-width: 780px) {
+    .study-import-modal { max-height: calc(100vh - 24px); }
+  }
+}
