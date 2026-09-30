@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import AccountScreen from "../components/account/AccountScreen";
+import Icon from "../components/shared/Icon";
 import { useEngine } from "../components/SyncContext";
 import { supabase } from "../lib/auth/client";
 import { fingerprint, parseLegacy, validateState } from "../lib/data/legacy";
@@ -30,6 +32,11 @@ export default function LocalDataManager({
       setOpen(true);
     }
   }, [recoveryRequest]);
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener("opogc:account", show);
+    return () => window.removeEventListener("opogc:account", show);
+  }, []);
   useEffect(() => e.subscribe(() => refresh((x) => x + 1)), [e]);
   useEffect(() => {
     const {
@@ -73,7 +80,7 @@ export default function LocalDataManager({
       const source = parseLegacy(parsed);
       if (!source)
         throw new Error(
-          "No contiene una copia de progreso compatible. Para importar solo una estructura usa Estudio → Importar temario.",
+          "No contiene una copia de progreso compatible. Para importar solo una estructura usa Más → Organizar temario → Importar.",
         );
       validateState(source);
       const mark = await fingerprint(source);
@@ -125,79 +132,72 @@ export default function LocalDataManager({
   }
   return (
     <>
-      <button
-        className="account-fab"
-        onClick={() => setOpen(true)}
-        aria-label="Cuenta y copias"
-      >
-        Cuenta
-      </button>
+      <input
+        hidden
+        ref={file}
+        type="file"
+        accept=".json,application/json"
+        onChange={importData}
+      />
       {open && (
-        <div
-          className="modal-backdrop account-backdrop"
-          onMouseDown={() => !busy && setOpen(false)}
+        <AccountScreen
+          email={email}
+          busy={busy}
+          onClose={() => setOpen(false)}
+          status={
+            e.status.phase === "saved"
+              ? "Todo guardado"
+              : e.status.phase === "offline"
+                ? "Sin conexión · se guardará después"
+                : e.status.phase === "error"
+                  ? "Guardado en este dispositivo"
+                  : "Guardando…"
+          }
         >
-          <section
-            className="account-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="account-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <button
-              className="account-close"
-              aria-label="Cerrar"
-              onClick={() => setOpen(false)}
-            >
-              ×
-            </button>
-            <h2 id="account-title">Tu cuenta</h2>
-            <p className="account-email">{email}</p>
-            <p role="status">
-              {e.status.phase === "saved"
-                ? "Todos los cambios guardados"
-                : e.status.phase === "offline"
-                  ? "Sin conexión · cambios guardados aquí"
-                  : e.status.phase === "error"
-                    ? "Conexión pendiente · cambios guardados aquí"
-                    : "Guardando…"}
-              {e.status.pending
-                ? ` · ${e.status.pending} operaciones pendientes`
-                : ""}
+          {e.status.message && (
+            <p className="account-notice">
+              Hay cambios pendientes de guardar. Tu progreso se conserva en este
+              dispositivo.
             </p>
-            {e.status.message && (
-              <p className="account-notice">{e.status.message}</p>
-            )}
-            <p>
-              El progreso se comparte automáticamente entre tus dispositivos al
-              iniciar sesión con esta cuenta.
-            </p>
+          )}
+          <section className="settings-group">
+            <h3 className="ux-label">DATOS</h3>
             <button
-              className="primary-button full"
+              className="settings-row"
               disabled={busy}
               onClick={exportData}
             >
-              Exportar copia de seguridad
+              <Icon name="download" />
+              <span>
+                <strong>Exportar copia</strong>
+                <small>Progreso, historial y archivos</small>
+              </span>
+              <Icon name="chevron" size={18} />
             </button>
             <button
-              className="secondary-button full"
+              className="settings-row"
               disabled={busy}
               onClick={() => file.current?.click()}
             >
-              Importar copia de seguridad
+              <Icon name="upload" />
+              <span>
+                <strong>Importar copia</strong>
+                <small>Incorporar tus datos sin borrar los actuales</small>
+              </span>
+              <Icon name="chevron" size={18} />
             </button>
-            <input
-              hidden
-              ref={file}
-              type="file"
-              accept=".json,application/json"
-              onChange={importData}
-            />
-            <details open={recovery ? true : undefined}>
+          </section>
+          <section className="settings-group">
+            <h3 className="ux-label">SEGURIDAD</h3>
+            <details
+              className="password-settings"
+              open={recovery ? true : undefined}
+            >
               <summary>
                 {recovery
                   ? "Establecer nueva contraseña"
                   : "Cambiar contraseña"}
+                <Icon name="chevron" size={18} />
               </summary>
               <label>
                 Nueva contraseña
@@ -206,11 +206,11 @@ export default function LocalDataManager({
                   autoComplete="new-password"
                   minLength={8}
                   value={password}
-                  onChange={(x) => setPassword(x.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                 />
               </label>
               <button
-                className="secondary-button full"
+                className="primary-button full"
                 disabled={busy || password.length < 8}
                 onClick={async () => {
                   setBusy(true);
@@ -226,26 +226,38 @@ export default function LocalDataManager({
                 Guardar contraseña
               </button>
             </details>
+          </section>
+          <section className="settings-group">
+            <h3 className="ux-label">SESIÓN</h3>
             <button
-              className="secondary-button full"
+              className="settings-row danger-text"
               disabled={busy}
               onClick={logout}
             >
-              Cerrar sesión en este dispositivo
+              <span>
+                <strong>Cerrar sesión</strong>
+                <small>En este dispositivo</small>
+              </span>
+              <Icon name="chevron" size={18} />
             </button>
-            {e.status.pending > 0 && (
-              <p className="account-small">
-                Las operaciones pendientes permanecen en este dispositivo y se
-                enviarán al volver a entrar con esta cuenta.
-              </p>
-            )}
-            {message && (
-              <p role="status" className="account-notice">
-                {message}
-              </p>
-            )}
           </section>
-        </div>
+          {e.status.pending > 0 && (
+            <p className="ux-footnote">
+              Los cambios pendientes se conservan en este dispositivo y se
+              enviarán cuando vuelvas a entrar con esta cuenta.
+            </p>
+          )}
+          {busy && (
+            <p role="status" className="account-notice">
+              Un momento…
+            </p>
+          )}
+          {message && (
+            <p role="status" className="account-notice">
+              {message}
+            </p>
+          )}
+        </AccountScreen>
       )}
     </>
   );

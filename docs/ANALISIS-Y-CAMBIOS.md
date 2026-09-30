@@ -1,3 +1,5 @@
+> Referencia histórica de v10. Para esta actualización consulta README.md, CHANGELOG.md y ARCHIVOS-V11.md. No es una instrucción para reinstalar Supabase.
+
 # Análisis del original y cambios de OpoGC 10
 
 ## Qué incluía el ZIP

@@ -1,150 +1,73 @@
-# OpoGC 10.0 — cuentas y sincronización automática
+# OpoGC v11 - Mobile UX
 
-Evolución de los componentes OpoGC 9.17.2, con Next.js, React y TypeScript. La interfaz y el CSS de la versión adjunta se conservan. Supabase es el backend real: Auth, PostgreSQL, RLS, Realtime y archivos privados. No hay autenticación ni base de datos simuladas en la aplicación.
+Aplicación completa sobre la base funcional de OpoGC v10. La pantalla inicial es **Hoy**: repasar y continuar el estudio planificado se abren directamente. Supabase sigue siendo el backend real. Las cuentas existentes usan los mismos datos y los mismos IDs.
 
-**Antes de empezar:** el ZIP antiguo era un parche: solo incluía `OpoApp.tsx`, `globals.css`, `LocalDataManager.tsx` y notas de versión. Este proyecto completa los archivos de ejecución y las dependencias que faltaban. No contiene tu progreso personal ni tu cuenta de Supabase. Consulta `docs/ANALISIS-Y-CAMBIOS.md` para conocer el alcance de lo recuperado.
+## Actualizar tu v10
 
-## 1. Crear Supabase gratuito
-
-1. Abre https://supabase.com/dashboard y crea tu cuenta.
-2. Crea una organización en **Free**, sin pasar a Pro ni añadir servicios de pago.
-3. **New project**: nombre `opogc`, región europea y contraseña fuerte para la base de datos. Esta contraseña no va en la PWA.
-4. Espera a que el proyecto esté disponible.
-5. En **Connect** o **Project Settings → API / API Keys**, copia **Project URL** y la clave **Publishable** (`sb_publishable_...`). Si tu panel ofrece la clave antigua **anon**, también sirve.
-6. No copies `service_role`, `sb_secret_...`, la contraseña PostgreSQL ni una clave privada al frontend.
-
-## 2. Ejecutar las migraciones
-
-En **SQL Editor → New query**, abre, copia y ejecuta **en este orden**, en un proyecto nuevo:
-
-1. `supabase/migrations/202609300001_core.sql`
-2. `supabase/migrations/202609300002_storage.sql`
-
-Son migraciones de instalación, no scripts para ejecutarlos repetidamente. Con Supabase CLI pueden aplicarse mediante `supabase link --project-ref TU_REFERENCIA` y `supabase db push`, una vez conectado a tu proyecto.
-
-La primera crea perfiles, oposiciones, temarios, nodos, estados, tareas, sesiones de estudio, tarjetas, respuestas, psicotécnicos, intentos, anotaciones y configuración. Incluye claves foráneas por propietario, RLS, RPC de escritura y lectura incremental, recibos idempotentes y publicación Realtime de `sync_heads`. La segunda crea `opogc-private` y sus políticas de archivos privados.
-
-Verifica en **Table Editor** que las tablas tienen RLS y en **Database → Replication / Publications** que `sync_heads` pertenece a `supabase_realtime`. Las migraciones ya lo configuran cuando la publicación existe.
-
-## 3. Configurar Authentication
-
-En **Authentication → Sign In / Providers**, habilita **Email** y el registro mediante contraseña.
-
-En **Authentication → URL Configuration**:
-
-- **Site URL**: durante las pruebas, `http://localhost:3000`; después, tu URL real de Cloudflare, por ejemplo `https://TU_APP.pages.dev`.
-- **Redirect URLs**: añade `http://localhost:3000/` y `https://TU_APP.pages.dev/`. Si usas un dominio propio, añade también su URL exacta.
-- Mantén la confirmación por correo para las cuentas públicas. Al registrarte, confirma el correo antes de iniciar sesión.
-- Contraseña mínima de 8 caracteres en el frontend; ajusta también la política de Supabase.
-
-**Correo en Free:** el proveedor SMTP incluido por Supabase tiene restricciones para destinatarios y límites bajos. Para probar sin SMTP propio, usa direcciones autorizadas de tu organización o desactiva temporalmente **Confirm email** en un proyecto de pruebas con cuentas desechables. Para abrir el registro a otras personas, configura un SMTP propio compatible con un plan gratuito y verifica la entrega; el ZIP no contrata ningún proveedor. No dejes una instalación pública con una configuración de correo sin probar.
-
-La app incluye registro, inicio/cierre de sesión, sesión persistente, solicitud de recuperación y cambio de contraseña. El cliente está aislado en `lib/auth/client.ts`; posteriormente puedes añadir `signInWithOAuth` con Google/Apple y sus proveedores, sin modificar el repositorio de datos.
-
-## 4. Variables y ejecución local
-
-Instala Node.js 22.13 o superior. Descomprime el ZIP y abre una terminal **en la carpeta donde está package.json**.
-
-macOS/Linux:
-
-```bash
-cp .env.example .env.local
-```
-
-Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env.local
-```
-
-Edita `.env.local`:
-
-```dotenv
-NEXT_PUBLIC_SUPABASE_URL=https://TU_REFERENCIA.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_TU_CLAVE_PUBLICA
-```
-
-Para una clave antigua utiliza `NEXT_PUBLIC_SUPABASE_ANON_KEY=...` en lugar de la variable Publishable. Son valores públicos: la autorización la realizan Auth y RLS.
+1. Sustituye el código de tu rama por el contenido de `opogc/` de este ZIP. Conserva tu `.env.local` y las variables del despliegue actual.
+2. Mantén **el mismo proyecto Supabase, la misma URL y la misma clave pública**. Mantén también el dominio actual de la app para conservar el almacenamiento y la sesión de la PWA.
+3. Ejecuta, desde la carpeta de `package.json`:
 
 ```bash
 npm ci
-npm run dev
-```
-
-Abre `http://localhost:3000`, regístrate y confirma el correo si está habilitado. Importa tu árbol desde **Estudio → Importar / actualizar**. Una cuenta nueva empieza vacía.
-
-Para una compilación de producción con PWA y funcionamiento offline:
-
-```bash
+npm run typecheck
+npm test
 npm run build
-npm run start
 ```
 
-`out/` es el frontend compilado. `npm run dev` no activa el Service Worker para evitar cachés durante desarrollo.
+4. Despliega `out/` mediante el procedimiento que ya usabas. En Cloudflare Pages siguen siendo `npm run build` y directorio de salida `out`.
+5. Abre la app y acepta el aviso de actualización cuando aparezca. La sesión y la cola se mantienen con el mecanismo de v10.
 
-## 5. Desplegar en Cloudflare Pages, sin servidor de aplicación
+**Esta actualización no requiere SQL, migraciones nuevas ni reconfigurar Supabase.** Los dos SQL existentes se conservan para instalaciones nuevas; no debes volver a ejecutarlos para actualizar una v10 configurada. No borres IndexedDB, el almacenamiento del sitio ni los datos de tu cuenta como paso de actualización. No hace falta reimportar tu progreso.
 
-La PWA se genera como archivos estáticos; **sus datos y autenticación son dinámicos y reales en Supabase**. No necesita API de Next en Cloudflare, D1, R2, Functions ni Workers adicionales.
+El ZIP contiene código fuente y documentación; no contiene claves ni una copia de tus datos privados. Antes de compilar, reutiliza la configuración que ya funciona:
 
-### Desde GitHub
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://TU_PROYECTO_ACTUAL.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=TU_CLAVE_PUBLICA_ACTUAL
+```
 
-1. Crea un repositorio, añade el proyecto y `package-lock.json`. No subas `.env.local`, `node_modules` ni `.next`.
-2. Cloudflare: **Workers & Pages → Create application → Pages → Import an existing Git repository**.
-3. Selecciona el repositorio y configura:
+La variable antigua `NEXT_PUBLIC_SUPABASE_ANON_KEY` continúa admitida. No uses una clave privada o `service_role`. Para desarrollo: `npm run dev`. Para servir la compilación: `npm run start`. Se conserva Node.js >=22.13.0 y el mismo conjunto de dependencias de v10.
 
-| Opción | Valor |
+## Nueva navegación
+
+| Entrada | Uso principal |
 |---|---|
-| Preset | Next.js (Static HTML Export), o None con los siguientes valores |
-| Build command | `npm run build` |
-| Build output directory | `out` |
-| Root directory | carpeta que contiene `package.json` |
-| Node | 22.13 o superior; por ejemplo `NODE_VERSION=22.16.0` |
+| Hoy | Pendientes, prioridades y dos acciones directas: Repasar ahora / Continuar estudio. |
+| Estudiar | Continuar una planificación o buscar y empezar rápidamente un apartado. |
+| Repasar | Tarjetas programadas, repaso libre, repasos del temario y modos alternativos. |
+| Progreso | Apartados débiles, tarjetas que cuestan, evolución, días y acceso al historial. |
+| Más | Biblioteca, psicotécnicos, organización avanzada, cuenta/datos y preferencias. |
 
-4. Añade `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` en las variables de **Production**. Si usas previews, configura también Preview y sus redirect URLs de prueba.
-5. Despliega. Copia la URL `https://TU_APP.pages.dev` a Auth según el apartado 3.
-6. Si cambias una variable `NEXT_PUBLIC_*`, vuelve a compilar/desplegar: Next la incorpora al bundle.
+En móvil, la barra inferior tiene icono y texto y respeta la zona segura. En escritorio, las mismas cinco entradas aparecen en una barra lateral. El temario dispone de lista y detalle en tablet cuando hay espacio.
 
-### Subida manual
+## Sesiones de estudio y repaso
 
-Configura `.env.local`, ejecuta `npm ci` y `npm run build`. En **Pages → Upload assets**, sube el contenido de **out**, no el código fuente. También puedes usar `npx wrangler pages deploy out --project-name TU_PROYECTO` tras autenticar tu cuenta de Cloudflare. El ZIP no ejecuta ese despliegue ni crea cuentas en tu nombre.
+**Tarjetas:** Hoy → Repasar ahora. Se oculta la navegación y se mantiene visible el avance. Los controles de revelar/comprobar y Otra vez / Difícil / Bien / Fácil están al alcance sin bajar hasta el final de una tarjeta larga. Se conservan FSRS, vocabulario, test simple/múltiple, respuesta escrita, ortografía, aprendizaje, aleatorio y más falladas.
 
-Mantén el mismo origen que la instalación anterior si quieres detectar su almacenamiento local. Un nuevo subdominio no puede leer el IndexedDB de otro dominio: usa una copia JSON para ese traslado inicial.
+**Estudio:** Hoy → Continuar estudio. Terminar estudio abre la valoración Mal / Regular / Bien y una nota opcional; Guardar y siguiente guarda mediante el motor existente y abre el siguiente elemento automáticamente. Si no hay estudio planificado, Estudiar ahora abre un selector rápido. Las sesiones sin planificación generan el registro existente al completar el apartado, no al abrirlo.
 
-## 6. Migrar desde 9.17.2
+Los repasos del temario existentes permanecen en **Repasar → Repasos del temario** y en **Más → Organizar temario → Hoy**. Conservan su motivo original. Para nuevas planificaciones, el panel permite escoger Estudiar o Repasar usando el campo `reason` ya existente (`estudio` para estudio). Esto separa los contadores diarios sin migrar ni reclasificar registros antiguos.
 
-1. Antes de sustituir la instalación antigua, exporta una copia completa de progreso desde **Datos** en cada dispositivo que tenga cambios propios.
-2. Conserva también los PDFs/imágenes originales. El ZIP adjunto no contenía esos archivos. Las URL antiguas no son una copia portátil si se elimina el servidor anterior.
-3. Actualiza en el mismo dominio, inicia sesión y acepta **Importar a mi cuenta** cuando se detecten datos locales.
-4. Se inspeccionan los almacenamientos OpoGC de IndexedDB/localStorage y las respuestas `/api/state` ya presentes en la caché antigua. No se consultan copias de nube compartidas sin autenticar.
-5. Si no aparece el aviso, usa **Cuenta → Importar copia de seguridad** con los JSON anteriores. La importación fusiona IDs estables, conserva historial/comentarios y no elimina registros de tu cuenta.
-6. Repite la importación en otros dispositivos si guardaban registros que no estaban en la primera copia. El progreso FSRS más avanzado y los repasos completados se conservan al fusionar una copia antigua.
-7. La huella SHA-256 evita procesar dos veces la misma copia en el mismo dispositivo; los IDs de registros y sesiones importadas evitan duplicados en la base de datos.
+**Organizar:** Más → Organizar temario. El árbol se recorre nivel a nivel, con atrás y búsqueda global. El menú ··· permite editar/mover, reordenar hermanos, añadir, importar, exportar y eliminar. Para estudiar no es obligatorio pasar por este árbol.
 
-Si falta un archivo antiguo, la importación muestra el problema y no borra la copia original. Reimporta mientras su URL original sea accesible o conserva/reasocia el archivo. Las nuevas copias de esta versión incluyen los archivos asociados y anotaciones, además del progreso. Para exportarlos por primera vez es necesaria conexión si aún no se han descargado.
+**Biblioteca:** búsqueda global por contenido y carpeta, filtro por tipo y navegación por carpetas. Creación/edición e importación ocupan toda la pantalla móvil; los modos y acciones secundarias están en ···. **Cuenta** es una pantalla de ajustes con guardado, copias, contraseña y sesión.
 
-## 7. Cómo comprobar dos dispositivos
+## Compatibilidad y conservación
 
-1. PC: inicia sesión como **A** e importa un temario con Tema → Título → Artículo → Apartado.
-2. Registra un repaso, complétalo como **Bien** y añade un comentario. Espera a **Todos los cambios guardados** en Cuenta.
-3. iPhone/iPad: abre la misma URL e inicia sesión con **A**. El árbol, resultado y comentario deben aparecer sin importar JSON.
-4. Mantén ambas sesiones abiertas. Crea otro repaso desde el segundo dispositivo y complétalo como **Mal**. Comprueba que ambos aparecen en **Estudio → Historial** en el PC.
-5. Desconecta un dispositivo: crea un repaso y añade un comentario. Recarga; deben conservarse. Recupera Internet y verifica que llegan al otro dispositivo.
-6. Cierra sesión y entra como **B**: la cuenta debe estar vacía y no mostrar registros de A.
-7. Vuelve a A y verifica sus datos. La cola pendiente de A nunca se sube con la sesión de B.
+- Sin cambios en Auth, PostgreSQL, RLS, Realtime, motor de sincronización, outbox, esquema o versión de IndexedDB, Storage, FSRS o modelo de memoria.
+- Sin seeds nuevos, reinicios de cuenta, IDs reemplazados ni base de datos nueva.
+- La versión **10** del formato de backup y los nombres internos `v10` del almacenamiento/caché se conservan deliberadamente por compatibilidad. La aplicación se identifica como 11.0.0.
+- El orden manual del temario usa `sortOrder` opcional dentro del JSONB existente del nodo. No añade columnas ni cambia SQL. Los nodos sin este dato mantienen el orden anterior.
+- El generador del Service Worker conserva su comportamiento. Regenera únicamente la revisión de recursos y la versión visible para distribuir la nueva interfaz.
+- Fuentes de sistema, zonas seguras, `100dvh`, altura de `visualViewport`, campos móviles de 16 px, scroll interior, foco restaurado y movimiento reducido.
 
-El aviso de Realtime provoca lectura incremental. Además, se comprueban cambios al volver a la app, al recuperar Internet y cada 30 segundos en primer plano, como respaldo si una conexión Realtime falla. Los navegadores móviles suspenden las apps en segundo plano; la actualización se reanuda al abrirlas.
+El acceso inicial a una cuenta y los nuevos adjuntos siguen requiriendo conexión, como en v10. La sincronización es automática: no se añaden botones de subir, descargar o sincronizar.
 
-## 8. Instalar la PWA
-
-- iPhone/iPad: Safari → Compartir → **Añadir a pantalla de inicio** → abrir la app instalada.
-- Android/Chrome: menú → **Instalar aplicación / Añadir a pantalla de inicio**.
-- PC/Chrome o Edge: icono de instalación de la barra del navegador.
-
-Usa HTTPS en Cloudflare; localhost es válido para pruebas. La instalación requiere abrirla online por primera vez. La caché del Service Worker contiene solo recursos públicos de la aplicación; los datos privados se guardan en IndexedDB separado por cuenta. En la versión de producción se precargan los chunks para poder abrirla sin red. Las actualizaciones muestran un aviso; la cola persistente no depende del bundle que se recarga.
-
-## 9. Pruebas
+## Verificación reproducible
 
 ```bash
+npm run check:preserved
 npm run typecheck
 npm test
 npm run build
@@ -152,42 +75,10 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-- `npm test`: migraciones reales sobre PostgreSQL WASM (PGlite), roles/RLS, relaciones, transacciones, idempotencia, conflictos, borrado, historial y persistencia/outbox de IndexedDB.
-- `npm run test:ui`: navegador, siete tamaños de pantalla, componentes originales y modales, manifest/Service Worker y apertura offline del frontend de producción. Las fixtures de `tests/ui` son exclusivamente para probar componentes, no forman parte de `out/` y no sustituyen Supabase.
-- El test PWA incluido espera la compilación **sin variables** que muestra la pantalla de configuración. Para una compilación ya conectada, verifica la instalación y Auth según el apartado 7 o adapta esa expectativa.
+`check:preserved` verifica hashes de 15 archivos críticos y huellas estructurales de 29 funciones conservadas de v10. `npm test` ejecuta además las 16 pruebas originales de PostgreSQL/RLS/Storage/IndexedDB/outbox. Las pruebas de navegador recorren ocho tamaños y los flujos reales de la UI con un motor de prueba que utiliza las mismas transacciones y proyecciones locales. Las fixtures solo están en `tests/ui`; **no se compilan en la aplicación** y no reemplazan Supabase.
 
-Pruebas contra **tu Supabase real**, con dos cuentas desechables confirmadas:
+El test automático de caché PWA usa una compilación sin variables y comprueba la pantalla de configuración offline. Para ejecutarlo sobre una compilación configurada debes adaptar esa expectativa. No es una prueba de sesión autenticada en Safari instalado.
 
-```dotenv
-# Añadir a .env.local solo para el script local:
-TEST_EMAIL_A=tu-cuenta-de-pruebas-a
-TEST_PASSWORD_A=contraseña-de-pruebas-a
-TEST_EMAIL_B=tu-cuenta-de-pruebas-b
-TEST_PASSWORD_B=contraseña-de-pruebas-b
-```
+El script existente `npm run test:live` permite validar Auth/RLS/Realtime contra dos cuentas de prueba confirmadas del mismo proyecto usando `TEST_EMAIL_A`, `TEST_PASSWORD_A`, `TEST_EMAIL_B` y `TEST_PASSWORD_B` en `.env.local`. No lo ejecutes con cuentas privadas que no quieras usar para pruebas. No se ejecutó contra tu cuenta en esta entrega: no se facilitaron las credenciales ni un proyecto conectado.
 
-```bash
-npm run test:live
-```
-
-El script utiliza únicamente claves públicas y Auth real; comprueba persistencia tras cerrar sesión, lectura desde otra sesión, RLS, historial, reintentos y Realtime. Limpia los registros que crea mediante borrado lógico; no elimina las cuentas de prueba. **No se ha ejecutado contra un proyecto de Supabase en esta entrega: no se proporcionó uno.** Consulta el informe `docs/PRUEBAS.md`.
-
-## 10. Arquitectura y límites iniciales
-
-`OpoApp` conserva la lógica de estudio. `SyncEngine` convierte los cambios de la UI en operaciones por registro/campo, las guarda transaccionalmente con el estado local y las envía a `apply_operations`. PostgreSQL aplica lotes atómicos, verifica relaciones por propietario, registra recibos y avisa por `sync_heads`. `pull_changes` actualiza la caché por revisiones; nunca sustituye la cuenta entera con un archivo JSON.
-
-Los repasos y respuestas tienen IDs propios. Dos dispositivos pueden aportar eventos sin pisarlos, incluso si completan la misma tarea. Las ediciones simultáneas de un mismo campo se resuelven por el orden en que llegan al servidor; el diario guarda ambas operaciones y señala conflictos. Las ediciones de campos distintos se fusionan. Los borrados prevalecen sobre ediciones antiguas para no resucitar elementos. No hay selector de versiones para el usuario.
-
-Se pueden consultar contenidos descargados y crear/editar estructuras, tarjetas de texto, tareas, valoraciones y comentarios offline. La primera sesión, nuevos archivos y los correos de Auth requieren red. IndexedDB debe estar disponible; el navegador puede borrar datos locales si elimina el almacenamiento del sitio. No borres ese almacenamiento mientras haya operaciones pendientes.
-
-Supabase Free incluye actualmente 500 MB de base de datos, 1 GB de archivos, 50.000 usuarios activos mensuales, 200 conexiones Realtime y 2 millones de mensajes/mes; puede pausar proyectos inactivos una semana. El límite gratuito de archivo es 50 MB, por eso se reduce el antiguo máximo de 100 MB y se añaden subidas reanudables. No se activan planes de pago. Vigila Usage y conserva backups: Free no incluye copias automáticas de PostgreSQL. Revisa las cuotas antes de abrir el servicio a muchos usuarios.
-
-Fuentes oficiales consultadas el 30/09/2026:
-
-- https://supabase.com/pricing
-- https://supabase.com/docs/guides/database/postgres/row-level-security
-- https://supabase.com/docs/guides/auth/passwords
-- https://supabase.com/docs/guides/auth/auth-smtp
-- https://supabase.com/docs/guides/realtime/postgres-changes
-- https://supabase.com/docs/guides/storage/uploads/resumable-uploads
-- https://developers.cloudflare.com/pages/framework-guides/nextjs/deploy-a-static-nextjs-site/
+Consulta **docs/PRUEBAS.md** para los resultados reales, los límites de la validación y la matriz A–O; **CHANGELOG.md** para cambios; **docs/ARCHIVOS-V11.md** para el inventario; **docs/capturas/** para las siete capturas solicitadas. La guía de instalación inicial de v10 se conserva como referencia histórica en `docs/INSTALACION-V10.md`; no es el procedimiento para actualizar.

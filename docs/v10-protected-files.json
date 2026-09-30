@@ -1,0 +1,17 @@
+{
+  "lib/auth/client.ts": "d1b35d6ac54efc4989104138255683d38b74badc76f7017f9f430c7ae242d66f",
+  "lib/data/projection.ts": "3bd00390bc58af00f78130823e04ce003ad682cc4b10ede24fe97a5698818dc1",
+  "lib/data/files.ts": "dfcd4dc21ed6ed6ee14c6117c430ce14c47cb1b085fe19c64cff51412139b021",
+  "lib/data/local.ts": "cd97edcb7b851ac9d779a972ddd7e2c4352b506a50d1f889525352e6cf8e94ce",
+  "lib/data/legacy.ts": "0779df05252b34d4f16ddb753643c7f7b869a072b751340e67894500576c8e9b",
+  "lib/data/models.ts": "564589b40425a192ca11f2de02f06a4a6586f49f7cc2822f1f8ebb4fd542fab8",
+  "lib/sync/engine.ts": "2c580ef8db530264bc48701b4c4efb063328d400b404a4c57c91b9da0b068e1e",
+  "supabase/migrations/202609300002_storage.sql": "a101d09bbf0df2c7165a6d14149902039fdbec50f128ee12c0fccf9783d192b3",
+  "supabase/migrations/202609300001_core.sql": "c6f5ba00c88363ec35d797760ad2669386ba58751f78cf7ef9dabd1f106abb32",
+  "app/fsrs.ts": "aac45c198bd672f4a6c304ad67a91f0ae1e2f59e5ea638d0c28ae05384058e65",
+  "app/memoryModel.ts": "1d0659359ce593d4deb942d2ae638d2c7550222214b76a29aa45a4a6546ba252",
+  "components/AccountApp.tsx": "3f5548e07e80c01ed88ede9aee6a694bca7425ce3c650368802a75df912215e9",
+  "components/SyncContext.tsx": "133fe500d5885c76d97b38f5b94825aff57b0065b8e9cb7bdf763ef89c93f1d9",
+  "components/PwaManager.tsx": "e7ca3963e9f9568bff2c63102aa74d563165e3ef38d913e6322f0b87d7a1b73b",
+  "public/manifest.webmanifest": "2e2688f67fe8eb1d1221c2d6120d62da04525a30d1ab5ac343b872114312eb6e"
+}

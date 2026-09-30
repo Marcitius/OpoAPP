@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
+import OverlayPortal from "../components/shared/OverlayPortal";
 import { useEngine } from "../components/SyncContext";
 import {
   attachmentUrl,
@@ -123,20 +124,22 @@ export function AnnotatedCardImage({
 }
 export function ImageLightbox(p: Props) {
   return (
-    <section
-      className="answer-image-lightbox"
-      role="dialog"
-      aria-modal="true"
-      aria-label={p.title}
-    >
-      <header>
-        <button onClick={p.onClose} aria-label="Cerrar">
-          ×
-        </button>
-        <strong>{p.title}</strong>
-      </header>
-      <AnnotatedCardImage attachment={p.attachment} onOpen={() => {}} />
-    </section>
+    <OverlayPortal onClose={p.onClose}>
+      <section
+        className="answer-image-lightbox"
+        role="dialog"
+        aria-modal="true"
+        aria-label={p.title}
+      >
+        <header>
+          <button onClick={p.onClose} aria-label="Cerrar">
+            ×
+          </button>
+          <strong>{p.title}</strong>
+        </header>
+        <AnnotatedCardImage attachment={p.attachment} onOpen={() => {}} />
+      </section>
+    </OverlayPortal>
   );
 }
 export function ImageAnnotator(p: Props) {
@@ -198,101 +201,91 @@ export function ImageAnnotator(p: Props) {
     }
   };
   return (
-    <section
-      className="image-annotator"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Anotar imagen"
-    >
-      <header>
-        <button onClick={p.onClose} aria-label="Cerrar">
-          ×
-        </button>
-        <div>
-          <strong>{p.title}</strong>
-          <small>
-            {message || error || "Escribe con el dedo, lápiz o ratón"}
-          </small>
+    <OverlayPortal onClose={p.onClose}>
+      <section
+        className="image-annotator"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Anotar imagen"
+      >
+        <header>
+          <button onClick={p.onClose} aria-label="Cerrar">
+            ×
+          </button>
+          <div>
+            <strong>{p.title}</strong>
+            <small>
+              {message || error || "Escribe con el dedo, lápiz o ratón"}
+            </small>
+          </div>
+          <button
+            onClick={() => {
+              const current = doc.pages["1"] ?? [];
+              void save({ version: 1, pages: { "1": current.slice(0, -1) } });
+            }}
+            aria-label="Deshacer"
+          >
+            ↶
+          </button>
+        </header>
+        <div className="pdf-toolbar">
+          <label>
+            Color
+            <input
+              type="color"
+              value={color}
+              onChange={(x) => setColor(x.target.value)}
+            />
+          </label>
+          <label>
+            Trazo
+            <input
+              type="range"
+              min={2}
+              max={18}
+              value={width}
+              onChange={(x) => setWidth(+x.target.value)}
+            />
+          </label>
+          <button onClick={() => setEraser((x) => !x)}>
+            {eraser ? "Lápiz" : "Goma"}
+          </button>
         </div>
-        <button
-          onClick={() => {
-            const current = doc.pages["1"] ?? [];
-            void save({ version: 1, pages: { "1": current.slice(0, -1) } });
-          }}
-          aria-label="Deshacer"
-        >
-          ↶
-        </button>
-      </header>
-      <div className="pdf-toolbar">
-        <label>
-          Color
-          <input
-            type="color"
-            value={color}
-            onChange={(x) => setColor(x.target.value)}
-          />
-        </label>
-        <label>
-          Trazo
-          <input
-            type="range"
-            min={2}
-            max={18}
-            value={width}
-            onChange={(x) => setWidth(+x.target.value)}
-          />
-        </label>
-        <button onClick={() => setEraser((x) => !x)}>
-          {eraser ? "Lápiz" : "Goma"}
-        </button>
-      </div>
-      <div className="pdf-stage">
-        <div className="image-ink-wrap">
-          <img
-            ref={img}
-            src={url || undefined}
-            alt={p.attachment.name}
-            onLoad={() => draw()}
-          />
-          <canvas
-            ref={canvas}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.currentTarget.setPointerCapture(event.pointerId);
-              stroke.current = {
-                id: crypto.randomUUID(),
-                createdAt: new Date().toISOString(),
-                mode: eraser ? "erase" : "draw",
-                color,
-                width:
-                  width / event.currentTarget.getBoundingClientRect().width,
-                points: [point(event)],
-              };
-            }}
-            onPointerMove={(event) => {
-              if (!stroke.current) return;
-              stroke.current.points.push(point(event));
-              draw({
-                version: 1,
-                pages: {
-                  "1": [...(saved.current.pages["1"] ?? []), stroke.current],
-                },
-              });
-            }}
-            onPointerUp={() => {
-              if (!stroke.current) return;
-              const next = {
-                version: 1 as const,
-                pages: {
-                  "1": [...(saved.current.pages["1"] ?? []), stroke.current],
-                },
-              };
-              stroke.current = null;
-              void save(next);
-            }}
-            onPointerCancel={() => {
-              if (stroke.current) {
+        <div className="pdf-stage">
+          <div className="image-ink-wrap">
+            <img
+              ref={img}
+              src={url || undefined}
+              alt={p.attachment.name}
+              onLoad={() => draw()}
+            />
+            <canvas
+              ref={canvas}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.currentTarget.setPointerCapture(event.pointerId);
+                stroke.current = {
+                  id: crypto.randomUUID(),
+                  createdAt: new Date().toISOString(),
+                  mode: eraser ? "erase" : "draw",
+                  color,
+                  width:
+                    width / event.currentTarget.getBoundingClientRect().width,
+                  points: [point(event)],
+                };
+              }}
+              onPointerMove={(event) => {
+                if (!stroke.current) return;
+                stroke.current.points.push(point(event));
+                draw({
+                  version: 1,
+                  pages: {
+                    "1": [...(saved.current.pages["1"] ?? []), stroke.current],
+                  },
+                });
+              }}
+              onPointerUp={() => {
+                if (!stroke.current) return;
                 const next = {
                   version: 1 as const,
                   pages: {
@@ -301,11 +294,26 @@ export function ImageAnnotator(p: Props) {
                 };
                 stroke.current = null;
                 void save(next);
-              }
-            }}
-          />
+              }}
+              onPointerCancel={() => {
+                if (stroke.current) {
+                  const next = {
+                    version: 1 as const,
+                    pages: {
+                      "1": [
+                        ...(saved.current.pages["1"] ?? []),
+                        stroke.current,
+                      ],
+                    },
+                  };
+                  stroke.current = null;
+                  void save(next);
+                }
+              }}
+            />
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </OverlayPortal>
   );
 }

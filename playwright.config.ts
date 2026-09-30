@@ -14,14 +14,14 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "npm run start",
-      url: "http://127.0.0.1:3000",
-      reuseExistingServer: true,
+      command: "node scripts/serve-tests.mjs",
+      url: "http://127.0.0.1:3001",
+      reuseExistingServer: false,
     },
     {
       command: "npx vite --config vite.test.config.ts",
-      url: "http://127.0.0.1:4174/tests/ui/index.html",
-      reuseExistingServer: true,
+      url: "http://127.0.0.1:4175/tests/ui/index.html",
+      reuseExistingServer: false,
     },
   ],
   reporter: [["list"], ["json", { outputFile: "test-results/ui-report.json" }]],

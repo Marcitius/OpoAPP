@@ -1,1151 +1,171 @@
 "use client";
-
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEngine } from "../components/SyncContext";
-import { uploadAttachment } from "../lib/data/files";
+import {
+  CardModal,
+  FolderModal,
+  MoveFolderModal,
+} from "../components/library/LibraryEditors";
+import { AttemptModal, PsychModal } from "../components/psych/PsychEditors";
+import { Empty } from "../components/shared/LegacyWidgets";
+import {
+  StudyCompletionNoteModal,
+  StudyImportModal,
+  StudyNodeEditorModal,
+  StudyQuickModal,
+  StudyTaskCard,
+  StudyTaskEditModal,
+  StudyTaskGroupedList,
+  StudyUpcomingRow,
+} from "../components/study/StudyManagement";
+import {
+  AppState,
+  Card,
+  CardType,
+  LearnStat,
+  OrthographySessionStat,
+  OrthographySessionState,
+  PsychSort,
+  Rating,
+  Review,
+  ReviewQueueItem,
+  ReviewQueueOutcome,
+  StudyAssessment,
+  StudyImportNode,
+  StudyMode,
+  StudyQueueMode,
+  StudyTask,
+  StudyView,
+  WrittenAnswerResult,
+  addDaysKey,
+  applyWrittenStats,
+  cardCorrectOptions,
+  cardTypeLabel,
+  cardsInFolderScope,
+  chooseLearnCard,
+  chooseOrthographyGroup,
+  colors,
+  dateLabel,
+  descendantFolderIds,
+  encodeWrittenRubric,
+  escapeHtml,
+  evaluateWrittenAnswer,
+  failureCount,
+  flattenFolderTree,
+  flattenStudyTree,
+  folderPathLabel,
+  importedBackHtml,
+  inferStudyNodeForCard,
+  isContinuousStudyMode,
+  isMultipleAnswerTest,
+  isMultipleChoiceCard,
+  isMultipleChoiceType,
+  isOrthographyCard,
+  isStudyableCard,
+  isWrittenCard,
+  localDateKey,
+  mergeStudyImport,
+  normalizeAndSeed,
+  normalizeStudyLabel,
+  nowIso,
+  orthographyBackHtml,
+  psychStats,
+  sameNumberSet,
+  scheduleCard,
+  scoreLabel,
+  shuffled,
+  sortPsychTests,
+  studyDescendantIds,
+  studyNodePath,
+  studyTreeForExport,
+  todayKey,
+  uid,
+  useStableOverlaySurfaces,
+  weakestStudyCards,
+  writtenAverageAccuracy,
+  zeroWrittenAnswerResult,
+} from "../lib/study/legacy";
+import { ImageAnnotator, ImageLightbox } from "./CardImage";
+import CardImportModal, { type ParsedImportItem } from "./CardImportModal";
+import OrthographyStudy, {
+  type OrthographyStudyResult,
+} from "./OrthographyStudy";
 import PdfAnnotator from "./PdfAnnotator";
-import { AnnotatedCardImage, ImageAnnotator, ImageLightbox } from "./CardImage";
-import RichTextEditor, { plainRichText, RichContent, sanitizeRichHtml } from "./RichTextEditor";
-import { applyFsrsReview, fsrsCurrentRetrievability, fsrsDueLabel } from "./fsrs";
-import { fitPersonalMemoryModel, personalModelLabel, predictPersonalRecall } from "./memoryModel";
-import CardImportModal, { type ParsedImportItem, type WrittenCriterion, type WrittenEvaluation } from "./CardImportModal";
-import OrthographyStudy, { type OrthographyStudyCard, type OrthographyStudyResult } from "./OrthographyStudy";
-
-type Tab = "today" | "library" | "study" | "psych" | "progress";
-type CardType = "basic" | "choice" | "test" | "orthography" | "written";
-type Rating = "again" | "hard" | "good" | "easy";
-type StudyMode = "recommended" | "random" | "all" | "learn" | "weakest";
-type ReviewQueueOutcome = "rated" | "unknown";
-type ReviewQueueItem = {
-  cardId: string;
-  reinforcement: boolean;
-  reason: "scheduled" | "again" | "hard";
-  completed?: boolean;
-  outcome?: ReviewQueueOutcome;
-};
-type PsychSort = "oldest" | "recent" | "last-low" | "last-high" | "avg-low" | "avg-high" | "attempts-low" | "attempts-high" | "name";
-
-type StudyView = "today" | "tree" | "history";
-type StudyQueueMode = "grouped" | "list";
-type StudyTaskStatus = "pending" | "done";
-type StudyAssessment = "bien" | "regular" | "mal" | null;
-type StudyNode = {
-  id: string;
-  name: string;
-  parentId: string | null;
-  createdAt: string;
-};
-type StudyTask = {
-  id: string;
-  nodeId: string;
-  plannedFor: string;
-  note: string;
-  reason: string;
-  status: StudyTaskStatus;
-  createdAt: string;
-  completedAt: string | null;
-  assessment: StudyAssessment;
-  completionNote: string;
-  sourceCardId?: string | null;
-  queueOrder: number;
-};
-type StudyImportNode = { id?: string; name: string; children: StudyImportNode[] };
-
-type Folder = {
-  id: string;
-  name: string;
-  color: string;
-  parentId: string | null;
-  createdAt: string;
-};
-
-type Card = {
-  id: string;
-  folderId: string;
-  type: CardType;
-  front: string;
-  back: string;
-  options: string[];
-  correctOption: number;
-  correctOptions: number[];
-  dueAt: string;
-  createdAt: string;
-  lastReviewedAt: string | null;
-  intervalDays: number;
-  ease: number;
-  repetitions: number;
-  lapses: number;
-  streak: number;
-  reviewCount: number;
-  successCount: number;
-  attachment: Attachment | null;
-  fsrsStability: number;
-  fsrsDifficulty: number;
-  orthographyIsCorrect: boolean | null;
-  orthographyCorrectForm: string;
-  orthographyExplanation: string;
-  orthographySource: string;
-  orthographyStage: number;
-};
-
-type Review = {
-  id: string;
-  cardId: string;
-  rating: Rating;
-  correct: boolean;
-  accuracy?: number;
-  reviewedAt: string;
-  responseMs?: number;
-  sessionMode?: StudyMode;
-  reinforcement?: boolean;
-  predictedRecall?: number;
-  fsrsRetrievability?: number;
-};
-
-type Attachment = {
-  id: string;
-  key: string;
-  name: string;
-  type: string;
-  size: number;
-  url: string;
-};
-
-type Attempt = {
-  id: string;
-  date: string;
-  correct: number;
-  wrong: number;
-  blank: number;
-  score: number;
-  minutes: number;
-  notes: string;
-};
-
-type PsychTest = {
-  id: string;
-  name: string;
-  category: string;
-  totalQuestions: number;
-  attachment: Attachment | null;
-  attempts: Attempt[];
-  createdAt: string;
-};
-
-type AppState = {
-  version: 1;
-  folders: Folder[];
-  cards: Card[];
-  reviews: Review[];
-  psychTests: PsychTest[];
-  studyNodes: StudyNode[];
-  studyTasks: StudyTask[];
-  settings: { dailyReviewGoal: number; dailyNewLimit: number; seedVersion?: number };
-};
-
-const colors = ["#285943", "#B66A3C", "#6F5B8C", "#2C6E8F", "#8A784D"];
-const uid = () => typeof crypto !== "undefined" && "randomUUID" in crypto
-  ? crypto.randomUUID()
-  : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
-const nowIso = () => new Date().toISOString();
-const todayKey = () => localDateKey();
-const localDateKey = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-const addDaysKey = (days: number) => {
-  const date = new Date();
-  date.setHours(12, 0, 0, 0);
-  date.setDate(date.getDate() + days);
-  return localDateKey(date);
-};
-const normalizeStudyLabel = (value: string) => value
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g, "")
-  .trim()
-  .toLocaleLowerCase("es")
-  .replace(/\s+/g, " ");
-
-function studyNodePath(nodes: StudyNode[], nodeId: string) {
-  const byId = new Map(nodes.map((node) => [node.id, node]));
-  const names: string[] = [];
-  let current = byId.get(nodeId) ?? null;
-  const seen = new Set<string>();
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id);
-    names.unshift(current.name);
-    current = current.parentId ? byId.get(current.parentId) ?? null : null;
-  }
-  return names;
-}
-
-function studyNodeDepth(nodes: StudyNode[], nodeId: string) {
-  return Math.max(0, studyNodePath(nodes, nodeId).length - 1);
-}
-
-function studyDescendantIds(nodes: StudyNode[], rootId: string) {
-  const ids = new Set<string>([rootId]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const node of nodes) {
-      if (node.parentId && ids.has(node.parentId) && !ids.has(node.id)) {
-        ids.add(node.id);
-        changed = true;
-      }
-    }
-  }
-  return ids;
-}
-
-function flattenStudyTree(nodes: StudyNode[]) {
-  const result: StudyNode[] = [];
-  const walk = (parentId: string | null) => {
-    nodes.filter((node) => node.parentId === parentId).forEach((node) => {
-      result.push(node);
-      walk(node.id);
-    });
-  };
-  walk(null);
-  return result;
-}
-
-function studyImportRoots(value: unknown): StudyImportNode[] {
-  const normalizeNode = (raw: any): StudyImportNode | null => {
-    if (!raw || typeof raw !== "object") return null;
-    const name = String(raw.name ?? raw.nombre ?? raw.title ?? raw.titulo ?? "").trim();
-    if (!name) return null;
-    const childrenRaw = raw.children ?? raw.hijos ?? raw.apartados ?? raw.subapartados ?? raw.items ?? [];
-    const children = Array.isArray(childrenRaw) ? childrenRaw.map(normalizeNode).filter(Boolean) as StudyImportNode[] : [];
-    return { id: raw.id ? String(raw.id) : undefined, name, children };
-  };
-  if (Array.isArray(value)) return value.map(normalizeNode).filter(Boolean) as StudyImportNode[];
-  if (!value || typeof value !== "object") return [];
-  const raw: any = value;
-  const collection = raw.topics ?? raw.temas ?? raw.tree ?? raw.arbol ?? raw.items;
-  if (Array.isArray(collection)) return collection.map(normalizeNode).filter(Boolean) as StudyImportNode[];
-  const single = normalizeNode(raw);
-  return single ? [single] : [];
-}
-
-function parseStudyTextTree(raw: string): StudyImportNode[] {
-  const source = raw.replace(/\r/g, "").trim();
-  if (!source) return [];
-  if (source.startsWith("{") || source.startsWith("[")) {
-    try { return studyImportRoots(JSON.parse(source)); } catch { /* fall through to text parser */ }
-  }
-  const lines = source.split("\n").map((line) => line.replace(/\s+$/, "")).filter((line) => line.trim());
-  const roots: StudyImportNode[] = [];
-  const stack: { rank: number; node: StudyImportNode }[] = [];
-  const semanticRank = (text: string, bullet: boolean) => {
-    const clean = normalizeStudyLabel(text);
-    if (/^(tema|bloque)\b/.test(clean)) return 0;
-    if (/^titulo\b/.test(clean)) return 10;
-    if (/^capitulo\b/.test(clean)) return 20;
-    if (/^seccion\b/.test(clean)) return 30;
-    if (/^articulo\b/.test(clean)) return 40;
-    if (bullet) return 50;
-    return stack.length ? stack[stack.length - 1].rank + 1 : 0;
-  };
-  for (const rawLine of lines) {
-    const expanded = rawLine.replace(/\t/g, "  ");
-    const trimmed = expanded.trim();
-    const bullet = /^[-*•–—]\s+/.test(trimmed);
-    const text = trimmed.replace(/^[-*•–—]\s+/, "").replace(/^\d+[.)]\s+/, "").trim();
-    if (!text) continue;
-    const rank = semanticRank(text, bullet);
-    const node: StudyImportNode = { name: text, children: [] };
-    while (stack.length && stack[stack.length - 1].rank >= rank) stack.pop();
-    if (stack.length) stack[stack.length - 1].node.children.push(node);
-    else roots.push(node);
-    stack.push({ rank, node });
-  }
-  return roots;
-}
-
-function countStudyImportNodes(roots: StudyImportNode[]) {
-  let total = 0;
-  const walk = (nodes: StudyImportNode[]) => nodes.forEach((node) => { total += 1; walk(node.children); });
-  walk(roots);
-  return total;
-}
-
-function mergeStudyImport(existing: StudyNode[], roots: StudyImportNode[], rootParentId: string | null = null) {
-  const nodes = [...existing];
-  let created = 0;
-  const mergeLevel = (items: StudyImportNode[], parentId: string | null) => {
-    for (const item of items) {
-      const key = normalizeStudyLabel(item.name);
-      let node = item.id ? nodes.find((candidate) => candidate.id === item.id) : undefined;
-      if (!node) node = nodes.find((candidate) => candidate.parentId === parentId && normalizeStudyLabel(candidate.name) === key);
-      if (!node) {
-        node = { id: item.id && !nodes.some((candidate) => candidate.id === item.id) ? item.id : uid(), name: item.name, parentId, createdAt: nowIso() };
-        nodes.push(node);
-        created += 1;
-      } else if (node.name !== item.name || node.parentId !== parentId) {
-        const index = nodes.findIndex((candidate) => candidate.id === node!.id);
-        nodes[index] = { ...node, name: item.name, parentId };
-        node = nodes[index];
-      }
-      mergeLevel(item.children, node.id);
-    }
-  };
-  const safeRootParentId = rootParentId && nodes.some((node) => node.id === rootParentId) ? rootParentId : null;
-  mergeLevel(roots, safeRootParentId);
-  return { nodes, created };
-}
-
-function inferStudyNodeForCard(card: Card, nodes: StudyNode[], folders: Folder[]) {
-  if (!nodes.length) return null;
-  const front = plainRichText(card.front);
-  const article = front.match(/art(?:í|i)culo\s+(\d+(?:\.\d+)?)/i)?.[1];
-  if (article) {
-    const articleRe = new RegExp(`^art(?:í|i)culo\\s+${article.replace(".", "\\.")}(?:\\b|\\s|\\.)`, "i");
-    const articleNode = nodes.find((node) => articleRe.test(node.name));
-    if (articleNode) return articleNode.id;
-  }
-  const folder = folders.find((item) => item.id === card.folderId);
-  if (folder) {
-    const folderKey = normalizeStudyLabel(folder.name);
-    const candidates = nodes.filter((node) => normalizeStudyLabel(node.name) === folderKey);
-    if (candidates.length) return candidates.sort((a, b) => studyNodeDepth(nodes, b.id) - studyNodeDepth(nodes, a.id))[0].id;
-  }
-  return null;
-}
-
-function studyTreeForExport(nodes: StudyNode[], rootIds?: Set<string>) {
-  const allowed = rootIds ?? new Set(nodes.map((node) => node.id));
-  const build = (parentId: string | null): any[] => nodes
-    .filter((node) => node.parentId === parentId && allowed.has(node.id))
-    .map((node) => ({ id: node.id, name: node.name, children: build(node.id) }));
-  if (!rootIds) return build(null);
-  const roots = nodes.filter((node) => allowed.has(node.id) && (!node.parentId || !allowed.has(node.parentId)));
-  const buildScoped = (node: StudyNode): any => ({ id: node.id, name: node.name, children: nodes.filter((child) => child.parentId === node.id && allowed.has(child.id)).map(buildScoped) });
-  return roots.map(buildScoped);
-}
-const isMultipleChoiceType = (type: CardType) => type === "choice" || type === "test";
-const isMultipleChoiceCard = (card: Card) => isMultipleChoiceType(card.type);
-const isOrthographyCard = (card: Card) => card.type === "orthography";
-const isWrittenCard = (card: Card) => card.type === "written";
-const cardCorrectOptions = (card: Card) => {
-  const values = Array.isArray(card.correctOptions) && card.correctOptions.length ? card.correctOptions : [card.correctOption];
-  return [...new Set(values.filter((value) => Number.isInteger(value) && value >= 0 && value < 4))].sort((a, b) => a - b);
-};
-const isMultipleAnswerTest = (card: Card) => card.type === "test" && cardCorrectOptions(card).length > 1;
-const sameNumberSet = (a: number[], b: number[]) => a.length === b.length && [...a].sort((x, y) => x - y).every((value, index) => value === [...b].sort((x, y) => x - y)[index]);
-const cardTypeLabel = (type: CardType) => type === "orthography" ? "ORTO" : type === "written" ? "ESCRITA" : type === "test" ? "TEST" : type === "choice" ? "VOCAB" : "FLASHCARD";
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function importedBackHtml(item: ParsedImportItem) {
-  const parts: string[] = [];
-  if ((item.tipo === "flashcard" || item.tipo === "respuesta_escrita") && item.respuesta) parts.push(`<p>${escapeHtml(item.respuesta).replaceAll("\n", "<br>")}</p>`);
-  if (item.explicacion) parts.push(`<p><strong>Explicación:</strong> ${escapeHtml(item.explicacion).replaceAll("\n", "<br>")}</p>`);
-  const meta = [item.fuente ? `<span><strong>Fuente:</strong> ${escapeHtml(item.fuente)}</span>` : ""].filter(Boolean);
-  if (meta.length) parts.push(`<div class="imported-card-meta">${meta.join(" · ")}</div>`);
-  return sanitizeRichHtml(parts.join(""));
-}
-
-function orthographyBackHtml(word: string, isCorrect: boolean, correctForm: string, explanation: string, source: string) {
-  const parts: string[] = [];
-  if (isCorrect) parts.push(`<p><strong>${escapeHtml(correctForm || word)}</strong> está correctamente escrita.</p>`);
-  else parts.push(`<p><strong>${escapeHtml(word)}</strong> → <strong>${escapeHtml(correctForm)}</strong></p>`);
-  if (explanation) parts.push(`<p>${escapeHtml(explanation).replaceAll("\n", "<br>")}</p>`);
-  if (source) parts.push(`<div class="imported-card-meta"><span><strong>Fuente:</strong> ${escapeHtml(source)}</span></div>`);
-  return sanitizeRichHtml(parts.join(""));
-}
-
-const WRITTEN_RUBRIC_PREFIX = "__OPOGC_WRITTEN_RUBRIC__:";
-const WRITTEN_STATS_PREFIX = "__OPOGC_WRITTEN_STATS__:";
-
-type WrittenCriterionResult = {
-  id: string;
-  esperado: string;
-  puntos: number;
-  conseguido: number;
-  cumplido: boolean;
-  critico: boolean;
-  similitud: number;
-};
-
-type WrittenAnswerResult = {
-  accuracy: number;
-  rating: Rating;
-  criteria: WrittenCriterionResult[];
-  criticalMisses: string[];
-};
-
-type WrittenStats = {
-  attempts: number;
-  totalAccuracy: number;
-  recent: number[];
-  criteria: Record<string, { attempts: number; hits: number }>;
-};
-
-function encodeWrittenRubric(evaluation: WrittenEvaluation) {
-  return `${WRITTEN_RUBRIC_PREFIX}${JSON.stringify(evaluation)}`;
-}
-
-function writtenRubric(card: Card): WrittenEvaluation | null {
-  if (!isWrittenCard(card)) return null;
-  const raw = card.options.find((item) => item.startsWith(WRITTEN_RUBRIC_PREFIX));
-  if (!raw) return null;
-  try { return JSON.parse(raw.slice(WRITTEN_RUBRIC_PREFIX.length)) as WrittenEvaluation; }
-  catch { return null; }
-}
-
-function zeroWrittenAnswerResult(card: Card): WrittenAnswerResult | null {
-  const evaluation = writtenRubric(card);
-  if (!evaluation) return null;
-  return {
-    accuracy: 0,
-    rating: "again",
-    criteria: evaluation.criterios.map((criterion) => ({
-      id: criterion.id,
-      esperado: criterion.esperado,
-      puntos: criterion.puntos,
-      conseguido: 0,
-      cumplido: false,
-      critico: criterion.critico,
-      similitud: 0,
-    })),
-    criticalMisses: evaluation.criterios.filter((criterion) => criterion.critico).map((criterion) => criterion.id),
-  };
-}
-
-function writtenStats(card: Card): WrittenStats {
-  const empty: WrittenStats = { attempts: 0, totalAccuracy: 0, recent: [], criteria: {} };
-  if (!isWrittenCard(card)) return empty;
-  const raw = card.options.find((item) => item.startsWith(WRITTEN_STATS_PREFIX));
-  if (!raw) return empty;
-  try {
-    const parsed = JSON.parse(raw.slice(WRITTEN_STATS_PREFIX.length)) as Partial<WrittenStats>;
-    return {
-      attempts: Math.max(0, Number(parsed.attempts ?? 0)),
-      totalAccuracy: Math.max(0, Number(parsed.totalAccuracy ?? 0)),
-      recent: Array.isArray(parsed.recent) ? parsed.recent.map(Number).filter(Number.isFinite).slice(-8) : [],
-      criteria: parsed.criteria && typeof parsed.criteria === "object" ? parsed.criteria : {},
-    };
-  } catch { return empty; }
-}
-
-function writtenAverageAccuracy(card: Card) {
-  const stats = writtenStats(card);
-  return stats.attempts ? stats.totalAccuracy / stats.attempts : null;
-}
-
-function writtenRecentAccuracy(card: Card) {
-  const stats = writtenStats(card);
-  if (!stats.recent.length) return writtenAverageAccuracy(card);
-  return stats.recent.reduce((sum, value) => sum + value, 0) / stats.recent.length;
-}
-
-function writtenAccuracyRisk(card: Card) {
-  if (!isWrittenCard(card)) return 0;
-  const accuracy = writtenRecentAccuracy(card);
-  return accuracy === null ? 0.5 : Math.max(0, Math.min(1, 1 - accuracy / 100));
-}
-
-function normalizeWrittenText(value: string, evaluation: WrittenEvaluation) {
-  let result = value.trim();
-  if (evaluation.normalizacion.ignorarMayusculas) result = result.toLocaleLowerCase("es");
-  if (evaluation.normalizacion.ignorarAcentos) result = result.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  if (evaluation.normalizacion.ignorarPuntuacion) result = result.replace(/[^\p{L}\p{N}\s]/gu, " ");
-  if (evaluation.normalizacion.ignorarEspaciosExtra) result = result.replace(/\s+/g, " ").trim();
-  return result;
-}
-
-function tokenCoverage(answer: string, candidate: string) {
-  const expected = [...new Set(candidate.split(/\s+/).filter(Boolean))];
-  if (!expected.length) return 0;
-  const answerTokens = new Set(answer.split(/\s+/).filter(Boolean));
-  return expected.filter((token) => answerTokens.has(token)).length / expected.length;
-}
-
-function evaluateWrittenAnswer(card: Card, answer: string): WrittenAnswerResult | null {
-  const evaluation = writtenRubric(card);
-  if (!evaluation) return null;
-  const normalizedAnswer = normalizeWrittenText(answer, evaluation);
-  const totalPoints = evaluation.criterios.reduce((sum, criterion) => sum + Math.max(0, criterion.puntos), 0);
-  if (!totalPoints) return null;
-
-  const criteria: WrittenCriterionResult[] = evaluation.criterios.map((criterion) => {
-    const candidates = [criterion.esperado, ...criterion.alternativas]
-      .map((candidate) => normalizeWrittenText(candidate, evaluation))
-      .filter(Boolean);
-    let bestSimilarity = 0;
-    let passed = false;
-    for (const candidate of candidates) {
-      const exact = normalizedAnswer.includes(candidate);
-      const similarity = exact ? 1 : tokenCoverage(normalizedAnswer, candidate);
-      bestSimilarity = Math.max(bestSimilarity, similarity);
-      if (criterion.literal ? exact : similarity >= criterion.minimoSimilitud) passed = true;
-    }
-    return {
-      id: criterion.id,
-      esperado: criterion.esperado,
-      puntos: criterion.puntos,
-      // La nota usa precisión gradual aunque el criterio no llegue al umbral.
-      // "cumplido" sigue siendo binario para aplicar criticidad y límites máximos.
-      conseguido: passed ? criterion.puntos : criterion.puntos * bestSimilarity,
-      cumplido: passed,
-      critico: criterion.critico,
-      similitud: bestSimilarity,
-    };
-  });
-
-  let accuracy = Math.round(criteria.reduce((sum, criterion) => sum + criterion.conseguido, 0) / totalPoints * 100);
-  for (const [index, criterion] of evaluation.criterios.entries()) {
-    if (criteria[index]?.cumplido) continue;
-    if (criterion.maximoSiFalla !== null) accuracy = Math.min(accuracy, Math.round(criterion.maximoSiFalla));
-  }
-  accuracy = Math.max(0, Math.min(100, accuracy));
-
-  const { otraVezHasta, dificilHasta, bienHasta } = evaluation.umbrales;
-  const rating: Rating = accuracy <= otraVezHasta ? "again" : accuracy <= dificilHasta ? "hard" : accuracy <= bienHasta ? "good" : "easy";
-  return {
-    accuracy,
-    rating,
-    criteria,
-    criticalMisses: criteria.filter((criterion) => criterion.critico && !criterion.cumplido).map((criterion) => criterion.esperado),
-  };
-}
-
-function applyWrittenStats(card: Card, result: WrittenAnswerResult) {
-  if (!isWrittenCard(card)) return card;
-  const current = writtenStats(card);
-  const criteria = { ...current.criteria };
-  for (const item of result.criteria) {
-    const previous = criteria[item.id] ?? { attempts: 0, hits: 0 };
-    criteria[item.id] = { attempts: previous.attempts + 1, hits: previous.hits + (item.cumplido ? 1 : 0) };
-  }
-  const next: WrittenStats = {
-    attempts: current.attempts + 1,
-    totalAccuracy: current.totalAccuracy + result.accuracy,
-    recent: [...current.recent, result.accuracy].slice(-8),
-    criteria,
-  };
-  const options = card.options.filter((item) => !item.startsWith(WRITTEN_STATS_PREFIX));
-  return { ...card, options: [...options, `${WRITTEN_STATS_PREFIX}${JSON.stringify(next)}`] };
-}
-
-function initialState(): AppState {
-  const vocabularyId = uid();
-  const psychId = uid();
-  const makeCard = (front: string, back: string, options: string[], correctOption: number): Card => ({
-    id: uid(),
-    folderId: vocabularyId,
-    type: "choice",
-    front,
-    back,
-    options,
-    correctOption,
-    correctOptions: [correctOption],
-    dueAt: nowIso(),
-    createdAt: nowIso(),
-    lastReviewedAt: null,
-    intervalDays: 0,
-    ease: 2.35,
-    repetitions: 0,
-    lapses: 0,
-    streak: 0,
-    reviewCount: 0,
-    successCount: 0,
-    attachment: null,
-    fsrsStability: 0,
-    fsrsDifficulty: 0,
-    orthographyIsCorrect: null,
-    orthographyCorrectForm: "",
-    orthographyExplanation: "",
-    orthographySource: "",
-    orthographyStage: 1,
-  });
-
-  return {
-    version: 1,
-    folders: [
-      { id: vocabularyId, name: "Vocabulario psicotécnico", color: colors[0], parentId: null, createdAt: nowIso() },
-      { id: psychId, name: "Conceptos del temario", color: colors[2], parentId: null, createdAt: nowIso() },
-    ],
-    cards: [
-      makeCard("¿Qué significa LOCUAZ?", "Que habla mucho o con facilidad.", ["Reservado", "Hablador", "Inconstante", "Prudente"], 1),
-      makeCard("¿Cuál es el sinónimo de EFÍMERO?", "Breve o de corta duración.", ["Duradero", "Breve", "Complejo", "Inmóvil"], 1),
-      makeCard("¿Cuál es el antónimo de PARSIMONIA?", "Prisa o celeridad.", ["Calma", "Mesura", "Prisa", "Lentitud"], 2),
-    ],
-    reviews: [],
-    psychTests: [],
-    studyNodes: [],
-    studyTasks: [],
-    settings: { dailyReviewGoal: 30, dailyNewLimit: 12, seedVersion: 0 },
-  };
-}
-
-function scheduleCard(card: Card, rating: Rating): Card {
-  return applyFsrsReview(card, rating);
-}
-
-const CONSTITUTION_FOLDER_NAME = "Tema 1: derecho constitucional";
-const CONSTITUTION_FOLDER_ID = "seed-tema-1-derecho-constitucional";
-
-type SeedCard = { id: string; front: string; back: string; type?: CardType; options?: string[]; correctOption?: number };
-
-const constitutionSeedCards: SeedCard[] = [
-  { id: "ce-pre-01", front: "<strong>Preámbulo:</strong> ¿cuáles son los seis verbos que ordenan la voluntad de la Nación española?", back: "<ol><li><strong>Garantizar</strong></li><li><strong>Consolidar</strong></li><li><strong>Proteger</strong></li><li><strong>Promover</strong></li><li><strong>Establecer</strong></li><li><strong>Colaborar</strong></li></ol>" },
-  { id: "ce-pre-02", front: "Preámbulo · <strong>Garantizar</strong>: completa la idea.", back: "Garantizar la <strong>convivencia democrática</strong> dentro de la Constitución y de las leyes conforme a un <strong>orden económico y social justo</strong>." },
-  { id: "ce-pre-03", front: "Preámbulo · <strong>Consolidar</strong>: ¿qué se consolida y qué debe asegurar?", back: "Un <strong>Estado de Derecho</strong> que asegure el <strong>imperio de la ley</strong> como expresión de la voluntad popular." },
-  { id: "ce-pre-04", front: "Preámbulo · <strong>Proteger</strong>: ¿a quién y en qué ámbitos?", back: "A todos los españoles y pueblos de España en el ejercicio de los <strong>derechos humanos</strong>, sus <strong>culturas y tradiciones</strong>, <strong>lenguas</strong> e <strong>instituciones</strong>." },
-  { id: "ce-pre-05", front: "Preámbulo · <strong>Promover</strong>: ¿qué progreso y con qué finalidad?", back: "El progreso de la <strong>cultura y de la economía</strong> para asegurar a todos una <strong>digna calidad de vida</strong>." },
-  { id: "ce-pre-06", front: "Preámbulo · <strong>Establecer</strong> y <strong>Colaborar</strong>: ¿qué dos objetivos finales se proclaman?", back: "<ul><li>Establecer una <strong>sociedad democrática avanzada</strong>.</li><li>Colaborar en el fortalecimiento de unas <strong>relaciones pacíficas</strong> y de <strong>eficaz cooperación</strong> entre todos los pueblos de la Tierra.</li></ul>" },
-  { id: "ce-a1-01", front: "<strong>Artículo 1.1 CE:</strong> ¿cómo se constituye España y cuáles son los valores superiores?", back: "España se constituye en un <strong>Estado social y democrático de Derecho</strong>.<br><br>Valores superiores: <strong>libertad, justicia, igualdad y pluralismo político</strong>." },
-  { id: "ce-a1-02", front: "<strong>Artículo 1.2 CE:</strong> ¿dónde reside la soberanía nacional?", back: "En el <strong>pueblo español</strong>, del que emanan los poderes del Estado." },
-  { id: "ce-a1-03", front: "<strong>Artículo 1.3 CE:</strong> ¿cuál es la forma política del Estado español?", back: "La <strong>Monarquía parlamentaria</strong>." },
-  { id: "ce-a2-01", front: "<strong>Artículo 2 CE:</strong> ¿en qué tres ideas se apoya el precepto?", back: "<ul><li><strong>Indisoluble unidad</strong> de la Nación española.</li><li>Derecho a la <strong>autonomía</strong> de nacionalidades y regiones.</li><li><strong>Solidaridad</strong> entre todas ellas.</li></ul>" },
-  { id: "ce-a2-02", front: "Artículo 2 CE: completa: «Nación española, patria común e ____ de todos los españoles». ", back: "<strong>Indivisible</strong>." },
-  { id: "ce-a3-01", front: "<strong>Artículo 3.1 CE:</strong> castellano: ¿qué deber y qué derecho tienen todos los españoles?", back: "<ul><li><strong>Deber de conocerla</strong>.</li><li><strong>Derecho a usarla</strong>.</li></ul>" },
-  { id: "ce-a3-02", front: "<strong>Artículo 3.2 CE:</strong> ¿cuándo serán oficiales las demás lenguas españolas?", back: "En las respectivas <strong>Comunidades Autónomas</strong>, de acuerdo con sus <strong>Estatutos</strong>." },
-  { id: "ce-a3-03", front: "<strong>Artículo 3.3 CE:</strong> ¿cómo califica la Constitución la riqueza de las modalidades lingüísticas?", back: "Como un <strong>patrimonio cultural</strong> que será objeto de especial <strong>respeto y protección</strong>." },
-  { id: "ce-a4-01", front: "<strong>Artículo 4.1 CE:</strong> describe la bandera de España.", back: "Tres franjas horizontales: <strong>roja, amarilla y roja</strong>; la amarilla tiene <strong>doble anchura</strong> que cada una de las rojas." },
-  { id: "ce-a4-02", front: "<strong>Artículo 4.2 CE:</strong> ¿qué pueden reconocer los Estatutos y cómo se utilizan?", back: "Pueden reconocer <strong>banderas y enseñas propias</strong> de las CCAA. Se utilizarán <strong>junto a la bandera de España</strong> en sus edificios públicos y actos oficiales." },
-  { id: "ce-a5-01", front: "<strong>Artículo 5 CE:</strong> ¿cuál es la capital del Estado?", back: "La <strong>villa de Madrid</strong>." },
-  { id: "ce-a6-01", front: "<strong>Artículo 6 CE:</strong> ¿qué tres funciones cumplen los partidos políticos?", back: "<ul><li>Expresan el <strong>pluralismo político</strong>.</li><li>Concurren a la <strong>formación y manifestación de la voluntad popular</strong>.</li><li>Son instrumento fundamental para la <strong>participación política</strong>.</li></ul>" },
-  { id: "ce-a6-02", front: "Artículo 6 CE: creación, actividad, estructura y funcionamiento de los partidos.", back: "Creación y actividad: <strong>libres</strong> dentro del respeto a la Constitución y a la ley.<br>Estructura interna y funcionamiento: deberán ser <strong>democráticos</strong>." },
-  { id: "ce-a7-01", front: "<strong>Artículo 7 CE:</strong> ¿a qué contribuyen sindicatos y asociaciones empresariales?", back: "A la <strong>defensa y promoción de los intereses económicos y sociales</strong> que les son propios." },
-  { id: "ce-a7-02", front: "Artículo 7 CE: ¿qué exige sobre su creación, actividad y organización interna?", back: "Creación y actividad <strong>libres</strong> dentro del respeto a la Constitución y a la ley; estructura interna y funcionamiento <strong>democráticos</strong>." },
-  { id: "ce-a8-01", front: "<strong>Artículo 8.1 CE:</strong> ¿qué cuerpos constituyen las Fuerzas Armadas?", back: "<ul><li>Ejército de Tierra.</li><li>Armada.</li><li>Ejército del Aire.</li></ul>" },
-  { id: "ce-a8-02", front: "<strong>Artículo 8.1 CE:</strong> ¿cuáles son las tres misiones de las Fuerzas Armadas?", back: "<ul><li>Garantizar la <strong>soberanía e independencia</strong> de España.</li><li>Defender su <strong>integridad territorial</strong>.</li><li>Defender el <strong>ordenamiento constitucional</strong>.</li></ul>" },
-  { id: "ce-a8-03", front: "<strong>Artículo 8.2 CE:</strong> ¿qué norma regula las bases de la organización militar?", back: "Una <strong>ley orgánica</strong>, conforme a los principios de la Constitución." },
-  { id: "ce-a9-01", front: "<strong>Artículo 9.1 CE:</strong> ¿quiénes están sujetos a la Constitución y al resto del ordenamiento jurídico?", back: "Los <strong>ciudadanos</strong> y los <strong>poderes públicos</strong>." },
-  { id: "ce-a9-02", front: "<strong>Artículo 9.2 CE:</strong> ¿qué corresponde promover a los poderes públicos?", back: "Las condiciones para que la <strong>libertad y la igualdad</strong> del individuo y de los grupos en que se integra sean <strong>reales y efectivas</strong>." },
-  { id: "ce-a9-03", front: "Artículo 9.2 CE: además de promover condiciones, ¿qué dos actuaciones deben realizar los poderes públicos?", back: "<ul><li><strong>Remover los obstáculos</strong> que impidan o dificulten la plenitud de libertad e igualdad.</li><li><strong>Facilitar la participación</strong> de todos los ciudadanos en la vida política, económica, cultural y social.</li></ul>" },
-  { id: "ce-a9-04", front: "<strong>Artículo 9.3 CE:</strong> enumera los principios y garantías constitucionales.", back: "<ul><li>Legalidad.</li><li>Jerarquía normativa.</li><li>Publicidad de las normas.</li><li>Irretroactividad de disposiciones sancionadoras no favorables o restrictivas de derechos individuales.</li><li>Seguridad jurídica.</li><li>Responsabilidad.</li><li>Interdicción de la arbitrariedad de los poderes públicos.</li></ul>" },
-  { id: "ce-a9-05", front: "Artículo 9.3 CE: ¿qué tipo de disposiciones tienen garantizada la <strong>irretroactividad</strong>?", back: "Las disposiciones <strong>sancionadoras no favorables</strong> o <strong>restrictivas de derechos individuales</strong>." },
-];
-
-function normalizeAndSeed(state: AppState) {
-  let changed = false;
-  const seedVersion = Number(state.settings.seedVersion ?? 0);
-  let folders = [...state.folders];
-  const studyNodes: StudyNode[] = Array.isArray((state as any).studyNodes)
-    ? (state as any).studyNodes.map((node: any) => ({ id: String(node.id), name: String(node.name ?? ""), parentId: node.parentId ? String(node.parentId) : null, createdAt: String(node.createdAt ?? nowIso()) })).filter((node: StudyNode) => node.id && node.name.trim())
-    : [];
-  if (Array.isArray((state as any).studyTasks) && (state as any).studyTasks.some((task: any) => !Number.isFinite(Number(task?.queueOrder)) || typeof task?.completionNote !== "string")) changed = true;
-  const studyTasks: StudyTask[] = Array.isArray((state as any).studyTasks)
-    ? (state as any).studyTasks.map((task: any, index: number) => ({
-      ...task, id: String(task.id), nodeId: String(task.nodeId), plannedFor: String(task.plannedFor ?? localDateKey()), note: String(task.note ?? ""), reason: String(task.reason ?? ""),
-      status: task.status === "done" ? "done" : "pending", createdAt: String(task.createdAt ?? nowIso()), completedAt: task.completedAt ? String(task.completedAt) : null,
-      assessment: task.assessment === "bien" || task.assessment === "regular" || task.assessment === "mal" ? task.assessment : null,
-      completionNote: String(task.completionNote ?? ""), sourceCardId: task.sourceCardId ? String(task.sourceCardId) : null,
-      queueOrder: Number.isFinite(Number(task.queueOrder)) ? Number(task.queueOrder) : index,
-    })).filter((task: StudyTask) => task.id && task.nodeId)
-    : [];
-  if (!Array.isArray((state as any).studyNodes) || !Array.isArray((state as any).studyTasks)) changed = true;
-  let cards = state.cards.map((card) => {
-    const normalized = {
-      ...card,
-      attachment: card.attachment ?? null,
-      correctOptions: Array.isArray(card.correctOptions) && card.correctOptions.length ? card.correctOptions : (isMultipleChoiceType(card.type) ? [Number(card.correctOption ?? 0)] : []),
-      fsrsStability: Number(card.fsrsStability ?? (card.reviewCount > 0 ? Math.max(1, card.intervalDays || 1) : 0)),
-      fsrsDifficulty: Number(card.fsrsDifficulty ?? (card.reviewCount > 0 ? 5 : 0)),
-      orthographyIsCorrect: typeof card.orthographyIsCorrect === "boolean" ? card.orthographyIsCorrect : null,
-      orthographyCorrectForm: String(card.orthographyCorrectForm ?? ""),
-      orthographyExplanation: String(card.orthographyExplanation ?? ""),
-      orthographySource: String(card.orthographySource ?? ""),
-      orthographyStage: Math.max(1, Number(card.orthographyStage ?? 1)),
-    };
-    if (card.attachment === undefined || card.correctOptions === undefined || card.fsrsStability === undefined || card.fsrsDifficulty === undefined || card.orthographyIsCorrect === undefined || card.orthographyCorrectForm === undefined || card.orthographyStage === undefined) changed = true;
-    return normalized;
-  });
-
-  let theme = folders.find((item) => !item.parentId && item.name.trim().toLocaleLowerCase("es") === CONSTITUTION_FOLDER_NAME.toLocaleLowerCase("es"));
-
-  if (seedVersion < 1) {
-    if (!theme) {
-      theme = { id: CONSTITUTION_FOLDER_ID, name: CONSTITUTION_FOLDER_NAME, color: "#2C6E8F", parentId: null, createdAt: nowIso() };
-      folders.push(theme);
-      changed = true;
-    }
-    const existing = new Set(cards.map((card) => card.id));
-    for (const seed of constitutionSeedCards) {
-      if (existing.has(seed.id)) continue;
-      cards.push({
-        id: seed.id, folderId: theme.id, type: seed.type ?? "basic", front: seed.front, back: seed.back, options: seed.options ?? [],
-        correctOption: seed.correctOption ?? 0, correctOptions: seed.type && seed.type !== "basic" ? [seed.correctOption ?? 0] : [],
-        dueAt: nowIso(), createdAt: nowIso(), lastReviewedAt: null, intervalDays: 0, ease: 0, repetitions: 0, lapses: 0, streak: 0, reviewCount: 0, successCount: 0, attachment: null, fsrsStability: 0, fsrsDifficulty: 0,
-        orthographyIsCorrect: null, orthographyCorrectForm: "", orthographyExplanation: "", orthographySource: "", orthographyStage: 1,
-      });
-      changed = true;
-    }
-  }
-
-  // V8: reorganiza únicamente las tarjetas semilla que ya existan; no resucita tarjetas borradas.
-  if (seedVersion < 2) {
-    theme = theme ?? folders.find((item) => !item.parentId && item.name.trim().toLocaleLowerCase("es") === CONSTITUTION_FOLDER_NAME.toLocaleLowerCase("es"));
-    const hasSeedCards = cards.some((card) => card.id.startsWith("ce-pre-") || /^ce-a[1-9]-/.test(card.id));
-    if (theme && hasSeedCards) {
-      let preamble = folders.find((folder) => folder.parentId === theme!.id && folder.name.toLocaleLowerCase("es") === "preámbulo");
-      let preliminary = folders.find((folder) => folder.parentId === theme!.id && folder.name.toLocaleLowerCase("es") === "título preliminar");
-      if (!preamble) { preamble = { id: "seed-subtema-preambulo", name: "Preámbulo", color: theme.color, parentId: theme.id, createdAt: nowIso() }; folders.push(preamble); }
-      if (!preliminary) { preliminary = { id: "seed-subtema-titulo-preliminar", name: "Título Preliminar", color: theme.color, parentId: theme.id, createdAt: nowIso() }; folders.push(preliminary); }
-      cards = cards.map((card) => card.id.startsWith("ce-pre-") ? { ...card, folderId: preamble!.id } : /^ce-a[1-9]-/.test(card.id) ? { ...card, folderId: preliminary!.id } : card);
-      changed = true;
-    }
-  }
-
-  const nextSeedVersion = Math.max(seedVersion, 2);
-  if (nextSeedVersion !== seedVersion) changed = true;
-  return { state: { ...state, folders, cards, studyNodes, studyTasks, settings: { ...state.settings, seedVersion: nextSeedVersion } }, changed };
-}
-
-
-function isStudyableCard(card: Card) {
-  return Boolean(card.front.trim() || card.back.trim() || card.options.some((option) => option.trim()));
-}
-
-function scoreLabel(value: number) {
-  return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(value);
-}
-
-function dateLabel(value: string | null | undefined) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short", year: "numeric" }).format(date);
-}
-
-function psychStats(test: PsychTest) {
-  const attempts = [...test.attempts].sort((a, b) => b.date.localeCompare(a.date));
-  const last = attempts[0] ?? null;
-  const best = attempts.length ? Math.max(...attempts.map((attempt) => attempt.score)) : null;
-  const average = attempts.length ? attempts.reduce((sum, attempt) => sum + attempt.score, 0) / attempts.length : null;
-  return { attempts, last, best, average };
-}
-
-function sortPsychTests(tests: PsychTest[], sort: PsychSort) {
-  const result = [...tests];
-  const stats = (test: PsychTest) => psychStats(test);
-  result.sort((a, b) => {
-    const aStats = stats(a);
-    const bStats = stats(b);
-    if (sort === "name") return (a.name || "Sin nombre").localeCompare(b.name || "Sin nombre", "es", { sensitivity: "base" });
-    if (sort === "attempts-low") return a.attempts.length - b.attempts.length || a.createdAt.localeCompare(b.createdAt);
-    if (sort === "attempts-high") return b.attempts.length - a.attempts.length || a.createdAt.localeCompare(b.createdAt);
-    if (sort === "oldest") {
-      if (!aStats.last && bStats.last) return -1;
-      if (aStats.last && !bStats.last) return 1;
-      return (aStats.last?.date ?? a.createdAt).localeCompare(bStats.last?.date ?? b.createdAt);
-    }
-    if (sort === "recent") {
-      if (!aStats.last && bStats.last) return 1;
-      if (aStats.last && !bStats.last) return -1;
-      return (bStats.last?.date ?? b.createdAt).localeCompare(aStats.last?.date ?? a.createdAt);
-    }
-    const aValue = sort.startsWith("avg") ? aStats.average : aStats.last?.score ?? null;
-    const bValue = sort.startsWith("avg") ? bStats.average : bStats.last?.score ?? null;
-    if (aValue === null && bValue !== null) return 1;
-    if (aValue !== null && bValue === null) return -1;
-    if (aValue === null || bValue === null) return 0;
-    return sort.endsWith("low") ? aValue - bValue : bValue - aValue;
-  });
-  return result;
-}
-
-function shuffled<T>(items: T[]) {
-  const result = [...items];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
-    [result[index], result[swap]] = [result[swap], result[index]];
-  }
-  return result;
-}
-
-type LearnStat = { seen: number; again: number; hard: number; good: number; easy: number; cooldownUntil: number };
-
-function descendantFolderIds(folders: Folder[], folderId: string) {
-  const ids = new Set<string>([folderId]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const folder of folders) {
-      if (folder.parentId && ids.has(folder.parentId) && !ids.has(folder.id)) {
-        ids.add(folder.id);
-        changed = true;
-      }
-    }
-  }
-  return ids;
-}
-
-function flattenFolderTree(folders: Folder[]) {
-  const result: { folder: Folder; depth: number }[] = [];
-  const seen = new Set<string>();
-  const walk = (parentId: string | null, depth: number) => {
-    for (const folder of folders.filter((item) => item.parentId === parentId)) {
-      if (seen.has(folder.id)) continue;
-      seen.add(folder.id);
-      result.push({ folder, depth });
-      walk(folder.id, depth + 1);
-    }
-  };
-  walk(null, 0);
-  // Keep any legacy/orphan folders reachable in selectors instead of hiding them.
-  for (const folder of folders) {
-    if (seen.has(folder.id)) continue;
-    seen.add(folder.id);
-    result.push({ folder, depth: 0 });
-    walk(folder.id, 1);
-  }
-  return result;
-}
-
-function folderPathLabel(folders: Folder[], folderId: string) {
-  const byId = new Map(folders.map((folder) => [folder.id, folder]));
-  const names: string[] = [];
-  const seen = new Set<string>();
-  let current = byId.get(folderId) ?? null;
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id);
-    names.unshift(current.name);
-    current = current.parentId ? byId.get(current.parentId) ?? null : null;
-  }
-  return names.join(" › ");
-}
-
-function cardsInFolderScope(state: AppState, folderId?: string) {
-  if (!folderId) return state.cards.filter(isStudyableCard);
-  const ids = descendantFolderIds(state.folders, folderId);
-  return state.cards.filter((card) => ids.has(card.folderId) && isStudyableCard(card));
-}
-
-const isContinuousStudyMode = (mode: StudyMode) => mode === "learn" || mode === "weakest";
-
-function failureCount(cardId: string, reviews: Review[]) {
-  return reviews.reduce((count, review) => count + (review.cardId === cardId && !review.correct ? 1 : 0), 0);
-}
-
-function recentFailureCount(cardId: string, reviews: Review[], take = 8) {
-  return reviews
-    .filter((review) => review.cardId === cardId)
-    .slice(-take)
-    .reduce((count, review) => count + (!review.correct ? 1 : 0), 0);
-}
-
-function weaknessScore(card: Card, reviews: Review[], model: ReturnType<typeof fitPersonalMemoryModel>, now = new Date()) {
-  const failures = failureCount(card.id, reviews);
-  const writtenRisk = writtenAccuracyRisk(card);
-  const hasWrittenEvidence = writtenAverageAccuracy(card) !== null;
-  if (!failures && (!hasWrittenEvidence || writtenRisk <= 0.05)) return 0;
-  const cardReviews = reviews.filter((review) => review.cardId === card.id);
-  const failRate = cardReviews.length ? failures / cardReviews.length : 0;
-  const recentFailures = recentFailureCount(card.id, reviews);
-  const recall = predictPersonalRecall(card, reviews, model, now).probability;
-  return failRate * 5
-    + recentFailures * 1.45
-    + Math.min(failures, 8) * 0.7
-    + Math.min(card.lapses, 6) * 0.75
-    + (1 - recall) * 2.2
-    + writtenRisk * 4.2;
-}
-
-function weakestStudyCards(cards: Card[], reviews: Review[], model: ReturnType<typeof fitPersonalMemoryModel>) {
-  const now = new Date();
-  const failed = cards
-    .filter((card) => failureCount(card.id, reviews) > 0 || (writtenAverageAccuracy(card) !== null && writtenAccuracyRisk(card) > 0.05))
-    .sort((a, b) => weaknessScore(b, reviews, model, now) - weaknessScore(a, reviews, model, now))
-    .slice(0, 30);
-  if (!failed.length) return [];
-
-  // Si aún hay muy pocas falladas, añadimos hasta 4 tarjetas de apoyo para evitar
-  // repetir la misma de forma inmediata y confundir memoria de trabajo con aprendizaje.
-  if (failed.length < 4) {
-    const failedIds = new Set(failed.map((card) => card.id));
-    const support = cards
-      .filter((card) => card.reviewCount > 0 && !failedIds.has(card.id))
-      .sort((a, b) =>
-        predictPersonalRecall(a, reviews, model, now).probability
-        - predictPersonalRecall(b, reviews, model, now).probability,
-      )
-      .slice(0, 4 - failed.length);
-    return [...failed, ...support];
-  }
-  return failed;
-}
-
-function chooseLearnCard(
-  cards: Card[],
-  reviews: Review[],
-  model: ReturnType<typeof fitPersonalMemoryModel>,
-  stats: Map<string, LearnStat>,
-  turn: number,
-  excludeId?: string,
-) {
-  if (!cards.length) return null;
-  const now = new Date();
-  const allowed = cards.filter((card) => {
-    const stat = stats.get(card.id);
-    return (!stat || stat.cooldownUntil <= turn) && (cards.length <= 1 || card.id !== excludeId);
-  });
-  const pool = allowed.length ? allowed : cards.filter((card) => cards.length <= 1 || card.id !== excludeId);
-  const finalPool = pool.length ? pool : cards;
-  return [...finalPool].sort((a, b) => {
-    const score = (card: Card) => {
-      const stat = stats.get(card.id);
-      const recall = predictPersonalRecall(card, reviews, model, now).probability;
-      const failRate = card.reviewCount > 0 ? 1 - card.successCount / Math.max(1, card.reviewCount) : 0.45;
-      const writtenRisk = writtenAccuracyRisk(card);
-      const unseenBoost = !stat || stat.seen === 0 ? 0.9 : 0;
-      const sessionBoost = stat ? stat.again * 2.7 + stat.hard * 1.35 - stat.good * 0.28 - stat.easy * 1.55 : 0;
-      return 0.35 + (1 - recall) * 2.4 + failRate * 1.25 + writtenRisk * 2.6 + unseenBoost + sessionBoost + Math.random() * 0.18;
-    };
-    return score(b) - score(a);
-  })[0] ?? null;
-}
-
-type OrthographySessionStat = { seen: number; correct: number; wrong: number; cooldownUntil: number };
-type OrthographySessionState = {
-  folderId: string | null;
-  mode: StudyMode;
-  groupIds: string[];
-  results: OrthographyStudyResult[] | null;
-  groupNumber: number;
-  responses: number;
-  correctResponses: number;
-  scopeLabel: string;
-};
-
-function orthographyCardWeight(
-  card: Card,
-  reviews: Review[],
-  model: ReturnType<typeof fitPersonalMemoryModel>,
-  stat: OrthographySessionStat | undefined,
-  turn: number,
-  previousIds: Set<string>,
-  mode: StudyMode,
-) {
-  if (mode === "random") return 1 + Math.random() * 0.35;
-  const now = new Date();
-  const due = card.reviewCount > 0 && new Date(card.dueAt).getTime() <= now.getTime();
-  const recall = predictPersonalRecall(card, reviews, model, now).probability;
-  const failRate = card.reviewCount > 0 ? 1 - card.successCount / Math.max(1, card.reviewCount) : 0.45;
-  const failures = failureCount(card.id, reviews);
-  const recentFailures = recentFailureCount(card.id, reviews);
-  const sessionWrong = stat?.wrong ?? 0;
-  const sessionCorrect = stat?.correct ?? 0;
-  const newBoost = card.reviewCount === 0 ? 4.2 : 0;
-  const dueBoost = due ? 6.2 : 0;
-  const difficultyBoost = failRate * 3 + Math.min(5, card.lapses) * 0.55 + (1 - recall) * 2.4;
-  const sessionBoost = sessionWrong * 3.2 - sessionCorrect * 0.45;
-  const unseenBoost = !stat || stat.seen === 0 ? 1.3 : 0;
-  const weakestBoost = mode === "weakest"
-    ? (failures > 0
-      ? 8 + failRate * 7 + recentFailures * 2.2 + Math.min(failures, 8) * 0.9 + Math.min(card.lapses, 6)
-      : -0.55)
-    : 0;
-  let weight = 0.8 + dueBoost + newBoost + difficultyBoost + sessionBoost + unseenBoost + weakestBoost;
-  if (stat && stat.cooldownUntil > turn) weight *= 0.14;
-  if (previousIds.has(card.id) && sessionWrong <= sessionCorrect) weight *= 0.28;
-  if (mode === "all" && (!stat || stat.seen === 0)) weight += 2.2;
-  return Math.max(0.08, weight);
-}
-
-function chooseOrthographyGroup(
-  cards: Card[],
-  reviews: Review[],
-  model: ReturnType<typeof fitPersonalMemoryModel>,
-  stats: Map<string, OrthographySessionStat>,
-  turn: number,
-  previousGroup: string[],
-  mode: StudyMode,
-) {
-  const orthographyCards = cards.filter(isOrthographyCard);
-  const targetSize = Math.min(4, orthographyCards.length);
-  if (!targetSize) return [];
-  const previousIds = new Set(previousGroup);
-  const ready = orthographyCards.filter((card) => (stats.get(card.id)?.cooldownUntil ?? 0) <= turn);
-  let available = [...(ready.length >= targetSize ? ready : orthographyCards)];
-  const selected: Card[] = [];
-
-  while (selected.length < targetSize && available.length) {
-    const weights = available.map((card) => orthographyCardWeight(card, reviews, model, stats.get(card.id), turn, previousIds, mode));
-    const total = weights.reduce((sum, value) => sum + value, 0);
-    let pick = Math.random() * total;
-    let index = available.length - 1;
-    for (let candidateIndex = 0; candidateIndex < available.length; candidateIndex += 1) {
-      pick -= weights[candidateIndex];
-      if (pick <= 0) { index = candidateIndex; break; }
-    }
-    selected.push(available[index]);
-    available.splice(index, 1);
-  }
-
-  if (selected.length === targetSize && targetSize >= 3 && Math.random() < 0.68) {
-    const allCorrect = selected.every((card) => card.orthographyIsCorrect === true);
-    const allIncorrect = selected.every((card) => card.orthographyIsCorrect === false);
-    if (allCorrect || allIncorrect) {
-      const desired = allCorrect ? false : true;
-      const alternatives = orthographyCards.filter((card) => card.orthographyIsCorrect === desired && !selected.some((item) => item.id === card.id));
-      if (alternatives.length) {
-        const replacement = alternatives[Math.floor(Math.random() * alternatives.length)];
-        selected[selected.length - 1] = replacement;
-      }
-    }
-  }
-
-  return shuffled(selected);
-}
-
-function useStableOverlaySurfaces() {
-  useEffect(() => {
-    const doc = document.documentElement;
-    const body = document.body;
-    const blockingSelector = ".review-overlay, .modal-backdrop, .pdf-editor, .image-annotator, .answer-image-lightbox";
-    let locked = false;
-    let savedScrollX = 0;
-    let savedScrollY = 0;
-    let savedReviewScroll = 0;
-    let savedBodyStyles: Partial<Record<"position" | "top" | "left" | "right" | "width" | "overflow" | "paddingRight", string>> = {};
-
-    const readReviewScroll = () => {
-      const stage = document.querySelector<HTMLElement>(".review-stage");
-      if (stage) savedReviewScroll = stage.scrollTop;
-    };
-
-    const restoreReviewScroll = () => {
-      const stage = document.querySelector<HTMLElement>(".review-stage");
-      if (!stage) return;
-      requestAnimationFrame(() => {
-        stage.scrollTop = savedReviewScroll;
-        requestAnimationFrame(() => { stage.scrollTop = savedReviewScroll; });
-      });
-    };
-
-    const lock = () => {
-      if (locked) return;
-      locked = true;
-      savedScrollX = 0; // OpoGC has no horizontal document scrolling; keep mobile focus from shifting the page.
-      savedScrollY = window.scrollY;
-      readReviewScroll();
-      savedBodyStyles = {
-        position: body.style.position,
-        top: body.style.top,
-        left: body.style.left,
-        right: body.style.right,
-        width: body.style.width,
-        overflow: body.style.overflow,
-        paddingRight: body.style.paddingRight,
-      };
-      const scrollbar = Math.max(0, window.innerWidth - doc.clientWidth);
-      doc.classList.add("opogc-surface-locked");
-      body.classList.add("opogc-surface-locked");
-      body.style.position = "fixed";
-      body.style.top = `-${savedScrollY}px`;
-      body.style.left = `-${savedScrollX}px`;
-      body.style.right = "0";
-      body.style.width = "100%";
-      body.style.overflow = "hidden";
-      if (scrollbar > 0) body.style.paddingRight = `${scrollbar}px`;
-    };
-
-    const unlock = () => {
-      if (!locked) return;
-      locked = false;
-      doc.classList.remove("opogc-surface-locked");
-      body.classList.remove("opogc-surface-locked");
-      body.style.position = savedBodyStyles.position ?? "";
-      body.style.top = savedBodyStyles.top ?? "";
-      body.style.left = savedBodyStyles.left ?? "";
-      body.style.right = savedBodyStyles.right ?? "";
-      body.style.width = savedBodyStyles.width ?? "";
-      body.style.overflow = savedBodyStyles.overflow ?? "";
-      body.style.paddingRight = savedBodyStyles.paddingRight ?? "";
-      window.scrollTo(savedScrollX, savedScrollY);
-    };
-
-    const syncLock = () => {
-      const shouldLock = Boolean(document.querySelector(blockingSelector));
-      if (shouldLock) lock();
-      else unlock();
-    };
-
-    const onSuspend = () => {
-      if (document.querySelector(".review-overlay")) readReviewScroll();
-    };
-    const onResume = () => {
-      if (document.querySelector(".review-overlay")) restoreReviewScroll();
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") onSuspend();
-      else onResume();
-    };
-
-    const observer = new MutationObserver(syncLock);
-    observer.observe(body, { childList: true, subtree: true });
-    window.addEventListener("blur", onSuspend);
-    window.addEventListener("focus", onResume);
-    window.addEventListener("pagehide", onSuspend);
-    window.addEventListener("pageshow", onResume);
-    document.addEventListener("visibilitychange", onVisibility);
-    syncLock();
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("blur", onSuspend);
-      window.removeEventListener("focus", onResume);
-      window.removeEventListener("pagehide", onSuspend);
-      window.removeEventListener("pageshow", onResume);
-      document.removeEventListener("visibilitychange", onVisibility);
-      unlock();
-    };
-  }, []);
-}
-
-function orthographyStudyCard(card: Card): OrthographyStudyCard {
-  return {
-    id: card.id,
-    word: plainRichText(card.front),
-    isCorrect: card.orthographyIsCorrect === true,
-    correctForm: card.orthographyCorrectForm || plainRichText(card.front),
-    explanation: card.orthographyExplanation || "",
-    source: card.orthographySource || "",
-  };
-}
+import { plainRichText, sanitizeRichHtml } from "./RichTextEditor";
+import { fsrsCurrentRetrievability } from "./fsrs";
+import { fitPersonalMemoryModel, predictPersonalRecall } from "./memoryModel";
+
+import StudyPreferences from "../components/account/StudyPreferences";
+import LibraryActions from "../components/library/LibraryActions";
+import AppNavigation, {
+  type AppTab,
+} from "../components/navigation/AppNavigation";
+import MorePage from "../components/navigation/MorePage";
+import ProgressPage from "../components/progress/ProgressPage";
+import ReviewSession from "../components/review/ReviewSession";
+import ReviewStartPage from "../components/review/ReviewStartPage";
+import Icon from "../components/shared/Icon";
+import useAppViewport from "../components/shared/useAppViewport";
+import StudySession, {
+  type StudyEntry,
+} from "../components/study/StudySession";
+import StudyStartPage from "../components/study/StudyStartPage";
+import TemarioBrowser from "../components/study/TemarioBrowser";
+import TodayPage, { type PriorityItem } from "../components/today/TodayPage";
+import { orthographyStudyCard } from "../lib/study/legacy";
 
 export default function OpoApp() {
+  useAppViewport();
   const engine = useEngine();
   const stateRef = useRef<AppState | null>(null);
   useStableOverlaySurfaces();
-  const [tab, setTab] = useState<Tab>("today");
+  const [tab, setTab] = useState<AppTab>("today");
   const [studyView, setStudyView] = useState<StudyView>("today");
-  const [studyQueueMode, setStudyQueueMode] = useState<StudyQueueMode>("grouped");
+  const [studyQueueMode, setStudyQueueMode] =
+    useState<StudyQueueMode>("grouped");
   const [studyTaskEditId, setStudyTaskEditId] = useState<string | null>(null);
-  const [studyCompletionPrompt, setStudyCompletionPrompt] = useState<{ taskId: string; sessionId: string; assessment: Exclude<StudyAssessment, null> } | null>(null);
+  const [studyCompletionPrompt, setStudyCompletionPrompt] = useState<{
+    taskId: string;
+    sessionId: string;
+    assessment: Exclude<StudyAssessment, null>;
+  } | null>(null);
   const [studyQuickOpen, setStudyQuickOpen] = useState(false);
-  const [studyQuickDefaultNodeId, setStudyQuickDefaultNodeId] = useState<string | null>(null);
-  const [studyQuickSourceCardId, setStudyQuickSourceCardId] = useState<string | null>(null);
+  const [studyQuickDefaultNodeId, setStudyQuickDefaultNodeId] = useState<
+    string | null
+  >(null);
+  const [studyQuickSourceCardId, setStudyQuickSourceCardId] = useState<
+    string | null
+  >(null);
   const [studyImportOpen, setStudyImportOpen] = useState(false);
-  const [studyImportParentId, setStudyImportParentId] = useState<string | null>(null);
+  const [studyImportParentId, setStudyImportParentId] = useState<string | null>(
+    null,
+  );
   const [studyNodeEditorOpen, setStudyNodeEditorOpen] = useState(false);
-  const [studyNodeEditorParentId, setStudyNodeEditorParentId] = useState<string | null>(null);
-  const [studyEditingNodeId, setStudyEditingNodeId] = useState<string | null>(null);
+  const [studyNodeEditorParentId, setStudyNodeEditorParentId] = useState<
+    string | null
+  >(null);
+  const [studyEditingNodeId, setStudyEditingNodeId] = useState<string | null>(
+    null,
+  );
   const [studySelectMode, setStudySelectMode] = useState(false);
-  const [selectedStudyNodeIds, setSelectedStudyNodeIds] = useState<string[]>([]);
+  const [selectedStudyNodeIds, setSelectedStudyNodeIds] = useState<string[]>(
+    [],
+  );
   const [studyHistoryRoot, setStudyHistoryRoot] = useState("all");
   const [state, setState] = useState<AppState | null>(null);
-  const [sync, setSync] = useState<"loading" | "saved" | "saving" | "error">("loading");
-  const [modal, setModal] = useState<null | "folder" | "card" | "import" | "psych" | "attempt">(null);
+  const [sync, setSync] = useState<"loading" | "saved" | "saving" | "error">(
+    "loading",
+  );
+  const [modal, setModal] = useState<
+    null | "folder" | "card" | "import" | "psych" | "attempt"
+  >(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [bulkTargetFolderId, setBulkTargetFolderId] = useState("");
-  const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
+  const [newFolderParentId, setNewFolderParentId] = useState<string | null>(
+    null,
+  );
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
   const [selectedPsych, setSelectedPsych] = useState<string | null>(null);
   const [editingPsych, setEditingPsych] = useState<string | null>(null);
@@ -1164,18 +184,45 @@ export default function OpoApp() {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
   const [writtenAnswer, setWrittenAnswer] = useState("");
-  const [writtenResult, setWrittenResult] = useState<WrittenAnswerResult | null>(null);
+  const [writtenResult, setWrittenResult] =
+    useState<WrittenAnswerResult | null>(null);
   const [sessionDone, setSessionDone] = useState(0);
-  const [orthographySession, setOrthographySession] = useState<OrthographySessionState | null>(null);
+  const [orthographySession, setOrthographySession] =
+    useState<OrthographySessionState | null>(null);
   const [orthographySelected, setOrthographySelected] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
-  const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [libraryType, setLibraryType] = useState("all");
+  const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
+  const [studyFlow, setStudyFlow] = useState<{
+    entries: StudyEntry[];
+    index: number;
+    completed: number;
+  } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardShownAtRef = useRef(Date.now());
   const reinforcementCountsRef = useRef<Map<string, number>>(new Map());
-  const learnStatsRef = useRef<Map<string, { seen: number; again: number; hard: number; good: number; easy: number; cooldownUntil: number }>>(new Map());
+  const learnStatsRef = useRef<
+    Map<
+      string,
+      {
+        seen: number;
+        again: number;
+        hard: number;
+        good: number;
+        easy: number;
+        cooldownUntil: number;
+      }
+    >
+  >(new Map());
   const studyScopeRef = useRef<string[]>([]);
-  const orthographyStatsRef = useRef<Map<string, OrthographySessionStat>>(new Map());
+  const orthographyStatsRef = useRef<Map<string, OrthographySessionStat>>(
+    new Map(),
+  );
   const orthographyLongTermSeenRef = useRef<Set<string>>(new Set());
   const orthographyScopeRef = useRef<string[]>([]);
   const orthographyPreviousGroupRef = useRef<string[]>([]);
@@ -1183,11 +230,20 @@ export default function OpoApp() {
 
   useEffect(() => {
     const update = () => {
-      const loaded = normalizeAndSeed({ ...engine.state, settings: { ...engine.state.settings, seedVersion: 2 } } as AppState).state;
+      const loaded = normalizeAndSeed({
+        ...engine.state,
+        settings: { ...engine.state.settings, seedVersion: 2 },
+      } as AppState).state;
       stateRef.current = loaded;
       setState(loaded);
       setOnline(navigator.onLine);
-      setSync(engine.status.phase === "saved" ? "saved" : engine.status.phase === "error" ? "error" : "saving");
+      setSync(
+        engine.status.phase === "saved"
+          ? "saved"
+          : engine.status.phase === "error"
+            ? "error"
+            : "saving",
+      );
     };
     update();
     return engine.subscribe(update);
@@ -1195,24 +251,153 @@ export default function OpoApp() {
 
   function updateState(updater: (current: AppState) => AppState) {
     const current = stateRef.current;
-    if (!current) return;
+    if (!current) return Promise.resolve(false);
     const next = updater(current);
     stateRef.current = next;
     setState(next);
     setSync("saving");
-    void engine.update(current, next).catch((error) => {
-      stateRef.current = engine.state as AppState;
-      setState(engine.state as AppState);
-      setSync("error");
-      notify(`No se pudo guardar la acción: ${error.message}`);
-    });
+    return engine
+      .update(current, next)
+      .then(() => true)
+      .catch((error) => {
+        stateRef.current = engine.state as AppState;
+        setState(engine.state as AppState);
+        setSync("error");
+        notify(`No se pudo guardar la acción: ${error.message}`);
+        return false;
+      });
+  }
+
+  function navigate(next: AppTab) {
+    setTab(next);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+
+  function startStudySession(nodeId?: string, tasks?: StudyTask[]) {
+    const current = stateRef.current;
+    if (!current) return;
+    let entries: StudyEntry[] = [];
+    if (tasks?.length)
+      entries = tasks.map((task) => ({ nodeId: task.nodeId, taskId: task.id }));
+    else if (nodeId) {
+      const ids = studyDescendantIds(current.studyNodes, nodeId);
+      const leafNodes = flattenStudyTree(current.studyNodes).filter(
+        (n) =>
+          ids.has(n.id) &&
+          !current.studyNodes.some((child) => child.parentId === n.id),
+      );
+      entries = (
+        leafNodes.length
+          ? leafNodes
+          : current.studyNodes.filter((n) => n.id === nodeId)
+      ).map((n) => ({ nodeId: n.id }));
+      if (entries.length === 1) {
+        const chosen = current.studyNodes.find((n) => n.id === nodeId);
+        const peers = flattenStudyTree(current.studyNodes).filter(
+          (n) =>
+            n.parentId === chosen?.parentId &&
+            !current.studyNodes.some((c) => c.parentId === n.id),
+        );
+        const index = peers.findIndex((n) => n.id === nodeId);
+        if (index >= 0)
+          entries = peers.slice(index).map((n) => ({ nodeId: n.id }));
+      }
+    }
+    if (!entries.length) {
+      navigate("study");
+      return;
+    }
+    setStudyFlow({ entries, index: 0, completed: 0 });
+  }
+
+  async function finishStudyEntry(
+    assessment: Exclude<StudyAssessment, null>,
+    completionNote: string,
+  ) {
+    if (!studyFlow) return false;
+    const entry = studyFlow.entries[studyFlow.index];
+    const current = stateRef.current;
+    if (!entry || !current?.studyNodes.some((n) => n.id === entry.nodeId))
+      return false;
+    const existing = entry.taskId
+      ? current.studyTasks.find((t) => t.id === entry.taskId)
+      : null;
+    if (entry.taskId && (!existing || existing.status !== "pending"))
+      return false;
+    const stamp = nowIso(),
+      sessionId = `session-${uid()}`;
+    const saved = await updateState((value) => ({
+      ...value,
+      studyTasks: existing
+        ? value.studyTasks.map((t) =>
+            t.id === existing.id
+              ? {
+                  ...t,
+                  status: "done",
+                  assessment,
+                  completionNote: completionNote.trim(),
+                  completedAt: stamp,
+                  _completionEventId: sessionId,
+                }
+              : t,
+          )
+        : [
+            ...value.studyTasks,
+            {
+              id: uid(),
+              nodeId: entry.nodeId,
+              plannedFor: localDateKey(),
+              note: "",
+              reason: "estudio",
+              status: "done",
+              createdAt: stamp,
+              completedAt: stamp,
+              assessment,
+              completionNote: completionNote.trim(),
+              sourceCardId: null,
+              queueOrder: 0,
+              _completionEventId: sessionId,
+            },
+          ],
+    }));
+    if (saved)
+      setStudyFlow((flow) =>
+        flow
+          ? { ...flow, index: flow.index + 1, completed: flow.completed + 1 }
+          : null,
+      );
+    return saved;
+  }
+
+  function reorderStudyNode(nodeId: string, direction: -1 | 1) {
+    const current = stateRef.current;
+    if (!current) return;
+    const node = current.studyNodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    const siblings = current.studyNodes
+      .filter((n) => n.parentId === node.parentId)
+      .sort(
+        (a, b) =>
+          (a.sortOrder ?? current.studyNodes.indexOf(a)) -
+          (b.sortOrder ?? current.studyNodes.indexOf(b)),
+      );
+    const from = siblings.findIndex((n) => n.id === nodeId),
+      to = from + direction;
+    if (to < 0 || to >= siblings.length) return;
+    [siblings[from], siblings[to]] = [siblings[to], siblings[from]];
+    const order = new Map(siblings.map((n, index) => [n.id, index]));
+    void updateState((value) => ({
+      ...value,
+      studyNodes: value.studyNodes.map((n) =>
+        order.has(n.id) ? { ...n, sortOrder: order.get(n.id) } : n,
+      ),
+    }));
   }
 
   function notify(message: string) {
     setToast(message);
     setTimeout(() => setToast(null), 2600);
   }
-
 
   function openStudyImport(parentId: string | null = null) {
     setStudySelectMode(false);
@@ -1222,7 +407,10 @@ export default function OpoApp() {
     setStudyView("tree");
   }
 
-  function openStudyNodeEditor(parentId: string | null = null, nodeId: string | null = null) {
+  function openStudyNodeEditor(
+    parentId: string | null = null,
+    nodeId: string | null = null,
+  ) {
     setStudySelectMode(false);
     setSelectedStudyNodeIds([]);
     setStudyNodeEditorParentId(parentId);
@@ -1231,21 +419,53 @@ export default function OpoApp() {
     setStudyView("tree");
   }
 
-  function saveStudyNode(input: { id: string | null; name: string; parentId: string | null }) {
+  function saveStudyNode(input: {
+    id: string | null;
+    name: string;
+    parentId: string | null;
+  }) {
     if (!state) return;
     const name = input.name.trim();
     if (!name) return;
-    let parentId = input.parentId && state.studyNodes.some((node) => node.id === input.parentId) ? input.parentId : null;
+    let parentId =
+      input.parentId &&
+      state.studyNodes.some((node) => node.id === input.parentId)
+        ? input.parentId
+        : null;
     if (input.id) {
       const protectedIds = studyDescendantIds(state.studyNodes, input.id);
-      if (parentId && protectedIds.has(parentId)) parentId = state.studyNodes.find((node) => node.id === input.id)?.parentId ?? null;
+      if (parentId && protectedIds.has(parentId))
+        parentId =
+          state.studyNodes.find((node) => node.id === input.id)?.parentId ??
+          null;
     }
-    const duplicate = state.studyNodes.some((node) => node.id !== input.id && node.parentId === parentId && normalizeStudyLabel(node.name) === normalizeStudyLabel(name));
-    if (duplicate) return notify("Ya existe un elemento con ese nombre dentro de esa rama");
+    const duplicate = state.studyNodes.some(
+      (node) =>
+        node.id !== input.id &&
+        node.parentId === parentId &&
+        normalizeStudyLabel(node.name) === normalizeStudyLabel(name),
+    );
+    if (duplicate)
+      return notify("Ya existe un elemento con ese nombre dentro de esa rama");
     const finalParentId = parentId;
-    updateState((current) => input.id
-      ? { ...current, studyNodes: current.studyNodes.map((node) => node.id === input.id ? { ...node, name, parentId: finalParentId } : node) }
-      : { ...current, studyNodes: [...current.studyNodes, { id: uid(), name, parentId: finalParentId, createdAt: nowIso() }] });
+    updateState((current) =>
+      input.id
+        ? {
+            ...current,
+            studyNodes: current.studyNodes.map((node) =>
+              node.id === input.id
+                ? { ...node, name, parentId: finalParentId }
+                : node,
+            ),
+          }
+        : {
+            ...current,
+            studyNodes: [
+              ...current.studyNodes,
+              { id: uid(), name, parentId: finalParentId, createdAt: nowIso() },
+            ],
+          },
+    );
     setStudyNodeEditorOpen(false);
     setStudyEditingNodeId(null);
     setStudyNodeEditorParentId(null);
@@ -1253,7 +473,11 @@ export default function OpoApp() {
   }
 
   function toggleStudyNodeSelection(nodeId: string) {
-    setSelectedStudyNodeIds((current) => current.includes(nodeId) ? current.filter((id) => id !== nodeId) : [...current, nodeId]);
+    setSelectedStudyNodeIds((current) =>
+      current.includes(nodeId)
+        ? current.filter((id) => id !== nodeId)
+        : [...current, nodeId],
+    );
   }
 
   function clearStudySelection() {
@@ -1264,25 +488,39 @@ export default function OpoApp() {
   function deleteStudyNodes(nodeIds: string[]) {
     if (!state || !nodeIds.length) return;
     const deleteIds = new Set<string>();
-    nodeIds.forEach((nodeId) => studyDescendantIds(state.studyNodes, nodeId).forEach((id) => deleteIds.add(id)));
-    const taskCount = state.studyTasks.filter((task) => deleteIds.has(task.nodeId)).length;
+    nodeIds.forEach((nodeId) =>
+      studyDescendantIds(state.studyNodes, nodeId).forEach((id) =>
+        deleteIds.add(id),
+      ),
+    );
+    const taskCount = state.studyTasks.filter((task) =>
+      deleteIds.has(task.nodeId),
+    ).length;
     const message = `Se eliminarán ${deleteIds.size} elemento${deleteIds.size === 1 ? "" : "s"}${taskCount ? ` y ${taskCount} registro${taskCount === 1 ? "" : "s"} de repaso asociados` : ""}. Esta acción no se puede deshacer. ¿Continuar?`;
     if (typeof window !== "undefined" && !window.confirm(message)) return;
     updateState((current) => ({
       ...current,
       studyNodes: current.studyNodes.filter((node) => !deleteIds.has(node.id)),
-      studyTasks: current.studyTasks.filter((task) => !deleteIds.has(task.nodeId)),
+      studyTasks: current.studyTasks.filter(
+        (task) => !deleteIds.has(task.nodeId),
+      ),
     }));
-    if (studyHistoryRoot !== "all" && deleteIds.has(studyHistoryRoot)) setStudyHistoryRoot("all");
+    if (studyHistoryRoot !== "all" && deleteIds.has(studyHistoryRoot))
+      setStudyHistoryRoot("all");
     setSelectedStudyNodeIds([]);
     setStudySelectMode(false);
-    notify(`${deleteIds.size} elemento${deleteIds.size === 1 ? "" : "s"} eliminado${deleteIds.size === 1 ? "" : "s"}`);
+    notify(
+      `${deleteIds.size} elemento${deleteIds.size === 1 ? "" : "s"} eliminado${deleteIds.size === 1 ? "" : "s"}`,
+    );
   }
 
-  function openStudyQuick(nodeId?: string | null, sourceCardId?: string | null) {
+  function openStudyQuick(
+    nodeId?: string | null,
+    sourceCardId?: string | null,
+  ) {
     if (!state) return;
     if (!state.studyNodes.length) {
-      setTab("study");
+      setTab("organize");
       setStudyView("tree");
       setStudyImportParentId(null);
       setStudyImportOpen(true);
@@ -1292,14 +530,20 @@ export default function OpoApp() {
     let resolved = nodeId ?? null;
     if (!resolved && sourceCardId) {
       const card = state.cards.find((item) => item.id === sourceCardId);
-      if (card) resolved = inferStudyNodeForCard(card, state.studyNodes, state.folders);
+      if (card)
+        resolved = inferStudyNodeForCard(card, state.studyNodes, state.folders);
     }
     setStudyQuickDefaultNodeId(resolved);
     setStudyQuickSourceCardId(sourceCardId ?? null);
     setStudyQuickOpen(true);
   }
 
-  function saveStudyTask(input: { nodeId: string; plannedFor: string; note: string; reason: string }) {
+  function saveStudyTask(input: {
+    nodeId: string;
+    plannedFor: string;
+    note: string;
+    reason: string;
+  }) {
     const task: StudyTask = {
       id: uid(),
       nodeId: input.nodeId,
@@ -1312,29 +556,50 @@ export default function OpoApp() {
       assessment: null,
       completionNote: "",
       sourceCardId: studyQuickSourceCardId,
-      queueOrder: Math.max(-1, ...(state?.studyTasks.filter((item) => item.status === "pending").map((item) => item.queueOrder) ?? [])) + 1,
+      queueOrder:
+        Math.max(
+          -1,
+          ...(state?.studyTasks
+            .filter((item) => item.status === "pending")
+            .map((item) => item.queueOrder) ?? []),
+        ) + 1,
     };
-    updateState((current) => ({ ...current, studyTasks: [...current.studyTasks, task] }));
+    updateState((current) => ({
+      ...current,
+      studyTasks: [...current.studyTasks, task],
+    }));
     setStudyQuickOpen(false);
     setStudyQuickDefaultNodeId(null);
     setStudyQuickSourceCardId(null);
-    notify(`Repaso guardado para ${task.plannedFor === localDateKey() ? "hoy" : task.plannedFor === addDaysKey(1) ? "mañana" : dateLabel(task.plannedFor)}`);
+    notify(
+      `${input.reason === "estudio" ? "Estudio" : "Repaso"} guardado para ${task.plannedFor === localDateKey() ? "hoy" : task.plannedFor === addDaysKey(1) ? "mañana" : dateLabel(task.plannedFor)}`,
+    );
   }
 
   function editStudyTask(taskId: string) {
     setStudyTaskEditId(taskId);
   }
 
-  function saveStudyTaskEdits(input: { id: string; nodeId: string; plannedFor: string; note: string; reason: string }) {
+  function saveStudyTaskEdits(input: {
+    id: string;
+    nodeId: string;
+    plannedFor: string;
+    note: string;
+    reason: string;
+  }) {
     updateState((current) => ({
       ...current,
-      studyTasks: current.studyTasks.map((task) => task.id === input.id ? {
-        ...task,
-        nodeId: input.nodeId,
-        plannedFor: input.plannedFor,
-        note: input.note.trim(),
-        reason: input.reason,
-      } : task),
+      studyTasks: current.studyTasks.map((task) =>
+        task.id === input.id
+          ? {
+              ...task,
+              nodeId: input.nodeId,
+              plannedFor: input.plannedFor,
+              note: input.note.trim(),
+              reason: input.reason,
+            }
+          : task,
+      ),
     }));
     setStudyTaskEditId(null);
     notify("Repaso actualizado");
@@ -1343,8 +608,16 @@ export default function OpoApp() {
   function reorderStudyTask(taskId: string, direction: -1 | 1) {
     if (!state) return;
     const due = state.studyTasks
-      .filter((task) => task.status === "pending" && task.plannedFor <= localDateKey())
-      .sort((a, b) => a.queueOrder - b.queueOrder || a.plannedFor.localeCompare(b.plannedFor) || a.createdAt.localeCompare(b.createdAt));
+      .filter(
+        (task) =>
+          task.status === "pending" && task.plannedFor <= localDateKey(),
+      )
+      .sort(
+        (a, b) =>
+          a.queueOrder - b.queueOrder ||
+          a.plannedFor.localeCompare(b.plannedFor) ||
+          a.createdAt.localeCompare(b.createdAt),
+      );
     const index = due.findIndex((task) => task.id === taskId);
     const target = due[index + direction];
     if (index < 0 || !target) return;
@@ -1352,28 +625,62 @@ export default function OpoApp() {
     const targetOrder = target.queueOrder;
     updateState((current) => ({
       ...current,
-      studyTasks: current.studyTasks.map((task) => task.id === taskId
-        ? { ...task, queueOrder: targetOrder }
-        : task.id === target.id
-          ? { ...task, queueOrder: currentOrder }
-          : task),
+      studyTasks: current.studyTasks.map((task) =>
+        task.id === taskId
+          ? { ...task, queueOrder: targetOrder }
+          : task.id === target.id
+            ? { ...task, queueOrder: currentOrder }
+            : task,
+      ),
     }));
   }
 
-  function completeStudyTask(taskId: string, assessment: Exclude<StudyAssessment, null>) {
+  function completeStudyTask(
+    taskId: string,
+    assessment: Exclude<StudyAssessment, null>,
+  ) {
     const sessionId = `session-${uid()}`;
     updateState((current) => ({
       ...current,
-      studyTasks: current.studyTasks.map((task) => task.id === taskId ? { ...task, status: "done", completedAt: nowIso(), assessment, _completionEventId: sessionId } : task),
+      studyTasks: current.studyTasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              status: "done",
+              completedAt: nowIso(),
+              assessment,
+              _completionEventId: sessionId,
+            }
+          : task,
+      ),
     }));
     setStudyCompletionPrompt({ taskId, sessionId, assessment });
-    notify(assessment === "bien" ? "Repaso completado" : assessment === "regular" ? "Repaso completado · conviene volver" : "Repaso completado · prioridad alta");
+    notify(
+      assessment === "bien"
+        ? "Repaso completado"
+        : assessment === "regular"
+          ? "Repaso completado · conviene volver"
+          : "Repaso completado · prioridad alta",
+    );
   }
 
-  function saveStudyCompletionNote(taskId: string, completionNote: string, sessionId?: string) {
+  function saveStudyCompletionNote(
+    taskId: string,
+    completionNote: string,
+    sessionId?: string,
+  ) {
     updateState((current) => ({
       ...current,
-      studyTasks: current.studyTasks.map((task) => (sessionId ? ((task as any)._sessionId === sessionId || (task as any)._completionEventId === sessionId) : task.id === taskId) ? { ...task, completionNote: completionNote.trim() } : task),
+      studyTasks: current.studyTasks.map((task) =>
+        (
+          sessionId
+            ? (task as any)._sessionId === sessionId ||
+              (task as any)._completionEventId === sessionId
+            : task.id === taskId
+        )
+          ? { ...task, completionNote: completionNote.trim() }
+          : task,
+      ),
     }));
     setStudyCompletionPrompt(null);
     if (completionNote.trim()) notify("Comentario del repaso guardado");
@@ -1382,47 +689,91 @@ export default function OpoApp() {
   function postponeStudyTask(taskId: string, days = 1) {
     updateState((current) => ({
       ...current,
-      studyTasks: current.studyTasks.map((task) => task.id === taskId ? { ...task, plannedFor: addDaysKey(days) } : task),
+      studyTasks: current.studyTasks.map((task) =>
+        task.id === taskId ? { ...task, plannedFor: addDaysKey(days) } : task,
+      ),
     }));
     notify(days === 1 ? "Movido a mañana" : `Movido +${days} días`);
   }
 
   function deleteStudyTask(taskId: string) {
-    if (typeof window !== "undefined" && !window.confirm("¿Eliminar este repaso pendiente?")) return;
-    updateState((current) => ({ ...current, studyTasks: current.studyTasks.filter((task) => task.id !== taskId) }));
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm("¿Eliminar este repaso pendiente?")
+    )
+      return;
+    updateState((current) => ({
+      ...current,
+      studyTasks: current.studyTasks.filter((task) => task.id !== taskId),
+    }));
     if (studyTaskEditId === taskId) setStudyTaskEditId(null);
     notify("Anotación eliminada");
   }
 
-  function importStudyTree(roots: StudyImportNode[], parentId: string | null = null) {
+  function importStudyTree(
+    roots: StudyImportNode[],
+    parentId: string | null = null,
+  ) {
     if (!roots.length) return;
-    const safeParentId = parentId && state?.studyNodes.some((node) => node.id === parentId) ? parentId : null;
-    const parent = safeParentId ? state?.studyNodes.find((node) => node.id === safeParentId) ?? null : null;
-    const effectiveRoots = parent && roots.length === 1 && normalizeStudyLabel(roots[0].name) === normalizeStudyLabel(parent.name)
-      ? roots[0].children
-      : roots;
+    const safeParentId =
+      parentId && state?.studyNodes.some((node) => node.id === parentId)
+        ? parentId
+        : null;
+    const parent = safeParentId
+      ? (state?.studyNodes.find((node) => node.id === safeParentId) ?? null)
+      : null;
+    const effectiveRoots =
+      parent &&
+      roots.length === 1 &&
+      normalizeStudyLabel(roots[0].name) === normalizeStudyLabel(parent.name)
+        ? roots[0].children
+        : roots;
     if (!effectiveRoots.length) {
       setStudyImportOpen(false);
       setStudyImportParentId(null);
       return notify("No hay elementos nuevos dentro de la rama seleccionada");
     }
-    const merged = mergeStudyImport(state?.studyNodes ?? [], effectiveRoots, safeParentId);
-    updateState((current) => ({ ...current, studyNodes: mergeStudyImport(current.studyNodes, effectiveRoots, safeParentId).nodes }));
+    const merged = mergeStudyImport(
+      state?.studyNodes ?? [],
+      effectiveRoots,
+      safeParentId,
+    );
+    updateState((current) => ({
+      ...current,
+      studyNodes: mergeStudyImport(
+        current.studyNodes,
+        effectiveRoots,
+        safeParentId,
+      ).nodes,
+    }));
     setStudyImportOpen(false);
     setStudyImportParentId(null);
     setStudyView("tree");
-    notify(merged.created ? `${merged.created} elementos nuevos añadidos${parent ? ` dentro de ${parent.name}` : " al temario"}` : "Temario actualizado sin duplicados");
+    notify(
+      merged.created
+        ? `${merged.created} elementos nuevos añadidos${parent ? ` dentro de ${parent.name}` : " al temario"}`
+        : "Temario actualizado sin duplicados",
+    );
   }
 
   function exportStudyData(rootId?: string) {
-    if (!state || !state.studyNodes.length) return notify("No hay temario de estudio para exportar");
-    const ids = rootId ? studyDescendantIds(state.studyNodes, rootId) : new Set(state.studyNodes.map((node) => node.id));
+    if (!state || !state.studyNodes.length)
+      return notify("No hay temario de estudio para exportar");
+    const ids = rootId
+      ? studyDescendantIds(state.studyNodes, rootId)
+      : new Set(state.studyNodes.map((node) => node.id));
     const scopedNodes = state.studyNodes.filter((node) => ids.has(node.id));
     const scopedTasks = state.studyTasks.filter((task) => ids.has(task.nodeId));
     const items = scopedNodes.map((node) => {
       const tasks = scopedTasks.filter((task) => task.nodeId === node.id);
-      const done = tasks.filter((task) => task.status === "done" && task.completedAt).sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
-      const pending = tasks.filter((task) => task.status === "pending").sort((a, b) => a.plannedFor.localeCompare(b.plannedFor));
+      const done = tasks
+        .filter((task) => task.status === "done" && task.completedAt)
+        .sort((a, b) =>
+          (b.completedAt ?? "").localeCompare(a.completedAt ?? ""),
+        );
+      const pending = tasks
+        .filter((task) => task.status === "pending")
+        .sort((a, b) => a.plannedFor.localeCompare(b.plannedFor));
       const latest = done[0] ?? null;
       return {
         id: node.id,
@@ -1431,32 +782,61 @@ export default function OpoApp() {
         ultima_revision: latest?.completedAt ?? null,
         proxima_revision: pending[0]?.plannedFor ?? null,
         numero_repasos: done.length,
-        estado: latest?.assessment ?? (pending.length ? "pendiente" : "sin_datos"),
-        notas: tasks.flatMap((task) => [task.note, task.completionNote]).filter(Boolean).slice(-12),
+        estado:
+          latest?.assessment ?? (pending.length ? "pendiente" : "sin_datos"),
+        notas: tasks
+          .flatMap((task) => [task.note, task.completionNote])
+          .filter(Boolean)
+          .slice(-12),
         motivos: [...new Set(tasks.map((task) => task.reason).filter(Boolean))],
-        pendientes: pending.map((task) => ({ fecha: task.plannedFor, nota: task.note, motivo: task.reason, orden: task.queueOrder })),
-        historial: done.map((task) => ({ fecha: task.completedAt, resultado: task.assessment, nota_previa: task.note, comentario_resultado: task.completionNote, motivo: task.reason })),
+        pendientes: pending.map((task) => ({
+          fecha: task.plannedFor,
+          nota: task.note,
+          motivo: task.reason,
+          orden: task.queueOrder,
+        })),
+        historial: done.map((task) => ({
+          fecha: task.completedAt,
+          resultado: task.assessment,
+          nota_previa: task.note,
+          comentario_resultado: task.completionNote,
+          motivo: task.reason,
+        })),
       };
     });
-    const root = rootId ? state.studyNodes.find((node) => node.id === rootId) : null;
+    const root = rootId
+      ? state.studyNodes.find((node) => node.id === rootId)
+      : null;
     const payload = {
       version: 1,
       fecha_exportacion: nowIso(),
-      alcance: root ? studyNodePath(state.studyNodes, root.id).join(" > ") : "Todo el estudio",
+      alcance: root
+        ? studyNodePath(state.studyNodes, root.id).join(" > ")
+        : "Todo el estudio",
       resumen: {
         elementos: scopedNodes.length,
-        repasos_completados: scopedTasks.filter((task) => task.status === "done").length,
-        pendientes: scopedTasks.filter((task) => task.status === "pending").length,
+        repasos_completados: scopedTasks.filter(
+          (task) => task.status === "done",
+        ).length,
+        pendientes: scopedTasks.filter((task) => task.status === "pending")
+          .length,
       },
       arbol: studyTreeForExport(state.studyNodes, ids),
       elementos: items,
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     const base = root?.name ?? "estudio-completo";
     anchor.href = url;
-    anchor.download = `${base.toLocaleLowerCase("es").replace(/[^a-z0-9áéíóúüñ]+/gi, "-").replace(/^-|-$/g, "") || "estudio"}-${localDateKey()}.json`;
+    anchor.download = `${
+      base
+        .toLocaleLowerCase("es")
+        .replace(/[^a-z0-9áéíóúüñ]+/gi, "-")
+        .replace(/^-|-$/g, "") || "estudio"
+    }-${localDateKey()}.json`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -1472,29 +852,53 @@ export default function OpoApp() {
     if (!state) return [];
     const now = new Date();
     return state.cards
-      .filter((card) => !isOrthographyCard(card) && card.reviewCount > 0 && new Date(card.dueAt).getTime() <= now.getTime())
-      .sort((a, b) =>
-        predictPersonalRecall(a, state.reviews, personalModel, now).probability
-        - predictPersonalRecall(b, state.reviews, personalModel, now).probability,
+      .filter(
+        (card) =>
+          !isOrthographyCard(card) &&
+          card.reviewCount > 0 &&
+          new Date(card.dueAt).getTime() <= now.getTime(),
+      )
+      .sort(
+        (a, b) =>
+          predictPersonalRecall(a, state.reviews, personalModel, now)
+            .probability -
+          predictPersonalRecall(b, state.reviews, personalModel, now)
+            .probability,
       );
   }, [personalModel, state]);
   const todayReviews = useMemo(
-    () => state?.reviews.filter((review) => review.reviewedAt.startsWith(todayKey())) ?? [],
+    () =>
+      state?.reviews.filter(
+        (review) => localDateKey(new Date(review.reviewedAt)) === todayKey(),
+      ) ?? [],
     [state],
   );
   const currentQueueItem = reviewQueue[reviewIndex] ?? null;
-  const currentCard = state?.cards.find((card) => card.id === currentQueueItem?.cardId) ?? null;
-  const displayedWrittenResult = currentCard && isWrittenCard(currentCard)
-    ? writtenResult ?? (currentQueueItem?.outcome === "unknown" ? zeroWrittenAnswerResult(currentCard) : null)
-    : null;
-  const activeFolder = state?.folders.find((folder) => folder.id === selectedFolder) ?? null;
-  const activePsych = state?.psychTests.find((test) => test.id === selectedPsych) ?? null;
-  const openPsych = state?.psychTests.find((test) => test.id === editingPsych) ?? null;
-  const openPsychTest = state?.psychTests.find((test) => test.id === editingPsychTest) ?? null;
-  const detailPsych = state?.psychTests.find((test) => test.id === psychDetail) ?? null;
-  const openAttempt = activePsych?.attempts.find((attempt) => attempt.id === editingAttempt) ?? null;
+  const currentCard =
+    state?.cards.find((card) => card.id === currentQueueItem?.cardId) ?? null;
+  const displayedWrittenResult =
+    currentCard && isWrittenCard(currentCard)
+      ? (writtenResult ??
+        (currentQueueItem?.outcome === "unknown"
+          ? zeroWrittenAnswerResult(currentCard)
+          : null))
+      : null;
+  const activeFolder =
+    state?.folders.find((folder) => folder.id === selectedFolder) ?? null;
+  const activePsych =
+    state?.psychTests.find((test) => test.id === selectedPsych) ?? null;
+  const openPsych =
+    state?.psychTests.find((test) => test.id === editingPsych) ?? null;
+  const openPsychTest =
+    state?.psychTests.find((test) => test.id === editingPsychTest) ?? null;
+  const detailPsych =
+    state?.psychTests.find((test) => test.id === psychDetail) ?? null;
+  const openAttempt =
+    activePsych?.attempts.find((attempt) => attempt.id === editingAttempt) ??
+    null;
   const openCard = state?.cards.find((card) => card.id === editingCard) ?? null;
-  const movingFolder = state?.folders.find((folder) => folder.id === movingFolderId) ?? null;
+  const movingFolder =
+    state?.folders.find((folder) => folder.id === movingFolderId) ?? null;
 
   useEffect(() => {
     if (currentCard) cardShownAtRef.current = Date.now();
@@ -1513,21 +917,28 @@ export default function OpoApp() {
   }, [selectedFolder]);
 
   function toggleCardSelection(cardId: string) {
-    setSelectedCardIds((current) => current.includes(cardId)
-      ? current.filter((id) => id !== cardId)
-      : [...current, cardId]);
+    setSelectedCardIds((current) =>
+      current.includes(cardId)
+        ? current.filter((id) => id !== cardId)
+        : [...current, cardId],
+    );
   }
 
   function moveSelectedCards(targetFolderId: string) {
     if (!state || !targetFolderId || !selectedCardIds.length) return;
     const selected = new Set(selectedCardIds);
     const target = state.folders.find((folder) => folder.id === targetFolderId);
-    if (!target) return notify("No se ha encontrado el tema o subtema de destino");
+    if (!target)
+      return notify("No se ha encontrado el tema o subtema de destino");
     updateState((current) => ({
       ...current,
-      cards: current.cards.map((card) => selected.has(card.id) ? { ...card, folderId: targetFolderId } : card),
+      cards: current.cards.map((card) =>
+        selected.has(card.id) ? { ...card, folderId: targetFolderId } : card,
+      ),
     }));
-    notify(`${selected.size} ${selected.size === 1 ? "tarjeta movida" : "tarjetas movidas"} a ${target.name}`);
+    notify(
+      `${selected.size} ${selected.size === 1 ? "tarjeta movida" : "tarjetas movidas"} a ${target.name}`,
+    );
     setSelectedCardIds([]);
     setBulkTargetFolderId("");
   }
@@ -1535,33 +946,61 @@ export default function OpoApp() {
   function deleteSelectedCards() {
     if (!selectedCardIds.length) return;
     const total = selectedCardIds.length;
-    if (!confirm(`¿Eliminar ${total} ${total === 1 ? "tarjeta seleccionada" : "tarjetas seleccionadas"}? Esta acción no se puede deshacer.`)) return;
+    if (
+      !confirm(
+        `¿Eliminar ${total} ${total === 1 ? "tarjeta seleccionada" : "tarjetas seleccionadas"}? Esta acción no se puede deshacer.`,
+      )
+    )
+      return;
     const selected = new Set(selectedCardIds);
     updateState((current) => ({
       ...current,
       cards: current.cards.filter((card) => !selected.has(card.id)),
     }));
     setSelectedCardIds([]);
-    notify(`${total} ${total === 1 ? "tarjeta eliminada" : "tarjetas eliminadas"}`);
+    notify(
+      `${total} ${total === 1 ? "tarjeta eliminada" : "tarjetas eliminadas"}`,
+    );
   }
 
   function studySelectedCards(mode: StudyMode) {
     if (!state || !selectedCardIds.length) return;
-    const ids = selectedCardIds.filter((id) => state.cards.some((card) => card.id === id));
+    const ids = selectedCardIds.filter((id) =>
+      state.cards.some((card) => card.id === id),
+    );
     if (!ids.length) return notify("No hay tarjetas válidas en la selección");
     startReview(activeFolder?.id, mode, ids);
   }
 
-  function startOrthographySession(folderId: string | undefined, mode: StudyMode, scope: Card[]) {
+  function startOrthographySession(
+    folderId: string | undefined,
+    mode: StudyMode,
+    scope: Card[],
+  ) {
     if (!state) return;
     const words = scope.filter(isOrthographyCard);
-    if (!words.length) return notify("No hay palabras de ortografía en este tema o subtema");
-    if (mode === "weakest" && !words.some((card) => failureCount(card.id, state.reviews) > 0)) {
+    if (!words.length)
+      return notify("No hay palabras de ortografía en este tema o subtema");
+    if (
+      mode === "weakest" &&
+      !words.some((card) => failureCount(card.id, state.reviews) > 0)
+    ) {
       return notify("Aún no hay palabras falladas en este tema o subtema");
     }
-    const group = chooseOrthographyGroup(words, state.reviews, personalModel, new Map(), 1, [], mode);
-    if (!group.length) return notify("No hay palabras disponibles para practicar");
-    const folder = folderId ? state.folders.find((item) => item.id === folderId) : null;
+    const group = chooseOrthographyGroup(
+      words,
+      state.reviews,
+      personalModel,
+      new Map(),
+      1,
+      [],
+      mode,
+    );
+    if (!group.length)
+      return notify("No hay palabras disponibles para practicar");
+    const folder = folderId
+      ? state.folders.find((item) => item.id === folderId)
+      : null;
     orthographyStatsRef.current = new Map();
     orthographyLongTermSeenRef.current = new Set();
     orthographyScopeRef.current = words.map((card) => card.id);
@@ -1583,7 +1022,11 @@ export default function OpoApp() {
 
   function toggleOrthographyWord(cardId: string) {
     if (orthographySession?.results) return;
-    setOrthographySelected((current) => current.includes(cardId) ? current.filter((id) => id !== cardId) : [...current, cardId]);
+    setOrthographySelected((current) =>
+      current.includes(cardId)
+        ? current.filter((id) => id !== cardId)
+        : [...current, cardId],
+    );
   }
 
   function correctOrthographyGroup() {
@@ -1594,13 +1037,23 @@ export default function OpoApp() {
     if (!groupCards.length) return;
     const selected = new Set(orthographySelected);
     const now = new Date();
-    const responseMs = Math.max(0, Date.now() - orthographyGroupStartedAtRef.current);
+    const responseMs = Math.max(
+      0,
+      Date.now() - orthographyGroupStartedAtRef.current,
+    );
     const results: OrthographyStudyResult[] = groupCards.map((card) => {
       const shouldBeMarked = card.orthographyIsCorrect === false;
       const userMarked = selected.has(card.id);
-      return { cardId: card.id, userMarked, shouldBeMarked, correct: userMarked === shouldBeMarked };
+      return {
+        cardId: card.id,
+        userMarked,
+        shouldBeMarked,
+        correct: userMarked === shouldBeMarked,
+      };
     });
-    const resultById = new Map(results.map((result) => [result.cardId, result]));
+    const resultById = new Map(
+      results.map((result) => [result.cardId, result]),
+    );
     const newReviews: Review[] = [];
     const updatedById = new Map<string, Card>();
     const currentTurn = orthographySession.groupNumber;
@@ -1608,15 +1061,32 @@ export default function OpoApp() {
     for (const card of groupCards) {
       const result = resultById.get(card.id)!;
       const rating: Rating = result.correct ? "good" : "again";
-      const firstLongTermEncounter = !orthographyLongTermSeenRef.current.has(card.id);
+      const firstLongTermEncounter = !orthographyLongTermSeenRef.current.has(
+        card.id,
+      );
       let updated = firstLongTermEncounter ? scheduleCard(card, rating) : card;
-      const previousStat = orthographyStatsRef.current.get(card.id) ?? { seen: 0, correct: 0, wrong: 0, cooldownUntil: 0 };
+      const previousStat = orthographyStatsRef.current.get(card.id) ?? {
+        seen: 0,
+        correct: 0,
+        wrong: 0,
+        cooldownUntil: 0,
+      };
       const nextWrong = previousStat.wrong + (result.correct ? 0 : 1);
-      if (!result.correct && (nextWrong >= 2 || updated.lapses >= 2)) updated = { ...updated, orthographyStage: Math.max(2, updated.orthographyStage || 1) };
+      if (!result.correct && (nextWrong >= 2 || updated.lapses >= 2))
+        updated = {
+          ...updated,
+          orthographyStage: Math.max(2, updated.orthographyStage || 1),
+        };
       updatedById.set(card.id, updated);
-      if (firstLongTermEncounter) orthographyLongTermSeenRef.current.add(card.id);
+      if (firstLongTermEncounter)
+        orthographyLongTermSeenRef.current.add(card.id);
 
-      const recall = predictPersonalRecall(card, state.reviews, personalModel, now);
+      const recall = predictPersonalRecall(
+        card,
+        state.reviews,
+        personalModel,
+        now,
+      );
       newReviews.push({
         id: uid(),
         cardId: card.id,
@@ -1645,17 +1115,25 @@ export default function OpoApp() {
     }));
 
     const correctCount = results.filter((result) => result.correct).length;
-    setOrthographySession((current) => current ? {
-      ...current,
-      results,
-      responses: current.responses + results.length,
-      correctResponses: current.correctResponses + correctCount,
-    } : current);
+    setOrthographySession((current) =>
+      current
+        ? {
+            ...current,
+            results,
+            responses: current.responses + results.length,
+            correctResponses: current.correctResponses + correctCount,
+          }
+        : current,
+    );
   }
 
   function continueOrthographySession() {
     if (!state || !orthographySession || !orthographySession.results) return;
-    const scope = state.cards.filter((card) => orthographyScopeRef.current.includes(card.id) && isOrthographyCard(card));
+    const scope = state.cards.filter(
+      (card) =>
+        orthographyScopeRef.current.includes(card.id) &&
+        isOrthographyCard(card),
+    );
     const nextTurn = orthographySession.groupNumber + 1;
     const group = chooseOrthographyGroup(
       scope,
@@ -1666,16 +1144,21 @@ export default function OpoApp() {
       orthographySession.groupIds,
       orthographySession.mode,
     );
-    if (!group.length) return notify("No quedan palabras disponibles en este ámbito");
+    if (!group.length)
+      return notify("No quedan palabras disponibles en este ámbito");
     orthographyPreviousGroupRef.current = group.map((card) => card.id);
     orthographyGroupStartedAtRef.current = Date.now();
     setOrthographySelected([]);
-    setOrthographySession((current) => current ? {
-      ...current,
-      groupIds: group.map((card) => card.id),
-      results: null,
-      groupNumber: nextTurn,
-    } : current);
+    setOrthographySession((current) =>
+      current
+        ? {
+            ...current,
+            groupIds: group.map((card) => card.id),
+            results: null,
+            groupNumber: nextTurn,
+          }
+        : current,
+    );
   }
 
   function closeOrthographySession() {
@@ -1685,24 +1168,41 @@ export default function OpoApp() {
     orthographyPreviousGroupRef.current = [];
   }
 
-  function startReview(folderId?: string, mode: StudyMode = "recommended", explicitCardIds?: string[]) {
+  function startReview(
+    folderId?: string,
+    mode: StudyMode = "recommended",
+    explicitCardIds?: string[],
+  ) {
     if (!state) return;
-    const explicitIds = explicitCardIds?.length ? new Set(explicitCardIds) : null;
+    const explicitIds = explicitCardIds?.length
+      ? new Set(explicitCardIds)
+      : null;
     const fullScope = explicitIds
-      ? state.cards.filter((card) => explicitIds.has(card.id) && isStudyableCard(card))
+      ? state.cards.filter(
+          (card) => explicitIds.has(card.id) && isStudyableCard(card),
+        )
       : cardsInFolderScope(state, folderId);
 
     if (!fullScope.length) {
-      return notify(explicitIds ? "La selección no contiene tarjetas disponibles para estudiar" : "Aún no hay tarjetas para estudiar");
+      return notify(
+        explicitIds
+          ? "La selección no contiene tarjetas disponibles para estudiar"
+          : "Aún no hay tarjetas para estudiar",
+      );
     }
 
     const orthographyScope = fullScope.filter(isOrthographyCard);
-    if (orthographyScope.length && orthographyScope.length === fullScope.length) {
+    if (
+      orthographyScope.length &&
+      orthographyScope.length === fullScope.length
+    ) {
       startOrthographySession(folderId, mode, orthographyScope);
       return;
     }
     if (explicitIds && orthographyScope.length > 0) {
-      return notify("No se puede mezclar Ortografía con otros tipos en una misma selección de estudio");
+      return notify(
+        "No se puede mezclar Ortografía con otros tipos en una misma selección de estudio",
+      );
     }
 
     let scope = fullScope.filter((card) => !isOrthographyCard(card));
@@ -1715,15 +1215,30 @@ export default function OpoApp() {
     if (mode === "weakest") {
       scope = weakestStudyCards(scope, state.reviews, personalModel);
       if (!scope.length) {
-        return notify(folderId ? "Aún no hay elementos fallados en este tema o subtema" : "Aún no hay elementos fallados para repasar");
+        return notify(
+          folderId
+            ? "Aún no hay elementos fallados en este tema o subtema"
+            : "Aún no hay elementos fallados para repasar",
+        );
       }
     }
 
     studyScopeRef.current = scope.map((card) => card.id);
 
     if (isContinuousStudyMode(mode)) {
-      const first = chooseLearnCard(scope, state.reviews, personalModel, learnStatsRef.current, 0);
-      if (!first) return notify(folderId ? "Aún no hay tarjetas en este tema o subtema" : "Aún no hay tarjetas para estudiar");
+      const first = chooseLearnCard(
+        scope,
+        state.reviews,
+        personalModel,
+        learnStatsRef.current,
+        0,
+      );
+      if (!first)
+        return notify(
+          folderId
+            ? "Aún no hay tarjetas en este tema o subtema"
+            : "Aún no hay tarjetas para estudiar",
+        );
       selectedPool = [first];
     } else if (mode === "random") {
       selectedPool = shuffled(scope);
@@ -1731,29 +1246,51 @@ export default function OpoApp() {
       selectedPool = scope;
     } else {
       const due = scope
-        .filter((card) => card.reviewCount > 0 && new Date(card.dueAt).getTime() <= now.getTime())
-        .sort((a, b) =>
-          predictPersonalRecall(a, state.reviews, personalModel, now).probability
-          - predictPersonalRecall(b, state.reviews, personalModel, now).probability,
+        .filter(
+          (card) =>
+            card.reviewCount > 0 &&
+            new Date(card.dueAt).getTime() <= now.getTime(),
+        )
+        .sort(
+          (a, b) =>
+            predictPersonalRecall(a, state.reviews, personalModel, now)
+              .probability -
+            predictPersonalRecall(b, state.reviews, personalModel, now)
+              .probability,
         );
       const dueSelected = due.slice(0, state.settings.dailyReviewGoal);
-      const remaining = Math.max(0, state.settings.dailyReviewGoal - dueSelected.length);
-      const newCards = shuffled(scope.filter((card) => card.reviewCount === 0))
-        .slice(0, Math.min(state.settings.dailyNewLimit, remaining));
+      const remaining = Math.max(
+        0,
+        state.settings.dailyReviewGoal - dueSelected.length,
+      );
+      const newCards = shuffled(
+        scope.filter((card) => card.reviewCount === 0),
+      ).slice(0, Math.min(state.settings.dailyNewLimit, remaining));
       selectedPool = [...dueSelected, ...newCards];
     }
 
     if (!selectedPool.length) {
-      return notify(mode === "recommended"
-        ? "No hay tarjetas programadas ahora. Usa Aprender o Aleatorias si quieres seguir."
-        : mode === "weakest"
-          ? "Aún no hay elementos fallados para repasar"
-          : folderId ? "Aún no hay tarjetas en este tema o subtema" : "Aún no hay tarjetas para estudiar");
+      return notify(
+        mode === "recommended"
+          ? "No hay tarjetas programadas ahora. Usa Aprender o Aleatorias si quieres seguir."
+          : mode === "weakest"
+            ? "Aún no hay elementos fallados para repasar"
+            : folderId
+              ? "Aún no hay tarjetas en este tema o subtema"
+              : "Aún no hay tarjetas para estudiar",
+      );
     }
 
     setStudyMode(mode);
     reinforcementCountsRef.current = new Map();
-    setReviewQueue(selectedPool.map((card) => ({ cardId: card.id, reinforcement: false, reason: "scheduled", completed: false })));
+    setReviewQueue(
+      selectedPool.map((card) => ({
+        cardId: card.id,
+        reinforcement: false,
+        reason: "scheduled",
+        completed: false,
+      })),
+    );
     setReviewIndex(0);
     setSessionDone(0);
     setRevealed(false);
@@ -1768,14 +1305,22 @@ export default function OpoApp() {
   function currentSelectionIsCorrect(card: Card) {
     if (!isMultipleChoiceCard(card)) return true;
     const correct = cardCorrectOptions(card);
-    const selected = isMultipleAnswerTest(card) ? selectedOptions : selectedOption === null ? [] : [selectedOption];
+    const selected = isMultipleAnswerTest(card)
+      ? selectedOptions
+      : selectedOption === null
+        ? []
+        : [selectedOption];
     return selected.length > 0 && sameNumberSet(selected, correct);
   }
 
   function submitWrittenAnswer() {
-    if (!currentCard || !isWrittenCard(currentCard) || !writtenAnswer.trim()) return;
+    if (!currentCard || !isWrittenCard(currentCard) || !writtenAnswer.trim())
+      return;
     const result = evaluateWrittenAnswer(currentCard, writtenAnswer);
-    if (!result) return notify("Esta respuesta escrita no tiene una rúbrica válida. Vuelve a importarla desde ChatGPT / JSON.");
+    if (!result)
+      return notify(
+        "Esta respuesta escrita no tiene una rúbrica válida. Vuelve a importarla desde ChatGPT / JSON.",
+      );
     setWrittenResult(result);
     setRevealed(true);
   }
@@ -1789,8 +1334,14 @@ export default function OpoApp() {
     if (!state || !currentCard) return;
     const nextQueue = [...reviewQueue];
 
-    if (isContinuousStudyMode(studyMode) && reviewIndex >= nextQueue.length - 1) {
-      const scope = state.cards.filter((card) => studyScopeRef.current.includes(card.id) && isStudyableCard(card));
+    if (
+      isContinuousStudyMode(studyMode) &&
+      reviewIndex >= nextQueue.length - 1
+    ) {
+      const scope = state.cards.filter(
+        (card) =>
+          studyScopeRef.current.includes(card.id) && isStudyableCard(card),
+      );
       const next = chooseLearnCard(
         scope,
         state.reviews,
@@ -1822,11 +1373,16 @@ export default function OpoApp() {
 
   function markCurrentUnknown() {
     if (!currentCard || currentQueueItem?.completed) return;
-    const zeroResult = isWrittenCard(currentCard) ? zeroWrittenAnswerResult(currentCard) : null;
+    const zeroResult = isWrittenCard(currentCard)
+      ? zeroWrittenAnswerResult(currentCard)
+      : null;
     recordCurrentReview("again", zeroResult, false, "unknown");
   }
 
-  function rateCurrent(rating: Rating, writtenEvaluation?: WrittenAnswerResult | null) {
+  function rateCurrent(
+    rating: Rating,
+    writtenEvaluation?: WrittenAnswerResult | null,
+  ) {
     recordCurrentReview(rating, writtenEvaluation, true, "rated");
   }
 
@@ -1836,20 +1392,45 @@ export default function OpoApp() {
     advance: boolean,
     outcome: ReviewQueueOutcome,
   ) {
-    if (!state || !currentCard || !currentQueueItem || currentQueueItem.completed) return;
+    if (
+      !state ||
+      !currentCard ||
+      !currentQueueItem ||
+      currentQueueItem.completed
+    )
+      return;
     const now = new Date();
-    const choiceWasWrong = isMultipleChoiceCard(currentCard) && !currentSelectionIsCorrect(currentCard);
+    const choiceWasWrong =
+      isMultipleChoiceCard(currentCard) &&
+      !currentSelectionIsCorrect(currentCard);
     const effectiveRating: Rating = choiceWasWrong ? "again" : rating;
     const correct = effectiveRating !== "again";
     const responseMs = Math.max(0, Date.now() - cardShownAtRef.current);
-    const recall = predictPersonalRecall(currentCard, state.reviews, personalModel, now);
+    const recall = predictPersonalRecall(
+      currentCard,
+      state.reviews,
+      personalModel,
+      now,
+    );
 
-    const learnStat = learnStatsRef.current.get(currentCard.id) ?? { seen: 0, again: 0, hard: 0, good: 0, easy: 0, cooldownUntil: 0 };
+    const learnStat = learnStatsRef.current.get(currentCard.id) ?? {
+      seen: 0,
+      again: 0,
+      hard: 0,
+      good: 0,
+      easy: 0,
+      cooldownUntil: 0,
+    };
     const firstLearnEncounter = learnStat.seen === 0;
     const continuousMode = isContinuousStudyMode(studyMode);
     const shouldUpdateLongTerm = !continuousMode || firstLearnEncounter;
-    const scheduled = shouldUpdateLongTerm ? scheduleCard(currentCard, effectiveRating) : currentCard;
-    const updated = writtenEvaluation && isWrittenCard(currentCard) ? applyWrittenStats(scheduled, writtenEvaluation) : scheduled;
+    const scheduled = shouldUpdateLongTerm
+      ? scheduleCard(currentCard, effectiveRating)
+      : currentCard;
+    const updated =
+      writtenEvaluation && isWrittenCard(currentCard)
+        ? applyWrittenStats(scheduled, writtenEvaluation)
+        : scheduled;
 
     const review: Review = {
       id: uid(),
@@ -1860,23 +1441,34 @@ export default function OpoApp() {
       reviewedAt: now.toISOString(),
       responseMs,
       sessionMode: studyMode,
-      reinforcement: continuousMode ? !firstLearnEncounter : currentQueueItem.reinforcement,
+      reinforcement: continuousMode
+        ? !firstLearnEncounter
+        : currentQueueItem.reinforcement,
       predictedRecall: recall.probability,
       fsrsRetrievability: fsrsCurrentRetrievability(currentCard, now),
     };
     updateState((current) => ({
       ...current,
-      cards: current.cards.map((card) => (card.id === updated.id ? updated : card)),
+      cards: current.cards.map((card) =>
+        card.id === updated.id ? updated : card,
+      ),
       reviews: [...current.reviews, review],
     }));
 
-    const nextQueue = reviewQueue.map((item, index) => index === reviewIndex
-      ? { ...item, completed: true, outcome }
-      : item);
+    const nextQueue = reviewQueue.map((item, index) =>
+      index === reviewIndex ? { ...item, completed: true, outcome } : item,
+    );
 
     if (continuousMode) {
       const nextTurn = sessionDone + 1;
-      const gap = effectiveRating === "again" ? 2 : effectiveRating === "hard" ? 4 : effectiveRating === "good" ? 7 : 14;
+      const gap =
+        effectiveRating === "again"
+          ? 2
+          : effectiveRating === "hard"
+            ? 4
+            : effectiveRating === "good"
+              ? 7
+              : 14;
       const nextStat: LearnStat = {
         ...learnStat,
         seen: learnStat.seen + 1,
@@ -1888,25 +1480,47 @@ export default function OpoApp() {
       };
       learnStatsRef.current.set(currentCard.id, nextStat);
       const scope = state.cards
-        .map((card) => card.id === updated.id ? updated : card)
-        .filter((card) => studyScopeRef.current.includes(card.id) && isStudyableCard(card));
+        .map((card) => (card.id === updated.id ? updated : card))
+        .filter(
+          (card) =>
+            studyScopeRef.current.includes(card.id) && isStudyableCard(card),
+        );
       if (reviewIndex >= nextQueue.length - 1) {
-        const next = chooseLearnCard(scope, [...state.reviews, review], personalModel, learnStatsRef.current, nextTurn, currentCard.id);
+        const next = chooseLearnCard(
+          scope,
+          [...state.reviews, review],
+          personalModel,
+          learnStatsRef.current,
+          nextTurn,
+          currentCard.id,
+        );
         if (next) {
           const nextSeen = learnStatsRef.current.get(next.id)?.seen ?? 0;
-          nextQueue.push({ cardId: next.id, reinforcement: nextSeen > 0, reason: nextSeen > 0 ? "hard" : "scheduled", completed: false });
+          nextQueue.push({
+            cardId: next.id,
+            reinforcement: nextSeen > 0,
+            reason: nextSeen > 0 ? "hard" : "scheduled",
+            completed: false,
+          });
         }
       }
     } else {
       const counts = reinforcementCountsRef.current;
       const previousCount = counts.get(currentCard.id) ?? 0;
-      const shouldReinforceAgain = effectiveRating === "again" && previousCount < 3;
-      const shouldReinforceHard = effectiveRating === "hard" && previousCount < 1;
+      const shouldReinforceAgain =
+        effectiveRating === "again" && previousCount < 3;
+      const shouldReinforceHard =
+        effectiveRating === "hard" && previousCount < 1;
       if (shouldReinforceAgain || shouldReinforceHard) {
         const gap = shouldReinforceAgain ? 2 : 4;
         const reason = shouldReinforceAgain ? "again" : "hard";
         const insertAt = Math.min(nextQueue.length, reviewIndex + 1 + gap);
-        nextQueue.splice(insertAt, 0, { cardId: currentCard.id, reinforcement: true, reason, completed: false });
+        nextQueue.splice(insertAt, 0, {
+          cardId: currentCard.id,
+          reinforcement: true,
+          reason,
+          completed: false,
+        });
         counts.set(currentCard.id, previousCount + 1);
       }
     }
@@ -1923,15 +1537,23 @@ export default function OpoApp() {
   }
 
   function importGeneratedCards(items: ParsedImportItem[]) {
-    if (!state) return { imported: 0, skipped: items.length, foldersCreated: 0 };
+    if (!state)
+      return { imported: 0, skipped: items.length, foldersCreated: 0 };
 
     const folders = [...state.folders];
     const cards = [...state.cards];
     const topLevelByName = new Map(
-      folders.filter((folder) => !folder.parentId).map((folder) => [folder.name.trim().toLocaleLowerCase("es"), folder]),
+      folders
+        .filter((folder) => !folder.parentId)
+        .map((folder) => [folder.name.trim().toLocaleLowerCase("es"), folder]),
     );
     const childByParentAndName = new Map(
-      folders.filter((folder) => folder.parentId).map((folder) => [`${folder.parentId}::${folder.name.trim().toLocaleLowerCase("es")}`, folder]),
+      folders
+        .filter((folder) => folder.parentId)
+        .map((folder) => [
+          `${folder.parentId}::${folder.name.trim().toLocaleLowerCase("es")}`,
+          folder,
+        ]),
     );
     let imported = 0;
     const skipped = 0;
@@ -1942,7 +1564,13 @@ export default function OpoApp() {
       const temaKey = tema.toLocaleLowerCase("es");
       let theme = topLevelByName.get(temaKey);
       if (!theme) {
-        theme = { id: uid(), name: tema, color: colors[folders.length % colors.length], parentId: null, createdAt: nowIso() };
+        theme = {
+          id: uid(),
+          name: tema,
+          color: colors[folders.length % colors.length],
+          parentId: null,
+          createdAt: nowIso(),
+        };
         folders.push(theme);
         topLevelByName.set(temaKey, theme);
         foldersCreated += 1;
@@ -1954,7 +1582,13 @@ export default function OpoApp() {
         const childKey = `${theme.id}::${subtema.toLocaleLowerCase("es")}`;
         let child = childByParentAndName.get(childKey);
         if (!child) {
-          child = { id: uid(), name: subtema, color: theme.color, parentId: theme.id, createdAt: nowIso() };
+          child = {
+            id: uid(),
+            name: subtema,
+            color: theme.color,
+            parentId: theme.id,
+            createdAt: nowIso(),
+          };
           folders.push(child);
           childByParentAndName.set(childKey, child);
           foldersCreated += 1;
@@ -1962,9 +1596,20 @@ export default function OpoApp() {
         folder = child;
       }
 
-      const type: CardType = item.tipo === "ortografia" ? "orthography" : item.tipo === "respuesta_escrita" ? "written" : item.tipo === "test" ? "test" : item.tipo === "vocabulario" ? "choice" : "basic";
+      const type: CardType =
+        item.tipo === "ortografia"
+          ? "orthography"
+          : item.tipo === "respuesta_escrita"
+            ? "written"
+            : item.tipo === "test"
+              ? "test"
+              : item.tipo === "vocabulario"
+                ? "choice"
+                : "basic";
       const correctOptions = isMultipleChoiceType(type)
-        ? item.correctas.map((letter) => "ABCD".indexOf(letter)).filter((index) => index >= 0)
+        ? item.correctas
+            .map((letter) => "ABCD".indexOf(letter))
+            .filter((index) => index >= 0)
         : [];
       const correctOption = correctOptions[0] ?? 0;
       const isOrthography = item.tipo === "ortografia";
@@ -1974,11 +1619,24 @@ export default function OpoApp() {
         id: uid(),
         folderId: folder.id,
         type,
-        front: sanitizeRichHtml(`<p>${escapeHtml(word).replaceAll("\n", "<br>")}</p>`),
+        front: sanitizeRichHtml(
+          `<p>${escapeHtml(word).replaceAll("\n", "<br>")}</p>`,
+        ),
         back: isOrthography
-          ? orthographyBackHtml(item.palabra, item.esCorrecta === true, item.formaCorrecta, item.explicacion, item.fuente)
+          ? orthographyBackHtml(
+              item.palabra,
+              item.esCorrecta === true,
+              item.formaCorrecta,
+              item.explicacion,
+              item.fuente,
+            )
           : importedBackHtml(item),
-        options: isWritten && item.evaluacion ? [encodeWrittenRubric(item.evaluacion)] : isMultipleChoiceType(type) ? item.opciones.slice(0, 4) : [],
+        options:
+          isWritten && item.evaluacion
+            ? [encodeWrittenRubric(item.evaluacion)]
+            : isMultipleChoiceType(type)
+              ? item.opciones.slice(0, 4)
+              : [],
         correctOption,
         correctOptions: isMultipleChoiceType(type) ? correctOptions : [],
         dueAt: nowIso(),
@@ -2005,7 +1663,9 @@ export default function OpoApp() {
 
     if (imported > 0) {
       updateState((current) => ({ ...current, folders, cards }));
-      notify(`${imported} elementos importados${foldersCreated ? ` · ${foldersCreated} temas/subtemas nuevos` : ""}`);
+      notify(
+        `${imported} elementos importados${foldersCreated ? ` · ${foldersCreated} temas/subtemas nuevos` : ""}`,
+      );
     }
     return { imported, skipped, foldersCreated };
   }
@@ -2017,19 +1677,39 @@ export default function OpoApp() {
   }
 
   function deleteAttempt(testId: string, attemptId: string) {
-    if (!confirm("¿Eliminar este intento? La puntuación dejará de contar en las estadísticas.")) return;
+    if (
+      !confirm(
+        "¿Eliminar este intento? La puntuación dejará de contar en las estadísticas.",
+      )
+    )
+      return;
     updateState((current) => ({
       ...current,
       psychTests: current.psychTests.map((test) =>
-        test.id === testId ? { ...test, attempts: test.attempts.filter((attempt) => attempt.id !== attemptId) } : test,
+        test.id === testId
+          ? {
+              ...test,
+              attempts: test.attempts.filter(
+                (attempt) => attempt.id !== attemptId,
+              ),
+            }
+          : test,
       ),
     }));
     notify("Intento eliminado");
   }
 
   function deletePsychTest(testId: string) {
-    if (!confirm("¿Eliminar este psicotécnico y todo su historial de intentos? El archivo seguirá disponible en tu cuenta hasta que lo elimines expresamente.")) return;
-    updateState((current) => ({ ...current, psychTests: current.psychTests.filter((test) => test.id !== testId) }));
+    if (
+      !confirm(
+        "¿Eliminar este psicotécnico y todo su historial de intentos? El archivo seguirá disponible en tu cuenta hasta que lo elimines expresamente.",
+      )
+    )
+      return;
+    updateState((current) => ({
+      ...current,
+      psychTests: current.psychTests.filter((test) => test.id !== testId),
+    }));
     if (psychDetail === testId) setPsychDetail(null);
     notify("Psicotécnico eliminado");
   }
@@ -2038,31 +1718,49 @@ export default function OpoApp() {
     if (!state) return;
     const folder = state.folders.find((item) => item.id === folderId);
     if (!folder) return notify("No se ha encontrado el tema que quieres mover");
-    if (targetParentId === folderId) return notify("Un tema no puede estar dentro de sí mismo");
+    if (targetParentId === folderId)
+      return notify("Un tema no puede estar dentro de sí mismo");
     if (targetParentId) {
       const descendants = descendantFolderIds(state.folders, folderId);
-      if (descendants.has(targetParentId)) return notify("No puedes mover un tema dentro de uno de sus propios apartados");
-      if (!state.folders.some((item) => item.id === targetParentId)) return notify("No se ha encontrado el destino");
+      if (descendants.has(targetParentId))
+        return notify(
+          "No puedes mover un tema dentro de uno de sus propios apartados",
+        );
+      if (!state.folders.some((item) => item.id === targetParentId))
+        return notify("No se ha encontrado el destino");
     }
     if (folder.parentId === targetParentId) {
       setMovingFolderId(null);
       return;
     }
-    const destination = targetParentId ? state.folders.find((item) => item.id === targetParentId)?.name ?? "el destino" : "Biblioteca";
+    const destination = targetParentId
+      ? (state.folders.find((item) => item.id === targetParentId)?.name ??
+        "el destino")
+      : "Biblioteca";
     updateState((current) => ({
       ...current,
-      folders: current.folders.map((item) => item.id === folderId ? { ...item, parentId: targetParentId } : item),
+      folders: current.folders.map((item) =>
+        item.id === folderId ? { ...item, parentId: targetParentId } : item,
+      ),
     }));
     setMovingFolderId(null);
-    notify(targetParentId ? `${folder.name} movido dentro de ${destination}` : `${folder.name} movido al nivel principal`);
+    notify(
+      targetParentId
+        ? `${folder.name} movido dentro de ${destination}`
+        : `${folder.name} movido al nivel principal`,
+    );
   }
 
   function deleteFolder(folderId: string) {
     if (!state) return;
     const ids = descendantFolderIds(state.folders, folderId);
-    const label = ids.size > 1 ? "este tema, sus subtemas y todas sus tarjetas" : "este subtema y todas sus tarjetas";
+    const label =
+      ids.size > 1
+        ? "este tema, sus subtemas y todas sus tarjetas"
+        : "este subtema y todas sus tarjetas";
     if (!confirm(`¿Eliminar ${label}?`)) return;
-    const parentId = state.folders.find((folder) => folder.id === folderId)?.parentId ?? null;
+    const parentId =
+      state.folders.find((folder) => folder.id === folderId)?.parentId ?? null;
     updateState((current) => ({
       ...current,
       folders: current.folders.filter((folder) => !ids.has(folder.id)),
@@ -2081,308 +1779,1101 @@ export default function OpoApp() {
     );
   }
 
-  const accuracy = state.reviews.length ? Math.round((state.reviews.filter((review) => review.correct).length / state.reviews.length) * 100) : 0;
-  const mastered = state.cards.filter((card) => card.intervalDays >= 21 && card.streak >= 3).length;
+  const accuracy = state.reviews.length
+    ? Math.round(
+        (state.reviews.filter((review) => review.correct).length /
+          state.reviews.length) *
+          100,
+      )
+    : 0;
+  const mastered = state.cards.filter(
+    (card) => card.intervalDays >= 21 && card.streak >= 3,
+  ).length;
   const orthographyCards = state.cards.filter(isOrthographyCard);
   const orthographyIds = new Set(orthographyCards.map((card) => card.id));
-  const orthographyReviews = state.reviews.filter((review) => orthographyIds.has(review.cardId));
-  const orthographyStudiedIds = new Set(orthographyReviews.map((review) => review.cardId));
+  const orthographyReviews = state.reviews.filter((review) =>
+    orthographyIds.has(review.cardId),
+  );
+  const orthographyStudiedIds = new Set(
+    orthographyReviews.map((review) => review.cardId),
+  );
   const orthographyStudied = orthographyStudiedIds.size;
-  const orthographyMastered = orthographyCards.filter((card) => card.intervalDays >= 21 && card.streak >= 3).length;
-  const orthographyLearning = Math.max(0, orthographyStudied - orthographyMastered);
-  const orthographyAccuracy = orthographyReviews.length ? Math.round(orthographyReviews.filter((review) => review.correct).length / orthographyReviews.length * 100) : 0;
-  const orthographyDue = orthographyCards.filter((card) => card.reviewCount > 0 && new Date(card.dueAt).getTime() <= Date.now()).length;
+  const orthographyMastered = orthographyCards.filter(
+    (card) => card.intervalDays >= 21 && card.streak >= 3,
+  ).length;
+  const orthographyLearning = Math.max(
+    0,
+    orthographyStudied - orthographyMastered,
+  );
+  const orthographyAccuracy = orthographyReviews.length
+    ? Math.round(
+        (orthographyReviews.filter((review) => review.correct).length /
+          orthographyReviews.length) *
+          100,
+      )
+    : 0;
+  const orthographyDue = orthographyCards.filter(
+    (card) =>
+      card.reviewCount > 0 && new Date(card.dueAt).getTime() <= Date.now(),
+  ).length;
   const orthographyFailures = new Map<string, number>();
-  for (const review of orthographyReviews) if (!review.correct) orthographyFailures.set(review.cardId, (orthographyFailures.get(review.cardId) ?? 0) + 1);
+  for (const review of orthographyReviews)
+    if (!review.correct)
+      orthographyFailures.set(
+        review.cardId,
+        (orthographyFailures.get(review.cardId) ?? 0) + 1,
+      );
   const weakestOrthography = [...orthographyCards]
     .filter((card) => (orthographyFailures.get(card.id) ?? 0) > 0)
-    .sort((a, b) => (orthographyFailures.get(b.id) ?? 0) - (orthographyFailures.get(a.id) ?? 0))
+    .sort(
+      (a, b) =>
+        (orthographyFailures.get(b.id) ?? 0) -
+        (orthographyFailures.get(a.id) ?? 0),
+    )
     .slice(0, 5);
   const nextOrthography = [...orthographyCards]
     .filter((card) => card.reviewCount > 0)
     .sort((a, b) => a.dueAt.localeCompare(b.dueAt))
     .slice(0, 5);
-  const psychCategories = Array.from(new Set(state.psychTests.map((test) => test.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "es"));
+  const psychCategories = Array.from(
+    new Set(state.psychTests.map((test) => test.category).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, "es"));
   const filteredPsychTests = sortPsychTests(
     state.psychTests.filter((test) => {
       const query = psychQuery.trim().toLocaleLowerCase("es");
-      const matchesQuery = !query || `${test.name} ${test.category}`.toLocaleLowerCase("es").includes(query);
-      const matchesCategory = psychCategory === "all" || test.category === psychCategory;
+      const matchesQuery =
+        !query ||
+        `${test.name} ${test.category}`.toLocaleLowerCase("es").includes(query);
+      const matchesCategory =
+        psychCategory === "all" || test.category === psychCategory;
       return matchesQuery && matchesCategory;
     }),
     psychSort,
   );
-  const psychAttemptCount = state.psychTests.reduce((sum, test) => sum + test.attempts.length, 0);
-  const psychAttemptedCount = state.psychTests.filter((test) => test.attempts.length > 0).length;
-  const latestPsychScores = state.psychTests.map((test) => psychStats(test).last?.score).filter((score): score is number => score !== undefined);
-  const latestPsychAverage = latestPsychScores.length ? latestPsychScores.reduce((sum, score) => sum + score, 0) / latestPsychScores.length : null;
+  const psychAttemptCount = state.psychTests.reduce(
+    (sum, test) => sum + test.attempts.length,
+    0,
+  );
+  const psychAttemptedCount = state.psychTests.filter(
+    (test) => test.attempts.length > 0,
+  ).length;
+  const latestPsychScores = state.psychTests
+    .map((test) => psychStats(test).last?.score)
+    .filter((score): score is number => score !== undefined);
+  const latestPsychAverage = latestPsychScores.length
+    ? latestPsychScores.reduce((sum, score) => sum + score, 0) /
+      latestPsychScores.length
+    : null;
   const studyRoots = state.studyNodes.filter((node) => !node.parentId);
-  const studyPending = state.studyTasks.filter((task) => task.status === "pending").sort((a, b) => a.plannedFor.localeCompare(b.plannedFor) || a.queueOrder - b.queueOrder || a.createdAt.localeCompare(b.createdAt));
-  const studyDue = studyPending.filter((task) => task.plannedFor <= localDateKey()).sort((a, b) => a.queueOrder - b.queueOrder || a.plannedFor.localeCompare(b.plannedFor) || a.createdAt.localeCompare(b.createdAt));
-  const studyUpcoming = studyPending.filter((task) => task.plannedFor > localDateKey()).slice(0, 8);
-  const studyCompleted = state.studyTasks.filter((task) => task.status === "done").sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
-  const studyHistoryIds = studyHistoryRoot === "all" ? null : studyDescendantIds(state.studyNodes, studyHistoryRoot);
-  const filteredStudyCompleted = studyHistoryIds ? studyCompleted.filter((task) => studyHistoryIds.has(task.nodeId)) : studyCompleted;
-  const studyWeakCount = studyCompleted.filter((task) => task.assessment === "mal" || task.assessment === "regular").length;
+  const studyPending = state.studyTasks
+    .filter((task) => task.status === "pending")
+    .sort(
+      (a, b) =>
+        a.plannedFor.localeCompare(b.plannedFor) ||
+        a.queueOrder - b.queueOrder ||
+        a.createdAt.localeCompare(b.createdAt),
+    );
+  const studyDue = studyPending
+    .filter((task) => task.plannedFor <= localDateKey())
+    .sort(
+      (a, b) =>
+        a.queueOrder - b.queueOrder ||
+        a.plannedFor.localeCompare(b.plannedFor) ||
+        a.createdAt.localeCompare(b.createdAt),
+    );
+  const studyUpcoming = studyPending
+    .filter((task) => task.plannedFor > localDateKey())
+    .slice(0, 8);
+  const studyCompleted = state.studyTasks
+    .filter((task) => task.status === "done")
+    .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+  const studyHistoryIds =
+    studyHistoryRoot === "all"
+      ? null
+      : studyDescendantIds(state.studyNodes, studyHistoryRoot);
+  const filteredStudyCompleted = studyHistoryIds
+    ? studyCompleted.filter((task) => studyHistoryIds.has(task.nodeId))
+    : studyCompleted;
+  const studyWeakCount = studyCompleted.filter(
+    (task) => task.assessment === "mal" || task.assessment === "regular",
+  ).length;
   const studySelectedDeleteIds = new Set<string>();
-  selectedStudyNodeIds.forEach((nodeId) => studyDescendantIds(state.studyNodes, nodeId).forEach((id) => studySelectedDeleteIds.add(id)));
-  const studySelectedTaskCount = state.studyTasks.filter((task) => studySelectedDeleteIds.has(task.nodeId)).length;
+  selectedStudyNodeIds.forEach((nodeId) =>
+    studyDescendantIds(state.studyNodes, nodeId).forEach((id) =>
+      studySelectedDeleteIds.add(id),
+    ),
+  );
+  const studySelectedTaskCount = state.studyTasks.filter((task) =>
+    studySelectedDeleteIds.has(task.nodeId),
+  ).length;
+
+  const saveStatus = !online
+    ? "Sin conexión"
+    : sync === "saved"
+      ? "Guardado"
+      : sync === "error"
+        ? "Guardado aquí"
+        : "Guardando…";
+  const todayCompleted = studyCompleted.filter(
+    (t) =>
+      t.completedAt && localDateKey(new Date(t.completedAt)) === localDateKey(),
+  );
+  const plannedStudyDue = studyDue.filter((t) => t.reason === "estudio");
+  const reviewTreeDue = studyDue.filter((t) => t.reason !== "estudio");
+  const studyFlowDone = Boolean(
+    studyFlow && studyFlow.index >= studyFlow.entries.length,
+  );
+  const activeStudyEntry = studyFlow?.entries[studyFlow.index];
+  const studyFlowNode = state.studyNodes.find(
+    (n) => n.id === activeStudyEntry?.nodeId,
+  );
+  const studyFlowTask = state.studyTasks.find(
+    (t) => t.id === activeStudyEntry?.taskId,
+  );
+  const previousStudySession = studyCompleted.find(
+    (t) => t.nodeId === studyFlowNode?.id,
+  );
+  const studyReference =
+    typeof (studyFlowNode as any)?.content === "string"
+      ? (studyFlowNode as any).content
+      : typeof (studyFlowNode as any)?.reference === "string"
+        ? (studyFlowNode as any).reference
+        : undefined;
+  function startTodayReview() {
+    if (dueCards.length) startReview();
+    else if (orthographyDue)
+      startOrthographySession(undefined, "recommended", orthographyCards);
+    else if (reviewTreeDue.length) startStudySession(undefined, reviewTreeDue);
+    else if (state!.cards.length) startReview(undefined, "all");
+    else navigate("study");
+  }
+  const priorities: PriorityItem[] = [
+    ...reviewTreeDue.slice(0, 2).map((task) => ({
+      id: task.id,
+      title:
+        state!.studyNodes.find((n) => n.id === task.nodeId)?.name ?? "Apartado",
+      subtitle: task.note || "Repaso del temario",
+      kind: "review" as const,
+      onStart: () =>
+        startStudySession(undefined, [
+          task,
+          ...reviewTreeDue.filter((t) => t.id !== task.id),
+        ]),
+    })),
+    ...dueCards
+      .slice(0, Math.max(0, 2 - Math.min(2, reviewTreeDue.length)))
+      .map((card) => ({
+        id: card.id,
+        title: plainRichText(card.front),
+        subtitle:
+          state!.folders.find((f) => f.id === card.folderId)?.name ?? "Tarjeta",
+        kind: "review" as const,
+        onStart: () =>
+          startReview(undefined, "all", [
+            card.id,
+            ...dueCards.filter((c) => c.id !== card.id).map((c) => c.id),
+          ]),
+      })),
+    ...plannedStudyDue.slice(0, 1).map((task) => ({
+      id: task.id,
+      title:
+        state!.studyNodes.find((n) => n.id === task.nodeId)?.name ?? "Apartado",
+      subtitle: "Estudio planificado",
+      kind: "study" as const,
+      onStart: () =>
+        startStudySession(undefined, [
+          task,
+          ...plannedStudyDue.filter((t) => t.id !== task.id),
+        ]),
+    })),
+  ].slice(0, 3);
+
+  const filteredLibraryCards = state.cards.filter(
+    (card) =>
+      (libraryType === "all" || card.type === libraryType) &&
+      `${plainRichText(card.front)} ${plainRichText(card.back)} ${folderPathLabel(state.folders, card.folderId)}`
+        .toLocaleLowerCase("es")
+        .includes(libraryQuery.trim().toLocaleLowerCase("es")),
+  );
 
   return (
-    <div className="app-shell">
-      {!online && <div className="offline-banner">Sin conexión · puedes estudiar y registrar cambios; se enviarán al volver Internet</div>}
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">OG</div>
-          <div><strong>OpoGC</strong><span>Preparación inteligente</span></div>
-        </div>
-        <nav>{navItems.map((item) => <NavButton key={item.id} item={item} active={tab === item.id} onClick={() => setTab(item.id)} />)}</nav>
-        <div className="sidebar-foot">
-          <span className={`sync-dot ${sync}`} />
-          {sync === "saving" ? "Guardando…" : sync === "error" ? "Pendiente de guardar" : "Progreso guardado"}
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <header className="topbar">
+    <div
+      className={`app-shell app-v11 ${reviewQueue.length || orthographySession || studyFlow ? "session-active" : ""}`}
+    >
+      <AppNavigation tab={tab} onNavigate={navigate} status={saveStatus} />
+      <main className="ux-main">
+        <header
+          className={`ux-topbar ${tab === "today" ? "today-topbar" : ""}`}
+        >
           <div>
-            <span className="eyebrow">{new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}</span>
-            <h1>{tab === "today" ? "Tu sesión de hoy" : tab === "library" ? "Biblioteca" : tab === "study" ? "Organización de estudio" : tab === "psych" ? "Psicotécnicos" : "Tu progreso"}</h1>
+            {["library", "organize", "psych"].includes(tab) && (
+              <button className="ux-link" onClick={() => navigate("more")}>
+                <Icon name="back" size={17} />
+                Más
+              </button>
+            )}
+            {tab === "today" ? (
+              <span className="ux-header-brand">
+                OpoGC <small>Mi preparación</small>
+              </span>
+            ) : (
+              <h1>
+                {
+                  {
+                    study: "Estudiar",
+                    review: "Repasar",
+                    progress: "Progreso",
+                    more: "Más",
+                    library: "Biblioteca",
+                    organize: "Organizar estudio",
+                    psych: "Psicotécnicos",
+                    today: "Hoy",
+                  }[tab]
+                }
+              </h1>
+            )}
           </div>
-          <button className="avatar" aria-label="Abrir cuenta" onClick={() => document.querySelector<HTMLButtonElement>(".account-fab")?.click()}>OG</button>
+          <span
+            className={`ux-save-status ${!online ? "offline" : ""}`}
+            role="status"
+          >
+            <span className="status-dot" />
+            {saveStatus}
+          </span>
         </header>
-
         {tab === "today" && (
-          <section className="page today-page">
-            <div className="hero-card">
-              <div className="hero-copy">
-                <span className="pill">REPASO RECOMENDADO · FSRS-6 + MODELO PERSONAL</span>
-                <h2>{dueCards.length ? `${dueCards.length} tarjetas esperan hoy` : "Tu memoria está al día"}</h2>
-                <p>{dueCards.length ? "Priorizamos las tarjetas vencidas con menor probabilidad estimada de recuerdo y después introducimos nuevas." : "Puedes hacer una sesión mixta para reforzar lo aprendido o añadir nuevas tarjetas."}</p>
-                <button className="primary-button light" onClick={() => startReview()}>{dueCards.length ? "Empezar repaso" : "Repaso libre"}<span>→</span></button>
-              </div>
-              <div className="memory-orbit" aria-hidden="true">
-                <div className="orbit-ring"><span /><span /><span /></div>
-                <div className="orbit-core">{dueCards.length}</div>
-                <small>pendientes</small>
-              </div>
-            </div>
-
-            <section className="panel today-study-plan">
-              <div className="panel-head"><div><span className="section-label">HOY · TEMARIO</span><h3>{studyDue.length} repasos pendientes</h3></div><button className="text-button" onClick={() => { setTab("study"); setStudyView("today"); }}>Abrir planificación</button></div>
-              <div className="today-study-columns"><div><strong>Prioridad alta</strong>{studyDue.filter(task => { const latest = studyCompleted.find(t => t.nodeId === task.nodeId); return latest?.assessment === "mal" || latest?.assessment === "regular" || /mal|regular|dific|error/i.test(task.reason); }).slice(0, 5).map(task => <button key={task.id} className="review-row" onClick={() => { setTab("study"); setStudyView("today"); }}><span className="review-row-copy"><strong>{state.studyNodes.find(n => n.id === task.nodeId)?.name}</strong><small>{task.note}</small></span></button>)}{!studyDue.length && <p>Sin repasos pendientes para hoy.</p>}</div>
-              <div><strong>Estudio nuevo</strong>{state.studyNodes.filter(n => !state.studyNodes.some(child => child.parentId === n.id) && !studyCompleted.some(task => task.nodeId === n.id)).slice(0, 3).map(node => <button key={node.id} className="review-row" onClick={() => openStudyQuick(node.id)}><span className="review-row-copy"><strong>{node.name}</strong><small>Añadir a mi planificación</small></span></button>)}{!state.studyNodes.length && <button className="text-button" onClick={() => { setTab("study"); openStudyImport(); }}>Importar mi temario</button>}</div></div>
-            </section>
-
-            <div className="stats-row">
-              <StatCard label="Repasadas hoy" value={todayReviews.length.toString()} detail={`Meta ${state.settings.dailyReviewGoal}`} tone="green" />
-              <StatCard label="Precisión global" value={`${accuracy}%`} detail={`${state.reviews.length} respuestas`} tone="amber" />
-              <StatCard label="Dominadas" value={mastered.toString()} detail={`de ${state.cards.length} tarjetas`} tone="purple" />
-            </div>
-
-            <div className="content-grid">
-              <section className="panel">
-                <div className="panel-head"><div><span className="section-label">SIGUIENTE</span><h3>Cola de repaso</h3></div><button className="text-button" onClick={() => setTab("library")}>Ver biblioteca</button></div>
-                <div className="review-list">
-                  {(dueCards.length ? dueCards.slice(0, 4) : state.cards.slice(0, 4)).map((card) => {
-                    const folder = state.folders.find((item) => item.id === card.folderId);
-                    const success = card.reviewCount ? Math.round((card.successCount / card.reviewCount) * 100) : 0;
-                    return <button className="review-row" key={card.id} onClick={() => startReview(card.folderId)}><span className="folder-swatch" style={{ background: folder?.color }} /><span className="review-row-copy"><strong>{plainRichText(card.front)}</strong><small>{folder?.name ?? "Sin carpeta"}</small></span><span className={`strength ${success >= 80 ? "high" : success >= 50 ? "mid" : "low"}`}>{card.reviewCount ? `${success}%` : "Nueva"}</span></button>;
-                  })}
-                </div>
-              </section>
-
-              <section className="panel mini-plan">
-                <div className="panel-head"><div><span className="section-label">RITMO</span><h3>Esta semana</h3></div></div>
-                <WeekStrip reviews={state.reviews} />
-                <div className="plan-note"><span>◎</span><p><strong>Constancia antes que cantidad</strong><br />Repasar 20 minutos diarios protege mejor la memoria que una sesión larga aislada.</p></div>
-              </section>
-            </div>
-          </section>
+          <TodayPage
+            reviewPending={
+              dueCards.length + orthographyDue + reviewTreeDue.length
+            }
+            cardPending={dueCards.length + orthographyDue}
+            reviewDone={
+              todayReviews.length +
+              todayCompleted.filter((t) => t.reason !== "estudio").length
+            }
+            studyPending={plannedStudyDue.length}
+            studyDone={
+              todayCompleted.filter((t) => t.reason === "estudio").length
+            }
+            nextStudy={
+              state.studyNodes.find((n) => n.id === plannedStudyDue[0]?.nodeId)
+                ?.name
+            }
+            priorities={priorities}
+            hasCards={state.cards.length > 0}
+            preparation={
+              state.studyNodes.find((n) => !n.parentId)?.name ??
+              "Mi oposición · a tu ritmo"
+            }
+            onReview={startTodayReview}
+            onStudy={() => startStudySession(undefined, plannedStudyDue)}
+            onPlanning={() => {
+              navigate("organize");
+              setStudyView("today");
+            }}
+          />
         )}
-
+        {tab === "study" && (
+          <StudyStartPage
+            nodes={state.studyNodes}
+            tasks={plannedStudyDue}
+            onContinue={() => startStudySession(undefined, plannedStudyDue)}
+            onNode={(id) => startStudySession(id)}
+            onOrganize={() => {
+              navigate("organize");
+              setStudyView("tree");
+            }}
+            onPlan={() => {
+              navigate("organize");
+              setStudyView("today");
+            }}
+          />
+        )}
+        {tab === "review" && (
+          <ReviewStartPage
+            cards={state.cards}
+            folders={state.folders}
+            pending={dueCards.length + orthographyDue}
+            temarioPending={reviewTreeDue.length}
+            onStart={startReview}
+            onPrimary={startTodayReview}
+            onTemario={() => startStudySession(undefined, reviewTreeDue)}
+            onLibrary={() => navigate("library")}
+          />
+        )}
+        {tab === "more" && (
+          <MorePage
+            onNavigate={(next) => {
+              navigate(next);
+              if (next === "organize") setStudyView("tree");
+            }}
+            onAccount={() =>
+              window.dispatchEvent(new CustomEvent("opogc:account"))
+            }
+            onSettings={() => setPreferencesOpen(true)}
+          />
+        )}
         {tab === "library" && (
           <section className="page">
-            <div className="action-row">
-              <div className="search-box"><span>⌕</span><input placeholder="Buscar temas o tarjetas" aria-label="Buscar" /></div>
-              <button className="secondary-button ai-import-button" onClick={() => setModal("import")}>✨ ChatGPT / JSON</button>
-              <button className="secondary-button" onClick={() => startReview(undefined, "learn")}>◎ Aprender todo</button>
-              <button className="secondary-button" onClick={() => startReview(undefined, "random")}>🎲 Aleatorias</button>
-              <button className="secondary-button" onClick={() => { setNewFolderParentId(null); setModal("folder"); }}>＋ Tema</button>
-              <button className="primary-button" onClick={() => { setEditingCard(null); setModal("card"); }}>＋ Tarjeta</button>
+            <div className="library-top-actions">
+              <div className="ux-search">
+                <Icon name="search" size={20} />
+                <input
+                  placeholder="Buscar temas o tarjetas"
+                  aria-label="Buscar biblioteca"
+                  value={libraryQuery}
+                  onChange={(event) => setLibraryQuery(event.target.value)}
+                />
+              </div>
+              <div>
+                <button
+                  className="primary-button"
+                  onClick={() => {
+                    setEditingCard(null);
+                    setModal("card");
+                  }}
+                >
+                  <Icon name="plus" size={18} />
+                  Tarjeta
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label="Opciones de la biblioteca"
+                  onClick={() => setLibraryActionsOpen(true)}
+                >
+                  <Icon name="more" />
+                </button>
+              </div>
             </div>
-            {!activeFolder ? (
+            <div className="library-filter-row">
+              <label>
+                Tipo
+                <select
+                  aria-label="Filtrar tipo de tarjeta"
+                  value={libraryType}
+                  onChange={(event) => setLibraryType(event.target.value)}
+                >
+                  <option value="all">Todos los tipos</option>
+                  <option value="basic">Flashcards</option>
+                  <option value="choice">Vocabulario</option>
+                  <option value="test">Test</option>
+                  <option value="orthography">Ortografía</option>
+                  <option value="written">Respuesta escrita</option>
+                </select>
+              </label>
+            </div>
+            {libraryQuery.trim() || libraryType !== "all" ? (
+              <div className="library-results simple-list">
+                {filteredLibraryCards.map((card) => (
+                  <div className="simple-row" key={card.id}>
+                    <button
+                      className="library-result-main"
+                      onClick={() => startReview(undefined, "all", [card.id])}
+                    >
+                      <strong>{plainRichText(card.front)}</strong>
+                      <small>
+                        {cardTypeLabel(card.type)} ·{" "}
+                        {folderPathLabel(state.folders, card.folderId)}
+                      </small>
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label="Editar tarjeta"
+                      onClick={() => {
+                        setEditingCard(card.id);
+                        setModal("card");
+                      }}
+                    >
+                      ✎
+                    </button>
+                  </div>
+                ))}
+                {!filteredLibraryCards.length && (
+                  <p className="empty-inline">
+                    No hay tarjetas con esta búsqueda. Prueba otro término o
+                    cambia el tipo.
+                  </p>
+                )}
+              </div>
+            ) : !activeFolder ? (
               <>
-                <div className="section-heading"><div><span className="section-label">ORGANIZACIÓN</span><h2>Temas de estudio</h2><p>Cada tema puede contener subtemas. Puedes estudiar un tema completo o entrar en una parte concreta.</p></div><span>{state.folders.filter((folder) => !folder.parentId).length} temas · {state.folders.filter((folder) => folder.parentId).length} subtemas · {state.cards.length} tarjetas</span></div>
+                <div className="section-heading">
+                  <div>
+                    <span className="section-label">ORGANIZACIÓN</span>
+                    <h2>Temas de estudio</h2>
+                    <p>
+                      Cada tema puede contener subtemas. Puedes estudiar un tema
+                      completo o entrar en una parte concreta.
+                    </p>
+                  </div>
+                  <span>
+                    {state.folders.filter((folder) => !folder.parentId).length}{" "}
+                    temas ·{" "}
+                    {state.folders.filter((folder) => folder.parentId).length}{" "}
+                    subtemas · {state.cards.length} tarjetas
+                  </span>
+                </div>
                 <div className="folder-grid">
-                  {state.folders.filter((folder) => !folder.parentId).map((folder) => {
-                    const cards = cardsInFolderScope(state, folder.id);
-                    const reviewed = cards.filter((card) => card.reviewCount > 0).length;
-                    const pct = cards.length ? Math.round((reviewed / cards.length) * 100) : 0;
-                    const children = state.folders.filter((item) => item.parentId === folder.id).length;
-                    return <button className="folder-card" key={folder.id} onClick={() => setSelectedFolder(folder.id)}><span className="folder-icon" style={{ background: `${folder.color}18`, color: folder.color }}>▰</span><span className="folder-menu folder-menu-action" title="Mover tema" onClick={(event) => { event.stopPropagation(); setMovingFolderId(folder.id); }}>•••</span><strong>{folder.name}</strong><small>{cards.length} tarjetas · {children} {children === 1 ? "apartado" : "apartados"}</small><span className="progress-track"><span style={{ width: `${pct}%`, background: folder.color }} /></span><span className="folder-progress">{pct}% visto</span></button>;
-                  })}
+                  {state.folders
+                    .filter((folder) => !folder.parentId)
+                    .map((folder) => {
+                      const cards = cardsInFolderScope(state, folder.id);
+                      const reviewed = cards.filter(
+                        (card) => card.reviewCount > 0,
+                      ).length;
+                      const pct = cards.length
+                        ? Math.round((reviewed / cards.length) * 100)
+                        : 0;
+                      const children = state.folders.filter(
+                        (item) => item.parentId === folder.id,
+                      ).length;
+                      return (
+                        <button
+                          className="folder-card"
+                          key={folder.id}
+                          onClick={() => setSelectedFolder(folder.id)}
+                        >
+                          <span
+                            className="folder-icon"
+                            style={{
+                              background: `${folder.color}18`,
+                              color: folder.color,
+                            }}
+                          >
+                            ▰
+                          </span>
+                          <span
+                            className="folder-menu folder-menu-action"
+                            title="Opciones de carpeta"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedFolder(folder.id);
+                              setLibraryActionsOpen(true);
+                            }}
+                          >
+                            •••
+                          </span>
+                          <strong>{folder.name}</strong>
+                          <small>
+                            {cards.length} tarjetas · {children}{" "}
+                            {children === 1 ? "apartado" : "apartados"}
+                          </small>
+                          <span className="progress-track">
+                            <span
+                              style={{
+                                width: `${pct}%`,
+                                background: folder.color,
+                              }}
+                            />
+                          </span>
+                          <span className="folder-progress">{pct}% visto</span>
+                        </button>
+                      );
+                    })}
                 </div>
               </>
-            ) : (() => {
-              const parent = activeFolder.parentId ? state.folders.find((folder) => folder.id === activeFolder.parentId) ?? null : null;
-              const children = state.folders.filter((folder) => folder.parentId === activeFolder.id);
-              const scopeCards = cardsInFolderScope(state, activeFolder.id);
-              const writtenScopeCards = scopeCards.filter(isWrittenCard);
-              const directCards = state.cards.filter((card) => card.folderId === activeFolder.id);
-              const isTheme = !activeFolder.parentId;
-              return (
-                <div>
-                  <div className="folder-breadcrumb">
-                    <button className="back-button" onClick={() => setSelectedFolder(parent?.id ?? null)}>← {parent ? parent.name : "Todos los temas"}</button>
-                    {parent && <span>{parent.name} / <strong>{activeFolder.name}</strong></span>}
-                  </div>
-                  <div className="folder-title">
-                    <div><span className="folder-icon large" style={{ background: `${activeFolder.color}18`, color: activeFolder.color }}>▰</span><div><span className="section-label">{isTheme ? "TEMA" : "APARTADO"}</span><h2>{activeFolder.name}</h2><p>{scopeCards.length} tarjetas{children.length ? ` · ${children.length} ${children.length === 1 ? "apartado" : "apartados"}` : ""}</p></div></div>
-                    <div className="folder-study-actions">
-                      <button className="secondary-button danger" onClick={() => deleteFolder(activeFolder.id)}>Eliminar</button>
-                      <button className="secondary-button" onClick={() => setMovingFolderId(activeFolder.id)}>Mover</button>
-                      <button className="secondary-button" onClick={() => { setNewFolderParentId(activeFolder.id); setModal("folder"); }}>＋ Añadir dentro</button>
-                      {isTheme && scopeCards.length > 0 && <button className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`} onClick={() => { setBulkSelectMode((value) => !value); setSelectedCardIds([]); setBulkTargetFolderId(""); }}>{bulkSelectMode ? "Cancelar selección" : "Seleccionar"}</button>}
-                      <button className="secondary-button" onClick={() => startReview(activeFolder.id, "recommended")}>Repaso programado</button>
-                      <button className="secondary-button" onClick={() => startReview(activeFolder.id, "weakest")}>🔥 Más falladas</button>
-                      <button className="secondary-button" onClick={() => startReview(activeFolder.id, "random")}>🎲 Aleatorias</button>
-                      {writtenScopeCards.length > 0 && <button className="secondary-button" onClick={() => startReview(activeFolder.id, "learn", writtenScopeCards.map((card) => card.id))}>✍ Respuesta escrita</button>}
-                      <button className="primary-button" onClick={() => startReview(activeFolder.id, "learn")}>◎ Aprender</button>
+            ) : (
+              (() => {
+                const parent = activeFolder.parentId
+                  ? (state.folders.find(
+                      (folder) => folder.id === activeFolder.parentId,
+                    ) ?? null)
+                  : null;
+                const children = state.folders.filter(
+                  (folder) => folder.parentId === activeFolder.id,
+                );
+                const scopeCards = cardsInFolderScope(state, activeFolder.id);
+                const writtenScopeCards = scopeCards.filter(isWrittenCard);
+                const directCards = state.cards.filter(
+                  (card) => card.folderId === activeFolder.id,
+                );
+                const isTheme = !activeFolder.parentId;
+                return (
+                  <div>
+                    <div className="folder-breadcrumb">
+                      <button
+                        className="back-button"
+                        onClick={() => setSelectedFolder(parent?.id ?? null)}
+                      >
+                        ← {parent ? parent.name : "Todos los temas"}
+                      </button>
+                      {parent && (
+                        <span>
+                          {parent.name} / <strong>{activeFolder.name}</strong>
+                        </span>
+                      )}
                     </div>
-                  </div>
-
-                  {children.length > 0 && <section className="subtopic-section">
-                    <div className="subtopic-heading"><span className="section-label">APARTADOS</span><p>Puedes entrar en cualquier rama y seguir bajando por el árbol sin perder sus tarjetas.</p></div>
-                    <div className="subtopic-grid">
-                      {children.map((child) => {
-                        const childCards = cardsInFolderScope(state, child.id);
-                        const reviewed = childCards.filter((card) => card.reviewCount > 0).length;
-                        const pct = childCards.length ? Math.round(reviewed / childCards.length * 100) : 0;
-                        const childIds = childCards.map((card) => card.id);
-                        const childSelected = childIds.length > 0 && childIds.every((id) => selectedCardIds.includes(id));
-                        return <button
-                          key={child.id}
-                          className="subtopic-card"
-                          disabled={bulkSelectMode && childIds.length === 0}
-                          onClick={() => {
-                            if (!bulkSelectMode) {
-                              setSelectedFolder(child.id);
-                              return;
-                            }
-                            setSelectedCardIds((current) => {
-                              const next = new Set(current);
-                              const allSelected = childIds.length > 0 && childIds.every((id) => next.has(id));
-                              if (allSelected) childIds.forEach((id) => next.delete(id));
-                              else childIds.forEach((id) => next.add(id));
-                              return [...next];
-                            });
+                    <div className="folder-title">
+                      <div>
+                        <span
+                          className="folder-icon large"
+                          style={{
+                            background: `${activeFolder.color}18`,
+                            color: activeFolder.color,
                           }}
                         >
-                          {bulkSelectMode
-                            ? <span className="card-select-check" style={childSelected ? { borderColor: "var(--green)", background: "var(--green)" } : undefined}>{childSelected ? "✓" : ""}</span>
-                            : <span className="folder-icon" style={{ background: `${child.color}18`, color: child.color }}>▰</span>}
-                          <div><strong>{child.name}</strong><small>{childCards.length} tarjetas · {pct}% visto</small></div>
-                          {bulkSelectMode ? <span /> : <span>→</span>}
-                        </button>;
-                      })}
+                          ▰
+                        </span>
+                        <div>
+                          <span className="section-label">
+                            {isTheme ? "TEMA" : "APARTADO"}
+                          </span>
+                          <h2>{activeFolder.name}</h2>
+                          <p>
+                            {scopeCards.length} tarjetas
+                            {children.length
+                              ? ` · ${children.length} ${children.length === 1 ? "apartado" : "apartados"}`
+                              : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="folder-study-actions">
+                        <button
+                          className="icon-button library-folder-menu"
+                          aria-label="Opciones de la carpeta"
+                          onClick={() => setLibraryActionsOpen(true)}
+                        >
+                          <Icon name="more" />
+                        </button>
+                        <button
+                          className="secondary-button danger"
+                          onClick={() => deleteFolder(activeFolder.id)}
+                        >
+                          Eliminar
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => setMovingFolderId(activeFolder.id)}
+                        >
+                          Mover
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => {
+                            setNewFolderParentId(activeFolder.id);
+                            setModal("folder");
+                          }}
+                        >
+                          ＋ Añadir dentro
+                        </button>
+                        {isTheme && scopeCards.length > 0 && (
+                          <button
+                            className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`}
+                            onClick={() => {
+                              setBulkSelectMode((value) => !value);
+                              setSelectedCardIds([]);
+                              setBulkTargetFolderId("");
+                            }}
+                          >
+                            {bulkSelectMode
+                              ? "Cancelar selección"
+                              : "Seleccionar"}
+                          </button>
+                        )}
+                        <button
+                          className="secondary-button"
+                          onClick={() =>
+                            startReview(activeFolder.id, "recommended")
+                          }
+                        >
+                          Repaso programado
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() =>
+                            startReview(activeFolder.id, "weakest")
+                          }
+                        >
+                          🔥 Más falladas
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => startReview(activeFolder.id, "random")}
+                        >
+                          🎲 Aleatorias
+                        </button>
+                        {writtenScopeCards.length > 0 && (
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              startReview(
+                                activeFolder.id,
+                                "learn",
+                                writtenScopeCards.map((card) => card.id),
+                              )
+                            }
+                          >
+                            ✍ Respuesta escrita
+                          </button>
+                        )}
+                        <button
+                          className="primary-button"
+                          onClick={() => startReview(activeFolder.id, "learn")}
+                        >
+                          ◎ Aprender
+                        </button>
+                      </div>
                     </div>
-                    {bulkSelectMode && isTheme && (
-                      <div className="bulk-card-toolbar" style={{ marginTop: 12 }}>
+
+                    {children.length > 0 && (
+                      <section className="subtopic-section">
+                        <div className="subtopic-heading">
+                          <span className="section-label">APARTADOS</span>
+                          <p>
+                            Puedes entrar en cualquier rama y seguir bajando por
+                            el árbol sin perder sus tarjetas.
+                          </p>
+                        </div>
+                        <div className="subtopic-grid">
+                          {children.map((child) => {
+                            const childCards = cardsInFolderScope(
+                              state,
+                              child.id,
+                            );
+                            const reviewed = childCards.filter(
+                              (card) => card.reviewCount > 0,
+                            ).length;
+                            const pct = childCards.length
+                              ? Math.round((reviewed / childCards.length) * 100)
+                              : 0;
+                            const childIds = childCards.map((card) => card.id);
+                            const childSelected =
+                              childIds.length > 0 &&
+                              childIds.every((id) =>
+                                selectedCardIds.includes(id),
+                              );
+                            return (
+                              <button
+                                key={child.id}
+                                className="subtopic-card"
+                                disabled={
+                                  bulkSelectMode && childIds.length === 0
+                                }
+                                onClick={() => {
+                                  if (!bulkSelectMode) {
+                                    setSelectedFolder(child.id);
+                                    return;
+                                  }
+                                  setSelectedCardIds((current) => {
+                                    const next = new Set(current);
+                                    const allSelected =
+                                      childIds.length > 0 &&
+                                      childIds.every((id) => next.has(id));
+                                    if (allSelected)
+                                      childIds.forEach((id) => next.delete(id));
+                                    else childIds.forEach((id) => next.add(id));
+                                    return [...next];
+                                  });
+                                }}
+                              >
+                                {bulkSelectMode ? (
+                                  <span
+                                    className="card-select-check"
+                                    style={
+                                      childSelected
+                                        ? {
+                                            borderColor: "var(--green)",
+                                            background: "var(--green)",
+                                          }
+                                        : undefined
+                                    }
+                                  >
+                                    {childSelected ? "✓" : ""}
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="folder-icon"
+                                    style={{
+                                      background: `${child.color}18`,
+                                      color: child.color,
+                                    }}
+                                  >
+                                    ▰
+                                  </span>
+                                )}
+                                <div>
+                                  <strong>{child.name}</strong>
+                                  <small>
+                                    {childCards.length} tarjetas · {pct}% visto
+                                  </small>
+                                </div>
+                                {bulkSelectMode ? <span /> : <span>→</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {bulkSelectMode && isTheme && (
+                          <div
+                            className="bulk-card-toolbar"
+                            style={{ marginTop: 12 }}
+                          >
+                            <div className="bulk-card-summary">
+                              <strong>
+                                {selectedCardIds.length} seleccionada
+                                {selectedCardIds.length === 1 ? "" : "s"}
+                              </strong>
+                              <button
+                                type="button"
+                                className="text-button"
+                                onClick={() => {
+                                  const scopeIds = scopeCards.map(
+                                    (card) => card.id,
+                                  );
+                                  const allSelected =
+                                    scopeIds.length > 0 &&
+                                    scopeIds.every((id) =>
+                                      selectedCardIds.includes(id),
+                                    );
+                                  setSelectedCardIds(
+                                    allSelected ? [] : scopeIds,
+                                  );
+                                }}
+                              >
+                                {scopeCards.length > 0 &&
+                                scopeCards.every((card) =>
+                                  selectedCardIds.includes(card.id),
+                                )
+                                  ? "Quitar todas"
+                                  : "Seleccionar todas"}
+                              </button>
+                            </div>
+                            <div className="bulk-study-actions">
+                              <span>ESTUDIAR SELECCIÓN</span>
+                              <button
+                                className="secondary-button"
+                                disabled={!selectedCardIds.length}
+                                onClick={() =>
+                                  studySelectedCards("recommended")
+                                }
+                              >
+                                Repaso programado
+                              </button>
+                              <button
+                                className="secondary-button"
+                                disabled={!selectedCardIds.length}
+                                onClick={() => studySelectedCards("weakest")}
+                              >
+                                🔥 Más falladas
+                              </button>
+                              <button
+                                className="secondary-button"
+                                disabled={!selectedCardIds.length}
+                                onClick={() => studySelectedCards("random")}
+                              >
+                                🎲 Aleatorias
+                              </button>
+                              <button
+                                className="primary-button"
+                                disabled={!selectedCardIds.length}
+                                onClick={() => studySelectedCards("learn")}
+                              >
+                                ◎ Aprender
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </section>
+                    )}
+
+                    <div className="card-section-head">
+                      <div>
+                        <span className="section-label">
+                          {isTheme
+                            ? "TARJETAS SIN SUBTEMA"
+                            : "TARJETAS DEL SUBTEMA"}
+                        </span>
+                        <h3>
+                          {directCards.length
+                            ? `${directCards.length} tarjetas`
+                            : "Sin tarjetas directas"}
+                        </h3>
+                      </div>
+                      <div className="card-section-actions">
+                        {directCards.length > 0 && !isTheme && (
+                          <button
+                            className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`}
+                            onClick={() => {
+                              setBulkSelectMode((value) => !value);
+                              setSelectedCardIds([]);
+                              setBulkTargetFolderId("");
+                            }}
+                          >
+                            {bulkSelectMode
+                              ? "Cancelar selección"
+                              : "Seleccionar"}
+                          </button>
+                        )}
+                        <button
+                          className="secondary-button"
+                          onClick={() => {
+                            setEditingCard(null);
+                            setModal("card");
+                          }}
+                        >
+                          ＋ Tarjeta aquí
+                        </button>
+                      </div>
+                    </div>
+
+                    {bulkSelectMode && directCards.length > 0 && !isTheme && (
+                      <div className="bulk-card-toolbar">
                         <div className="bulk-card-summary">
-                          <strong>{selectedCardIds.length} seleccionada{selectedCardIds.length === 1 ? "" : "s"}</strong>
-                          <button type="button" className="text-button" onClick={() => {
-                            const scopeIds = scopeCards.map((card) => card.id);
-                            const allSelected = scopeIds.length > 0 && scopeIds.every((id) => selectedCardIds.includes(id));
-                            setSelectedCardIds(allSelected ? [] : scopeIds);
-                          }}>
-                            {scopeCards.length > 0 && scopeCards.every((card) => selectedCardIds.includes(card.id)) ? "Quitar todas" : "Seleccionar todas"}
+                          <strong>
+                            {selectedCardIds.length} seleccionada
+                            {selectedCardIds.length === 1 ? "" : "s"}
+                          </strong>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() =>
+                              setSelectedCardIds(
+                                selectedCardIds.length === directCards.length
+                                  ? []
+                                  : directCards.map((card) => card.id),
+                              )
+                            }
+                          >
+                            {selectedCardIds.length === directCards.length
+                              ? "Quitar todas"
+                              : "Seleccionar todas"}
+                          </button>
+                        </div>
+                        <div className="bulk-card-actions">
+                          <select
+                            value={bulkTargetFolderId}
+                            onChange={(event) =>
+                              setBulkTargetFolderId(event.target.value)
+                            }
+                            aria-label="Tema o subtema de destino"
+                          >
+                            <option value="">Mover a tema / subtema…</option>
+                            {flattenFolderTree(state.folders).map(
+                              ({ folder, depth }) => (
+                                <option key={folder.id} value={folder.id}>
+                                  {"↳ ".repeat(depth)}
+                                  {folder.name}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                          <button
+                            className="secondary-button"
+                            disabled={
+                              !selectedCardIds.length || !bulkTargetFolderId
+                            }
+                            onClick={() =>
+                              moveSelectedCards(bulkTargetFolderId)
+                            }
+                          >
+                            Mover
+                          </button>
+                          <button
+                            className="secondary-button danger"
+                            disabled={!selectedCardIds.length}
+                            onClick={deleteSelectedCards}
+                          >
+                            Eliminar
                           </button>
                         </div>
                         <div className="bulk-study-actions">
                           <span>ESTUDIAR SELECCIÓN</span>
-                          <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("recommended")}>Repaso programado</button>
-                          <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("weakest")}>🔥 Más falladas</button>
-                          <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("random")}>🎲 Aleatorias</button>
-                          <button className="primary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("learn")}>◎ Aprender</button>
+                          <button
+                            className="secondary-button"
+                            disabled={!selectedCardIds.length}
+                            onClick={() => studySelectedCards("recommended")}
+                          >
+                            Repaso programado
+                          </button>
+                          <button
+                            className="secondary-button"
+                            disabled={!selectedCardIds.length}
+                            onClick={() => studySelectedCards("weakest")}
+                          >
+                            🔥 Más falladas
+                          </button>
+                          <button
+                            className="secondary-button"
+                            disabled={!selectedCardIds.length}
+                            onClick={() => studySelectedCards("random")}
+                          >
+                            🎲 Aleatorias
+                          </button>
+                          <button
+                            className="primary-button"
+                            disabled={!selectedCardIds.length}
+                            onClick={() => studySelectedCards("learn")}
+                          >
+                            ◎ Aprender
+                          </button>
                         </div>
                       </div>
                     )}
-                  </section>}
 
-                  <div className="card-section-head">
-                    <div><span className="section-label">{isTheme ? "TARJETAS SIN SUBTEMA" : "TARJETAS DEL SUBTEMA"}</span><h3>{directCards.length ? `${directCards.length} tarjetas` : "Sin tarjetas directas"}</h3></div>
-                    <div className="card-section-actions">
-                      {directCards.length > 0 && !isTheme && <button className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`} onClick={() => { setBulkSelectMode((value) => !value); setSelectedCardIds([]); setBulkTargetFolderId(""); }}>{bulkSelectMode ? "Cancelar selección" : "Seleccionar"}</button>}
-                      <button className="secondary-button" onClick={() => { setEditingCard(null); setModal("card"); }}>＋ Tarjeta aquí</button>
-                    </div>
-                  </div>
-
-                  {bulkSelectMode && directCards.length > 0 && !isTheme && (
-                    <div className="bulk-card-toolbar">
-                      <div className="bulk-card-summary">
-                        <strong>{selectedCardIds.length} seleccionada{selectedCardIds.length === 1 ? "" : "s"}</strong>
-                        <button type="button" className="text-button" onClick={() => setSelectedCardIds(selectedCardIds.length === directCards.length ? [] : directCards.map((card) => card.id))}>
-                          {selectedCardIds.length === directCards.length ? "Quitar todas" : "Seleccionar todas"}
-                        </button>
-                      </div>
-                      <div className="bulk-card-actions">
-                        <select value={bulkTargetFolderId} onChange={(event) => setBulkTargetFolderId(event.target.value)} aria-label="Tema o subtema de destino">
-                          <option value="">Mover a tema / subtema…</option>
-                          {flattenFolderTree(state.folders).map(({ folder, depth }) => <option key={folder.id} value={folder.id}>{"↳ ".repeat(depth)}{folder.name}</option>)}
-                        </select>
-                        <button className="secondary-button" disabled={!selectedCardIds.length || !bulkTargetFolderId} onClick={() => moveSelectedCards(bulkTargetFolderId)}>Mover</button>
-                        <button className="secondary-button danger" disabled={!selectedCardIds.length} onClick={deleteSelectedCards}>Eliminar</button>
-                      </div>
-                      <div className="bulk-study-actions">
-                        <span>ESTUDIAR SELECCIÓN</span>
-                        <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("recommended")}>Repaso programado</button>
-                        <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("weakest")}>🔥 Más falladas</button>
-                        <button className="secondary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("random")}>🎲 Aleatorias</button>
-                        <button className="primary-button" disabled={!selectedCardIds.length} onClick={() => studySelectedCards("learn")}>◎ Aprender</button>
-                      </div>
-                    </div>
-                  )}
-
-                  {directCards.length > 0 ? <div className={`card-table ${bulkSelectMode ? "selecting" : ""}`}>
-                    {directCards.map((card) => {
-                      const selected = selectedCardIds.includes(card.id);
-                      return <div
-                        className={`card-row ${bulkSelectMode ? "bulk-selectable" : ""} ${selected ? "selected" : ""}`}
-                        key={card.id}
-                        onClick={() => { if (bulkSelectMode) toggleCardSelection(card.id); }}
+                    {directCards.length > 0 ? (
+                      <div
+                        className={`card-table ${bulkSelectMode ? "selecting" : ""}`}
                       >
-                        {bulkSelectMode && <button type="button" className="card-select-check" aria-label={selected ? "Quitar de la selección" : "Seleccionar tarjeta"} onClick={(event) => { event.stopPropagation(); toggleCardSelection(card.id); }}>{selected ? "✓" : ""}</button>}
-                        <span className="card-kind">{cardTypeLabel(card.type)}{isMultipleAnswerTest(card) ? " · MULTI" : ""}</span>
-                        <div><strong>{plainRichText(card.front) || "Sin pregunta"}{card.attachment ? " · 🖼️" : ""}</strong><p>{plainRichText(card.back) || (isMultipleChoiceCard(card) ? "Sin explicación añadida" : "Sin respuesta añadida")}</p></div>
-                        <span>{isWrittenCard(card) ? (writtenAverageAccuracy(card) === null ? "Sin estudiar" : `${Math.round(writtenAverageAccuracy(card) ?? 0)}% precisión`) : card.reviewCount ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos` : "Sin estudiar"}</span>
-                        <div className="card-actions">
-                          {!bulkSelectMode && <button aria-label="Editar tarjeta" title="Editar tarjeta" onClick={() => { setEditingCard(card.id); setModal("card"); }}>✎</button>}
-                          {!bulkSelectMode && <button aria-label="Eliminar tarjeta" title="Eliminar tarjeta" onClick={() => updateState((current) => ({ ...current, cards: current.cards.filter((item) => item.id !== card.id) }))}>×</button>}
-                        </div>
-                      </div>;
-                    })}
-                  </div> : <div className="folder-empty-note">{children.length ? "Las tarjetas de este tema están organizadas dentro de sus subtemas." : "Añade tarjetas a este subtema para empezar a estudiarlo."}</div>}
-                </div>
-              );
-            })()}
+                        {directCards.map((card) => {
+                          const selected = selectedCardIds.includes(card.id);
+                          return (
+                            <div
+                              className={`card-row ${bulkSelectMode ? "bulk-selectable" : ""} ${selected ? "selected" : ""}`}
+                              key={card.id}
+                              onClick={() => {
+                                if (bulkSelectMode)
+                                  toggleCardSelection(card.id);
+                              }}
+                            >
+                              {bulkSelectMode && (
+                                <button
+                                  type="button"
+                                  className="card-select-check"
+                                  aria-label={
+                                    selected
+                                      ? "Quitar de la selección"
+                                      : "Seleccionar tarjeta"
+                                  }
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleCardSelection(card.id);
+                                  }}
+                                >
+                                  {selected ? "✓" : ""}
+                                </button>
+                              )}
+                              <span className="card-kind">
+                                {cardTypeLabel(card.type)}
+                                {isMultipleAnswerTest(card) ? " · MULTI" : ""}
+                              </span>
+                              <div>
+                                <strong>
+                                  {plainRichText(card.front) || "Sin pregunta"}
+                                  {card.attachment ? " · 🖼️" : ""}
+                                </strong>
+                                <p>
+                                  {plainRichText(card.back) ||
+                                    (isMultipleChoiceCard(card)
+                                      ? "Sin explicación añadida"
+                                      : "Sin respuesta añadida")}
+                                </p>
+                              </div>
+                              <span>
+                                {isWrittenCard(card)
+                                  ? writtenAverageAccuracy(card) === null
+                                    ? "Sin estudiar"
+                                    : `${Math.round(writtenAverageAccuracy(card) ?? 0)}% precisión`
+                                  : card.reviewCount
+                                    ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos`
+                                    : "Sin estudiar"}
+                              </span>
+                              <div className="card-actions">
+                                {!bulkSelectMode && (
+                                  <button
+                                    aria-label="Editar tarjeta"
+                                    title="Editar tarjeta"
+                                    onClick={() => {
+                                      setEditingCard(card.id);
+                                      setModal("card");
+                                    }}
+                                  >
+                                    ✎
+                                  </button>
+                                )}
+                                {!bulkSelectMode && (
+                                  <button
+                                    aria-label="Eliminar tarjeta"
+                                    title="Eliminar tarjeta"
+                                    onClick={() =>
+                                      updateState((current) => ({
+                                        ...current,
+                                        cards: current.cards.filter(
+                                          (item) => item.id !== card.id,
+                                        ),
+                                      }))
+                                    }
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="folder-empty-note">
+                        {children.length
+                          ? "Las tarjetas de este tema están organizadas dentro de sus subtemas."
+                          : "Añade tarjetas a este subtema para empezar a estudiarlo."}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
+            )}
           </section>
         )}
 
-        {tab === "study" && (
+        {tab === "organize" && (
           <section className="page study-organizer-page">
             <div className="study-organizer-toolbar">
-              <div className="study-view-switch" role="tablist" aria-label="Organización de estudio">
-                <button className={studyView === "today" ? "active" : ""} onClick={() => { clearStudySelection(); setStudyView("today"); }}>Hoy</button>
-                <button className={studyView === "tree" ? "active" : ""} onClick={() => setStudyView("tree")}>Temario</button>
-                <button className={studyView === "history" ? "active" : ""} onClick={() => { clearStudySelection(); setStudyView("history"); }}>Historial</button>
+              <div
+                className="study-view-switch"
+                role="tablist"
+                aria-label="Organización de estudio"
+              >
+                <button
+                  className={studyView === "today" ? "active" : ""}
+                  onClick={() => {
+                    clearStudySelection();
+                    setStudyView("today");
+                  }}
+                >
+                  Hoy
+                </button>
+                <button
+                  className={studyView === "tree" ? "active" : ""}
+                  onClick={() => setStudyView("tree")}
+                >
+                  Temario
+                </button>
+                <button
+                  className={studyView === "history" ? "active" : ""}
+                  onClick={() => {
+                    clearStudySelection();
+                    setStudyView("history");
+                  }}
+                >
+                  Historial
+                </button>
               </div>
               <div className="study-organizer-actions">
-                <button className="secondary-button" onClick={() => openStudyNodeEditor(null, null)}>＋ Añadir elemento</button>
-                <button className="secondary-button" onClick={() => openStudyImport(null)}>⇧ Importar / actualizar</button>
-                <button className={`secondary-button ${studySelectMode ? "active" : ""}`} disabled={!state.studyNodes.length} onClick={() => { setStudyView("tree"); if (studySelectMode) clearStudySelection(); else { setStudySelectMode(true); setSelectedStudyNodeIds([]); } }}>☑ Seleccionar</button>
-                <button className="secondary-button" disabled={!state.studyNodes.length} onClick={() => exportStudyData()}>↓ Exportar todo</button>
-                <button className="primary-button" disabled={!state.studyNodes.length} onClick={() => openStudyQuick()}>＋ Repaso rápido</button>
+                <button
+                  className="secondary-button"
+                  onClick={() => openStudyNodeEditor(null, null)}
+                >
+                  <Icon name="plus" size={17} /> Añadir elemento
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => openStudyImport(null)}
+                >
+                  <Icon name="upload" size={17} /> Importar / actualizar
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={!state.studyNodes.length}
+                  onClick={() => exportStudyData()}
+                >
+                  <Icon name="download" size={17} /> Exportar todo
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={!state.studyNodes.length}
+                  onClick={() => openStudyQuick()}
+                >
+                  <Icon name="plus" size={17} /> Repaso rápido
+                </button>
               </div>
             </div>
 
@@ -2390,59 +2881,259 @@ export default function OpoApp() {
               <div className="study-empty-state">
                 <span className="study-empty-icon">▤</span>
                 <span className="section-label">ORGANIZACIÓN DE ESTUDIO</span>
-                <h2>Importa tu temario una vez y anota los repasos en segundos</h2>
-                <p>Puedes pegar un árbol en JSON, pegar un índice en texto, cargar un archivo .json/.txt o empezar manualmente. Después puedes ampliar cualquier rama cuando quieras.</p>
-                <div className="study-empty-actions"><button className="primary-button" onClick={() => openStudyImport(null)}>Importar mi temario</button><button className="secondary-button" onClick={() => openStudyNodeEditor(null, null)}>＋ Crear tema manualmente</button></div>
+                <h2>
+                  Importa tu temario una vez y anota los repasos en segundos
+                </h2>
+                <p>
+                  Puedes pegar un árbol en JSON, pegar un índice en texto,
+                  cargar un archivo .json/.txt o empezar manualmente. Después
+                  puedes ampliar cualquier rama cuando quieras.
+                </p>
+                <div className="study-empty-actions">
+                  <button
+                    className="primary-button"
+                    onClick={() => openStudyImport(null)}
+                  >
+                    Importar mi temario
+                  </button>
+                  <button
+                    className="secondary-button"
+                    onClick={() => openStudyNodeEditor(null, null)}
+                  >
+                    ＋ Crear tema manualmente
+                  </button>
+                </div>
               </div>
             ) : studyView === "today" ? (
               <>
                 <div className="study-summary-grid">
-                  <article><span>PARA HOY</span><strong>{studyDue.length}</strong><small>incluye atrasados</small></article>
-                  <article><span>PRÓXIMOS</span><strong>{studyPending.filter((task) => task.plannedFor > localDateKey()).length}</strong><small>repasos programados</small></article>
-                  <article><span>A REFORZAR</span><strong>{studyWeakCount}</strong><small>marcados regular o mal</small></article>
+                  <article>
+                    <span>PARA HOY</span>
+                    <strong>{studyDue.length}</strong>
+                    <small>incluye atrasados</small>
+                  </article>
+                  <article>
+                    <span>PRÓXIMOS</span>
+                    <strong>
+                      {
+                        studyPending.filter(
+                          (task) => task.plannedFor > localDateKey(),
+                        ).length
+                      }
+                    </strong>
+                    <small>repasos programados</small>
+                  </article>
+                  <article>
+                    <span>A REFORZAR</span>
+                    <strong>{studyWeakCount}</strong>
+                    <small>marcados regular o mal</small>
+                  </article>
                 </div>
 
                 <section className="panel study-tasks-panel">
                   <div className="panel-head study-queue-panel-head">
-                    <div><span className="section-label">COLA PERSONAL</span><h3>{studyDue.length ? "Lo que toca revisar" : "Nada obligatorio para hoy"}</h3></div>
+                    <div>
+                      <span className="section-label">COLA PERSONAL</span>
+                      <h3>
+                        {studyDue.length
+                          ? "Lo que toca revisar"
+                          : "Nada obligatorio para hoy"}
+                      </h3>
+                    </div>
                     <div className="study-panel-head-actions">
-                      {studyDue.length > 1 && <div className="study-queue-switch" aria-label="Vista de la cola"><button className={studyQueueMode === "grouped" ? "active" : ""} onClick={() => setStudyQueueMode("grouped")}>Agrupado</button><button className={studyQueueMode === "list" ? "active" : ""} onClick={() => setStudyQueueMode("list")}>Lista</button></div>}
-                      <button className="text-button" onClick={() => openStudyQuick()}>＋ Añadir</button>
+                      {studyDue.length > 1 && (
+                        <div
+                          className="study-queue-switch"
+                          aria-label="Vista de la cola"
+                        >
+                          <button
+                            className={
+                              studyQueueMode === "grouped" ? "active" : ""
+                            }
+                            onClick={() => setStudyQueueMode("grouped")}
+                          >
+                            Agrupado
+                          </button>
+                          <button
+                            className={
+                              studyQueueMode === "list" ? "active" : ""
+                            }
+                            onClick={() => setStudyQueueMode("list")}
+                          >
+                            Lista
+                          </button>
+                        </div>
+                      )}
+                      <button
+                        className="text-button"
+                        onClick={() => openStudyQuick()}
+                      >
+                        ＋ Añadir
+                      </button>
                     </div>
                   </div>
-                  {studyDue.length ? (studyQueueMode === "grouped"
-                    ? <StudyTaskGroupedList tasks={studyDue} nodes={state.studyNodes} onComplete={completeStudyTask} onPostpone={postponeStudyTask} onDelete={deleteStudyTask} onEdit={editStudyTask} />
-                    : <div className="study-task-list">{studyDue.map((task, index) => <StudyTaskCard key={task.id} task={task} node={state.studyNodes.find((node) => node.id === task.nodeId) ?? null} nodes={state.studyNodes} onComplete={completeStudyTask} onPostpone={postponeStudyTask} onDelete={deleteStudyTask} onEdit={editStudyTask} onReorder={reorderStudyTask} canMoveUp={index > 0} canMoveDown={index < studyDue.length - 1} />)}</div>)
-                    : <div className="study-inline-empty"><strong>La cola está limpia.</strong><span>Puedes añadir un repaso manual o seguir estudiando y marcar algo desde una tarjeta.</span></div>}
+                  {studyDue.length ? (
+                    studyQueueMode === "grouped" ? (
+                      <StudyTaskGroupedList
+                        tasks={studyDue}
+                        nodes={state.studyNodes}
+                        onComplete={completeStudyTask}
+                        onPostpone={postponeStudyTask}
+                        onDelete={deleteStudyTask}
+                        onEdit={editStudyTask}
+                      />
+                    ) : (
+                      <div className="study-task-list">
+                        {studyDue.map((task, index) => (
+                          <StudyTaskCard
+                            key={task.id}
+                            task={task}
+                            node={
+                              state.studyNodes.find(
+                                (node) => node.id === task.nodeId,
+                              ) ?? null
+                            }
+                            nodes={state.studyNodes}
+                            onComplete={completeStudyTask}
+                            onPostpone={postponeStudyTask}
+                            onDelete={deleteStudyTask}
+                            onEdit={editStudyTask}
+                            onReorder={reorderStudyTask}
+                            canMoveUp={index > 0}
+                            canMoveDown={index < studyDue.length - 1}
+                          />
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    <div className="study-inline-empty">
+                      <strong>La cola está limpia.</strong>
+                      <span>
+                        Puedes añadir un repaso manual o seguir estudiando y
+                        marcar algo desde una tarjeta.
+                      </span>
+                    </div>
+                  )}
                 </section>
 
-                {studyUpcoming.length > 0 && <section className="panel study-upcoming-panel">
-                  <div className="panel-head"><div><span className="section-label">DESPUÉS</span><h3>Próximos repasos</h3></div></div>
-                  <div className="study-upcoming-list">{studyUpcoming.map((task) => <StudyUpcomingRow key={task.id} task={task} node={state.studyNodes.find((item) => item.id === task.nodeId) ?? null} nodes={state.studyNodes} onEdit={editStudyTask} onDelete={deleteStudyTask} />)}</div>
-                </section>}
+                {studyUpcoming.length > 0 && (
+                  <section className="panel study-upcoming-panel">
+                    <div className="panel-head">
+                      <div>
+                        <span className="section-label">DESPUÉS</span>
+                        <h3>Próximos repasos</h3>
+                      </div>
+                    </div>
+                    <div className="study-upcoming-list">
+                      {studyUpcoming.map((task) => (
+                        <StudyUpcomingRow
+                          key={task.id}
+                          task={task}
+                          node={
+                            state.studyNodes.find(
+                              (item) => item.id === task.nodeId,
+                            ) ?? null
+                          }
+                          nodes={state.studyNodes}
+                          onEdit={editStudyTask}
+                          onDelete={deleteStudyTask}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
               </>
             ) : studyView === "tree" ? (
-              <>
-                <div className="section-heading study-tree-heading"><div><span className="section-label">TEMARIO</span><h2>{studyRoots.length} {studyRoots.length === 1 ? "tema" : "temas"} · {state.studyNodes.length} elementos</h2><p>Puedes añadir, renombrar, mover, actualizar por importación o borrar cualquier rama sin rehacer el árbol completo.</p></div></div>
-                {studySelectMode && <div className="study-selection-bar"><div><strong>{selectedStudyNodeIds.length ? `${selectedStudyNodeIds.length} seleccionado${selectedStudyNodeIds.length === 1 ? "" : "s"}` : "Selecciona los elementos que quieras gestionar"}</strong><small>{studySelectedDeleteIds.size > selectedStudyNodeIds.length ? `Al borrar se incluirán ${studySelectedDeleteIds.size} elementos contando sus subapartados.` : "Puedes seleccionar varios elementos o ramas."}{studySelectedTaskCount ? ` También hay ${studySelectedTaskCount} registros de repaso asociados.` : ""}</small></div><div><button className="secondary-button" onClick={() => setSelectedStudyNodeIds(state.studyNodes.map((node) => node.id))}>Seleccionar todo</button><button className="danger-button" disabled={!selectedStudyNodeIds.length} onClick={() => deleteStudyNodes(selectedStudyNodeIds)}>Eliminar seleccionados</button><button className="text-button" onClick={clearStudySelection}>Cancelar</button></div></div>}
-                <div className="study-tree-list">
-                  {studyRoots.map((root) => <StudyTreeBranch key={root.id} node={root} nodes={state.studyNodes} tasks={state.studyTasks} depth={0} onQuick={openStudyQuick} onExport={exportStudyData} onAddChild={(parentId) => openStudyNodeEditor(parentId, null)} onEdit={(nodeId) => { const node = state.studyNodes.find((item) => item.id === nodeId); openStudyNodeEditor(node?.parentId ?? null, nodeId); }} onImportInto={openStudyImport} onDelete={(nodeId) => deleteStudyNodes([nodeId])} selectionMode={studySelectMode} selectedIds={selectedStudyNodeIds} onToggleSelect={toggleStudyNodeSelection} />)}
-                </div>
-              </>
+              <TemarioBrowser
+                nodes={state.studyNodes}
+                tasks={state.studyTasks}
+                onStudy={(id) => startStudySession(id)}
+                onQuick={openStudyQuick}
+                onExport={exportStudyData}
+                onCreate={(parent) => openStudyNodeEditor(parent, null)}
+                onEdit={(id) =>
+                  openStudyNodeEditor(
+                    state.studyNodes.find((n) => n.id === id)?.parentId ?? null,
+                    id,
+                  )
+                }
+                onImport={openStudyImport}
+                onDelete={deleteStudyNodes}
+                onReorder={reorderStudyNode}
+              />
             ) : (
               <>
                 <div className="study-history-toolbar">
-                  <div><span className="section-label">REGISTRO</span><h2>Historial de repasos</h2></div>
-                  <select value={studyHistoryRoot} onChange={(event) => setStudyHistoryRoot(event.target.value)}>
+                  <div>
+                    <span className="section-label">REGISTRO</span>
+                    <h2>Historial de repasos</h2>
+                  </div>
+                  <select
+                    value={studyHistoryRoot}
+                    onChange={(event) =>
+                      setStudyHistoryRoot(event.target.value)
+                    }
+                  >
                     <option value="all">Todos los temas</option>
-                    {studyRoots.map((root) => <option key={root.id} value={root.id}>{root.name}</option>)}
+                    {studyRoots.map((root) => (
+                      <option key={root.id} value={root.id}>
+                        {root.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <section className="panel study-history-panel">
-                  {filteredStudyCompleted.length ? <div className="study-history-list">{filteredStudyCompleted.map((task) => {
-                    const node = state.studyNodes.find((item) => item.id === task.nodeId);
-                    return <div className="study-history-row" key={task.id}><span className={`study-assessment-dot ${task.assessment ?? ""}`} /><div><strong>{node?.name ?? "Elemento eliminado"}</strong><small>{studyNodePath(state.studyNodes, task.nodeId).join(" · ")}</small>{task.note && <p className="study-history-note"><b>Para repasar:</b> {task.note}</p>}{task.completionNote && <p className="study-history-completion-note"><b>Comentario:</b> {task.completionNote}</p>}</div><span className={`study-result ${task.assessment ?? ""}`}>{task.assessment ?? "—"}</span><time>{dateLabel(task.completedAt)}</time></div>;
-                  })}</div> : <div className="study-inline-empty"><strong>Aún no hay repasos completados.</strong><span>Cuando marques un pendiente como Bien, Regular o Mal aparecerá aquí.</span></div>}
+                  {filteredStudyCompleted.length ? (
+                    <div className="study-history-list">
+                      {filteredStudyCompleted.map((task) => {
+                        const node = state.studyNodes.find(
+                          (item) => item.id === task.nodeId,
+                        );
+                        return (
+                          <div className="study-history-row" key={task.id}>
+                            <span
+                              className={`study-assessment-dot ${task.assessment ?? ""}`}
+                            />
+                            <div>
+                              <strong>
+                                {node?.name ?? "Elemento eliminado"}
+                              </strong>
+                              <small>
+                                {studyNodePath(
+                                  state.studyNodes,
+                                  task.nodeId,
+                                ).join(" · ")}
+                              </small>
+                              {task.note && (
+                                <p className="study-history-note">
+                                  <b>Para repasar:</b> {task.note}
+                                </p>
+                              )}
+                              {task.completionNote && (
+                                <p className="study-history-completion-note">
+                                  <b>Comentario:</b> {task.completionNote}
+                                </p>
+                              )}
+                            </div>
+                            <span
+                              className={`study-result ${task.assessment ?? ""}`}
+                            >
+                              {task.assessment ?? "—"}
+                            </span>
+                            <time>{dateLabel(task.completedAt)}</time>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="study-inline-empty">
+                      <strong>Aún no hay repasos completados.</strong>
+                      <span>
+                        Cuando marques un pendiente como Bien, Regular o Mal
+                        aparecerá aquí.
+                      </span>
+                    </div>
+                  )}
                 </section>
               </>
             )}
@@ -2451,75 +3142,291 @@ export default function OpoApp() {
 
         {tab === "psych" && (
           <section className="page psych-page">
-            {detailPsych ? (() => {
-              const stats = psychStats(detailPsych);
-              return (
-                <div className="psych-detail">
-                  <button className="back-button" onClick={() => setPsychDetail(null)}>← Volver a psicotécnicos</button>
-                  <div className="psych-detail-head">
-                    <div>
-                      <span className="category-chip">{detailPsych.category || "Sin categoría"}</span>
-                      <h2>{detailPsych.name || "Psicotécnico sin nombre"}</h2>
-                      <p>{detailPsych.totalQuestions || 0} preguntas · añadido el {dateLabel(detailPsych.createdAt)}</p>
-                    </div>
-                    <div className="psych-detail-actions">
-                      <button className="secondary-button" onClick={() => { setEditingPsychTest(detailPsych.id); setModal("psych"); }}>Editar ficha</button>
-                      {detailPsych.attachment?.type === "application/pdf" ? <button className="secondary-button" onClick={() => setEditingPsych(detailPsych.id)}>✎ Abrir PDF</button> : detailPsych.attachment ? <a className="secondary-button" href="#" onClick={(event) => { event.preventDefault(); setEditingPsych(detailPsych.id); }}>Abrir documento</a> : null}
-                      <button className="primary-button" onClick={() => openAttemptEditor(detailPsych.id)}>＋ Registrar intento</button>
-                    </div>
-                  </div>
-
-                  <div className="psych-summary-grid">
-                    <div><span>Última nota</span><strong>{stats.last ? scoreLabel(stats.last.score) : "—"}</strong><small>{stats.last ? dateLabel(stats.last.date) : "Sin intentos"}</small></div>
-                    <div><span>Mejor nota</span><strong>{stats.best === null ? "—" : scoreLabel(stats.best)}</strong><small>{stats.attempts.length ? `${stats.attempts.length} intentos` : "Sin intentos"}</small></div>
-                    <div><span>Nota media</span><strong>{stats.average === null ? "—" : scoreLabel(stats.average)}</strong><small>histórico completo</small></div>
-                    <div><span>Último tiempo</span><strong>{stats.last ? `${scoreLabel(stats.last.minutes)} min` : "—"}</strong><small>{stats.last ? `${stats.last.correct} ✓ · ${stats.last.wrong} ✕ · ${stats.last.blank} —` : "Sin datos"}</small></div>
-                  </div>
-
-                  <section className="panel psych-history-panel">
-                    <div className="panel-head">
-                      <div><span className="section-label">HISTORIAL</span><h3>Todos los intentos</h3></div>
-                      <span className="psych-history-count">{stats.attempts.length} {stats.attempts.length === 1 ? "registro" : "registros"}</span>
-                    </div>
-                    {stats.attempts.length ? (
-                      <div className="attempt-history">
-                        {stats.attempts.map((attempt, index) => (
-                          <div className="attempt-history-row" key={attempt.id}>
-                            <div className="attempt-rank"><span>{stats.attempts.length - index}</span></div>
-                            <div className="attempt-main"><strong>{dateLabel(attempt.date)}</strong><small>{attempt.notes || "Sin notas"}</small></div>
-                            <div className="attempt-score"><small>Nota</small><strong>{scoreLabel(attempt.score)}</strong></div>
-                            <div className="attempt-answers"><span>{attempt.correct} ✓</span><span>{attempt.wrong} ✕</span><span>{attempt.blank} —</span></div>
-                            <div className="attempt-time"><small>Tiempo</small><strong>{scoreLabel(attempt.minutes)} min</strong></div>
-                            <div className="attempt-actions">
-                              <button title="Editar intento" aria-label="Editar intento" onClick={() => openAttemptEditor(detailPsych.id, attempt.id)}>✎</button>
-                              <button title="Eliminar intento" aria-label="Eliminar intento" className="danger" onClick={() => deleteAttempt(detailPsych.id, attempt.id)}>×</button>
-                            </div>
-                          </div>
-                        ))}
+            {detailPsych ? (
+              (() => {
+                const stats = psychStats(detailPsych);
+                return (
+                  <div className="psych-detail">
+                    <button
+                      className="back-button"
+                      onClick={() => setPsychDetail(null)}
+                    >
+                      ← Volver a psicotécnicos
+                    </button>
+                    <div className="psych-detail-head">
+                      <div>
+                        <span className="category-chip">
+                          {detailPsych.category || "Sin categoría"}
+                        </span>
+                        <h2>{detailPsych.name || "Psicotécnico sin nombre"}</h2>
+                        <p>
+                          {detailPsych.totalQuestions || 0} preguntas · añadido
+                          el {dateLabel(detailPsych.createdAt)}
+                        </p>
                       </div>
-                    ) : <Empty icon="◎" title="Todavía no hay intentos" copy="Cuando hagas este psicotécnico, registra la nota y la fecha para empezar a ver tu evolución." action="Registrar primer intento" onAction={() => openAttemptEditor(detailPsych.id)} />}
-                  </section>
+                      <div className="psych-detail-actions">
+                        <button
+                          className="secondary-button"
+                          onClick={() => {
+                            setEditingPsychTest(detailPsych.id);
+                            setModal("psych");
+                          }}
+                        >
+                          Editar ficha
+                        </button>
+                        {detailPsych.attachment?.type === "application/pdf" ? (
+                          <button
+                            className="secondary-button"
+                            onClick={() => setEditingPsych(detailPsych.id)}
+                          >
+                            ✎ Abrir PDF
+                          </button>
+                        ) : detailPsych.attachment ? (
+                          <a
+                            className="secondary-button"
+                            href="#"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              setEditingPsych(detailPsych.id);
+                            }}
+                          >
+                            Abrir documento
+                          </a>
+                        ) : null}
+                        <button
+                          className="primary-button"
+                          onClick={() => openAttemptEditor(detailPsych.id)}
+                        >
+                          ＋ Registrar intento
+                        </button>
+                      </div>
+                    </div>
 
-                  <div className="psych-danger-zone">
-                    <button className="text-button danger-text" onClick={() => deletePsychTest(detailPsych.id)}>Eliminar psicotécnico e historial</button>
+                    <div className="psych-summary-grid">
+                      <div>
+                        <span>Última nota</span>
+                        <strong>
+                          {stats.last ? scoreLabel(stats.last.score) : "—"}
+                        </strong>
+                        <small>
+                          {stats.last
+                            ? dateLabel(stats.last.date)
+                            : "Sin intentos"}
+                        </small>
+                      </div>
+                      <div>
+                        <span>Mejor nota</span>
+                        <strong>
+                          {stats.best === null ? "—" : scoreLabel(stats.best)}
+                        </strong>
+                        <small>
+                          {stats.attempts.length
+                            ? `${stats.attempts.length} intentos`
+                            : "Sin intentos"}
+                        </small>
+                      </div>
+                      <div>
+                        <span>Nota media</span>
+                        <strong>
+                          {stats.average === null
+                            ? "—"
+                            : scoreLabel(stats.average)}
+                        </strong>
+                        <small>histórico completo</small>
+                      </div>
+                      <div>
+                        <span>Último tiempo</span>
+                        <strong>
+                          {stats.last
+                            ? `${scoreLabel(stats.last.minutes)} min`
+                            : "—"}
+                        </strong>
+                        <small>
+                          {stats.last
+                            ? `${stats.last.correct} ✓ · ${stats.last.wrong} ✕ · ${stats.last.blank} —`
+                            : "Sin datos"}
+                        </small>
+                      </div>
+                    </div>
+
+                    <section className="panel psych-history-panel">
+                      <div className="panel-head">
+                        <div>
+                          <span className="section-label">HISTORIAL</span>
+                          <h3>Todos los intentos</h3>
+                        </div>
+                        <span className="psych-history-count">
+                          {stats.attempts.length}{" "}
+                          {stats.attempts.length === 1
+                            ? "registro"
+                            : "registros"}
+                        </span>
+                      </div>
+                      {stats.attempts.length ? (
+                        <div className="attempt-history">
+                          {stats.attempts.map((attempt, index) => (
+                            <div
+                              className="attempt-history-row"
+                              key={attempt.id}
+                            >
+                              <div className="attempt-rank">
+                                <span>{stats.attempts.length - index}</span>
+                              </div>
+                              <div className="attempt-main">
+                                <strong>{dateLabel(attempt.date)}</strong>
+                                <small>{attempt.notes || "Sin notas"}</small>
+                              </div>
+                              <div className="attempt-score">
+                                <small>Nota</small>
+                                <strong>{scoreLabel(attempt.score)}</strong>
+                              </div>
+                              <div className="attempt-answers">
+                                <span>{attempt.correct} ✓</span>
+                                <span>{attempt.wrong} ✕</span>
+                                <span>{attempt.blank} —</span>
+                              </div>
+                              <div className="attempt-time">
+                                <small>Tiempo</small>
+                                <strong>
+                                  {scoreLabel(attempt.minutes)} min
+                                </strong>
+                              </div>
+                              <div className="attempt-actions">
+                                <button
+                                  title="Editar intento"
+                                  aria-label="Editar intento"
+                                  onClick={() =>
+                                    openAttemptEditor(
+                                      detailPsych.id,
+                                      attempt.id,
+                                    )
+                                  }
+                                >
+                                  ✎
+                                </button>
+                                <button
+                                  title="Eliminar intento"
+                                  aria-label="Eliminar intento"
+                                  className="danger"
+                                  onClick={() =>
+                                    deleteAttempt(detailPsych.id, attempt.id)
+                                  }
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Empty
+                          icon="◎"
+                          title="Todavía no hay intentos"
+                          copy="Cuando hagas este psicotécnico, registra la nota y la fecha para empezar a ver tu evolución."
+                          action="Registrar primer intento"
+                          onAction={() => openAttemptEditor(detailPsych.id)}
+                        />
+                      )}
+                    </section>
+
+                    <div className="psych-danger-zone">
+                      <button
+                        className="text-button danger-text"
+                        onClick={() => deletePsychTest(detailPsych.id)}
+                      >
+                        Eliminar psicotécnico e historial
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })() : (
+                );
+              })()
+            ) : (
               <>
-                <div className="section-heading psych-heading"><div><span className="section-label">PRÁCTICA Y EVOLUCIÓN</span><h2>Mis psicotécnicos</h2><p>Guarda los PDF una sola vez y utiliza el historial para decidir cuáles conviene repetir.</p></div><button className="primary-button" onClick={() => { setEditingPsychTest(null); setModal("psych"); }}>＋ Añadir psicotécnico</button></div>
+                <div className="section-heading psych-heading">
+                  <div>
+                    <span className="section-label">PRÁCTICA Y EVOLUCIÓN</span>
+                    <h2>Mis psicotécnicos</h2>
+                    <p>
+                      Guarda los PDF una sola vez y utiliza el historial para
+                      decidir cuáles conviene repetir.
+                    </p>
+                  </div>
+                  <button
+                    className="primary-button"
+                    onClick={() => {
+                      setEditingPsychTest(null);
+                      setModal("psych");
+                    }}
+                  >
+                    ＋ Añadir psicotécnico
+                  </button>
+                </div>
 
                 <div className="psych-overview">
-                  <div><span>Psicotécnicos</span><strong>{state.psychTests.length}</strong><small>{state.psychTests.filter((test) => test.attachment?.type === "application/pdf").length} con PDF</small></div>
-                  <div><span>Ya practicados</span><strong>{psychAttemptedCount}</strong><small>{state.psychTests.length - psychAttemptedCount} pendientes</small></div>
-                  <div><span>Intentos guardados</span><strong>{psychAttemptCount}</strong><small>histórico total</small></div>
-                  <div><span>Media última nota</span><strong>{latestPsychAverage === null ? "—" : scoreLabel(latestPsychAverage)}</strong><small>solo tests realizados</small></div>
+                  <div>
+                    <span>Psicotécnicos</span>
+                    <strong>{state.psychTests.length}</strong>
+                    <small>
+                      {
+                        state.psychTests.filter(
+                          (test) => test.attachment?.type === "application/pdf",
+                        ).length
+                      }{" "}
+                      con PDF
+                    </small>
+                  </div>
+                  <div>
+                    <span>Ya practicados</span>
+                    <strong>{psychAttemptedCount}</strong>
+                    <small>
+                      {state.psychTests.length - psychAttemptedCount} pendientes
+                    </small>
+                  </div>
+                  <div>
+                    <span>Intentos guardados</span>
+                    <strong>{psychAttemptCount}</strong>
+                    <small>histórico total</small>
+                  </div>
+                  <div>
+                    <span>Media última nota</span>
+                    <strong>
+                      {latestPsychAverage === null
+                        ? "—"
+                        : scoreLabel(latestPsychAverage)}
+                    </strong>
+                    <small>solo tests realizados</small>
+                  </div>
                 </div>
 
                 <div className="psych-toolbar">
-                  <div className="search-box psych-search"><span>⌕</span><input value={psychQuery} onChange={(event) => setPsychQuery(event.target.value)} placeholder="Buscar por nombre o categoría" aria-label="Buscar psicotécnicos" /></div>
-                  <select value={psychCategory} onChange={(event) => setPsychCategory(event.target.value)} aria-label="Filtrar categoría"><option value="all">Todas las categorías</option>{psychCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
-                  <select value={psychSort} onChange={(event) => setPsychSort(event.target.value as PsychSort)} aria-label="Ordenar psicotécnicos">
+                  <div className="search-box psych-search">
+                    <span>⌕</span>
+                    <input
+                      value={psychQuery}
+                      onChange={(event) => setPsychQuery(event.target.value)}
+                      placeholder="Buscar por nombre o categoría"
+                      aria-label="Buscar psicotécnicos"
+                    />
+                  </div>
+                  <select
+                    value={psychCategory}
+                    onChange={(event) => setPsychCategory(event.target.value)}
+                    aria-label="Filtrar categoría"
+                  >
+                    <option value="all">Todas las categorías</option>
+                    {psychCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={psychSort}
+                    onChange={(event) =>
+                      setPsychSort(event.target.value as PsychSort)
+                    }
+                    aria-label="Ordenar psicotécnicos"
+                  >
                     <option value="oldest">Pendientes / más antiguos</option>
                     <option value="last-low">Peor última nota</option>
                     <option value="last-high">Mejor última nota</option>
@@ -2532,75 +3439,275 @@ export default function OpoApp() {
                   </select>
                 </div>
 
-                {state.psychTests.length ? filteredPsychTests.length ? (
-                  <div className="psych-grid">
-                    {filteredPsychTests.map((test) => {
-                      const stats = psychStats(test);
-                      return <article className="psych-card" key={test.id}>
-                        <div className="psych-doc"><span>{test.attachment?.type === "application/pdf" ? "PDF" : test.attachment ? "IMG" : "TEST"}</span></div>
-                        <div className="psych-body">
-                          <div className="psych-card-top"><span className="category-chip">{test.category || "Sin categoría"}</span><button className="psych-edit-button" title="Editar ficha" onClick={() => { setEditingPsychTest(test.id); setModal("psych"); }}>✎</button></div>
-                          <h3>{test.name || "Psicotécnico sin nombre"}</h3>
-                          <p>{test.totalQuestions || 0} preguntas · {stats.attempts.length} {stats.attempts.length === 1 ? "intento" : "intentos"}</p>
-                          <div className="psych-metrics four">
-                            <div><small>Última</small><strong>{stats.last ? scoreLabel(stats.last.score) : "—"}</strong></div>
-                            <div><small>Mejor</small><strong>{stats.best === null ? "—" : scoreLabel(stats.best)}</strong></div>
-                            <div><small>Media</small><strong>{stats.average === null ? "—" : scoreLabel(stats.average)}</strong></div>
-                            <div><small>Último día</small><strong className="metric-date">{stats.last ? dateLabel(stats.last.date) : "Pendiente"}</strong></div>
-                          </div>
-                          <div className="psych-actions psych-actions-wrap">
-                            <button onClick={() => setPsychDetail(test.id)}>Ver ficha</button>
-                            {test.attachment?.type === "application/pdf" ? <button onClick={() => setEditingPsych(test.id)}>✎ Abrir PDF</button> : test.attachment ? <a href="#" onClick={(event) => { event.preventDefault(); setEditingPsych(test.id); }}>Abrir documento</a> : null}
-                            <button className="psych-register" onClick={() => openAttemptEditor(test.id)}>＋ Intento</button>
-                          </div>
-                        </div>
-                      </article>;
-                    })}
-                  </div>
-                ) : <div className="psych-no-results"><span>⌕</span><h3>No hay coincidencias</h3><p>Cambia la búsqueda, la categoría o el criterio de ordenación.</p></div> : <Empty icon="▧" title="Añade tu primer psicotécnico" copy="Sube un PDF o una fotografía y empieza a registrar puntuaciones, tiempos y errores." action="Añadir psicotécnico" onAction={() => { setEditingPsychTest(null); setModal("psych"); }} />}
+                {state.psychTests.length ? (
+                  filteredPsychTests.length ? (
+                    <div className="psych-grid">
+                      {filteredPsychTests.map((test) => {
+                        const stats = psychStats(test);
+                        return (
+                          <article
+                            className="psych-card"
+                            key={test.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Abrir ${test.name}`}
+                            onClick={(event) => {
+                              if (
+                                !(event.target as Element).closest("button,a")
+                              )
+                                setPsychDetail(test.id);
+                            }}
+                            onKeyDown={(event) => {
+                              if (
+                                event.target === event.currentTarget &&
+                                (event.key === "Enter" || event.key === " ")
+                              ) {
+                                event.preventDefault();
+                                setPsychDetail(test.id);
+                              }
+                            }}
+                          >
+                            <div className="psych-doc">
+                              <span>
+                                {test.attachment?.type === "application/pdf"
+                                  ? "PDF"
+                                  : test.attachment
+                                    ? "IMG"
+                                    : "TEST"}
+                              </span>
+                            </div>
+                            <div className="psych-body">
+                              <div className="psych-card-top">
+                                <span className="category-chip">
+                                  {test.category || "Sin categoría"}
+                                </span>
+                                <button
+                                  className="psych-edit-button"
+                                  title="Editar ficha"
+                                  onClick={() => {
+                                    setEditingPsychTest(test.id);
+                                    setModal("psych");
+                                  }}
+                                >
+                                  ✎
+                                </button>
+                              </div>
+                              <h3>{test.name || "Psicotécnico sin nombre"}</h3>
+                              <p>
+                                {test.totalQuestions || 0} preguntas ·{" "}
+                                {stats.attempts.length}{" "}
+                                {stats.attempts.length === 1
+                                  ? "intento"
+                                  : "intentos"}
+                              </p>
+                              <div className="psych-metrics four">
+                                <div>
+                                  <small>Última</small>
+                                  <strong>
+                                    {stats.last
+                                      ? scoreLabel(stats.last.score)
+                                      : "—"}
+                                  </strong>
+                                </div>
+                                <div>
+                                  <small>Mejor</small>
+                                  <strong>
+                                    {stats.best === null
+                                      ? "—"
+                                      : scoreLabel(stats.best)}
+                                  </strong>
+                                </div>
+                                <div>
+                                  <small>Media</small>
+                                  <strong>
+                                    {stats.average === null
+                                      ? "—"
+                                      : scoreLabel(stats.average)}
+                                  </strong>
+                                </div>
+                                <div>
+                                  <small>Último día</small>
+                                  <strong className="metric-date">
+                                    {stats.last
+                                      ? dateLabel(stats.last.date)
+                                      : "Pendiente"}
+                                  </strong>
+                                </div>
+                              </div>
+                              <div className="psych-actions psych-actions-wrap">
+                                <button onClick={() => setPsychDetail(test.id)}>
+                                  Ver ficha
+                                </button>
+                                {test.attachment?.type === "application/pdf" ? (
+                                  <button
+                                    onClick={() => setEditingPsych(test.id)}
+                                  >
+                                    ✎ Abrir PDF
+                                  </button>
+                                ) : test.attachment ? (
+                                  <a
+                                    href="#"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      setEditingPsych(test.id);
+                                    }}
+                                  >
+                                    Abrir documento
+                                  </a>
+                                ) : null}
+                                <button
+                                  className="psych-register"
+                                  onClick={() => openAttemptEditor(test.id)}
+                                >
+                                  ＋ Intento
+                                </button>
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="psych-no-results">
+                      <span>⌕</span>
+                      <h3>No hay coincidencias</h3>
+                      <p>
+                        Cambia la búsqueda, la categoría o el criterio de
+                        ordenación.
+                      </p>
+                    </div>
+                  )
+                ) : (
+                  <Empty
+                    icon="▧"
+                    title="Añade tu primer psicotécnico"
+                    copy="Sube un PDF o una fotografía y empieza a registrar puntuaciones, tiempos y errores."
+                    action="Añadir psicotécnico"
+                    onAction={() => {
+                      setEditingPsychTest(null);
+                      setModal("psych");
+                    }}
+                  />
+                )}
               </>
             )}
           </section>
         )}
 
         {tab === "progress" && (
-          <section className="page progress-page">
-            <div className="stats-row four">
-              <StatCard label="Elementos" value={state.cards.length.toString()} detail={`${dueCards.length + orthographyDue} pendientes`} tone="green" />
-              <StatCard label="Repasos" value={state.reviews.length.toString()} detail={`${todayReviews.length} hoy`} tone="amber" />
-              <StatCard label="Precisión" value={`${accuracy}%`} detail="histórico global" tone="purple" />
-              <StatCard label="Racha" value={`${streakDays(state.reviews)} d`} detail="días seguidos" tone="blue" />
-            </div>
-            <div className="content-grid">
-              <section className="panel"><div className="panel-head"><div><span className="section-label">ACTIVIDAD</span><h3>Últimos 7 días</h3></div></div><ActivityChart reviews={state.reviews} /></section>
-              <section className="panel"><div className="panel-head"><div><span className="section-label">MEMORIA</span><h3>Estado de tarjetas</h3></div></div><MemoryBreakdown cards={state.cards.filter((card) => !isOrthographyCard(card))} /></section>
-            </div>
-            <section className="panel weak-panel"><div className="panel-head"><div><span className="section-label">ATENCIÓN PRIORITARIA</span><h3>Conceptos más débiles</h3></div><button className="secondary-button" onClick={() => startReview(undefined, "weakest")}>🔥 Repasar más falladas</button></div><div className="weak-list">{[...state.cards].filter((card) => !isOrthographyCard(card) && card.reviewCount > 0).sort((a, b) => (a.successCount / a.reviewCount) - (b.successCount / b.reviewCount)).slice(0, 5).map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{Math.round((card.successCount / card.reviewCount) * 100)}%</strong></div>)}{!state.cards.some((card) => !isOrthographyCard(card) && card.reviewCount > 0) && <p className="muted">Completa algunos repasos para detectar tus puntos débiles.</p>}</div></section>
-
-            {orthographyCards.length > 0 && <section className="panel orthography-stats-panel">
-              <div className="panel-head"><div><span className="section-label">ORTOGRAFÍA</span><h3>Progreso por palabra</h3></div><div className="folder-study-actions"><span className="orthography-history-count">{orthographyDue} para repasar</span><button className="secondary-button" onClick={() => startOrthographySession(undefined, "weakest", orthographyCards)}>🔥 Más falladas</button></div></div>
-              <div className="orthography-stat-grid">
-                <div><span>Palabras</span><strong>{orthographyCards.length}</strong><small>almacenadas individualmente</small></div>
-                <div><span>Estudiadas</span><strong>{orthographyStudied}</strong><small>{orthographyLearning} en aprendizaje</small></div>
-                <div><span>Dominadas</span><strong>{orthographyMastered}</strong><small>intervalo consolidado</small></div>
-                <div><span>Acierto</span><strong>{orthographyAccuracy}%</strong><small>{orthographyReviews.length} respuestas individuales</small></div>
-              </div>
-              <div className="orthography-stats-columns">
-                <div><span className="section-label">MÁS FALLADAS</span><div className="orthography-mini-list">{weakestOrthography.map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{orthographyFailures.get(card.id) ?? 0} fallos</strong></div>)}{!weakestOrthography.length && <p className="muted">Aún no hay fallos registrados.</p>}</div></div>
-                <div><span className="section-label">PRÓXIMOS REPASOS</span><div className="orthography-mini-list">{nextOrthography.map((card) => <div key={card.id}><span>{plainRichText(card.front)}</span><strong>{new Date(card.dueAt).getTime() <= Date.now() ? "Ahora" : dateLabel(card.dueAt)}</strong></div>)}{!nextOrthography.length && <p className="muted">Empieza a practicar para generar la programación.</p>}</div></div>
-              </div>
-            </section>}
-          </section>
+          <ProgressPage
+            state={state}
+            onCard={(id) => startReview(undefined, "all", [id])}
+            onOrthography={() =>
+              startOrthographySession(undefined, "weakest", orthographyCards)
+            }
+            onWeak={() => startReview(undefined, "weakest")}
+            onNode={(id) => startStudySession(id)}
+            onHistory={() => {
+              navigate("organize");
+              setStudyView("history");
+            }}
+          />
         )}
       </main>
-
-      <nav className="bottom-nav">{navItems.map((item) => <NavButton key={item.id} item={item} active={tab === item.id} onClick={() => setTab(item.id)} />)}</nav>
+      {libraryActionsOpen && (
+        <LibraryActions
+          name={activeFolder?.name}
+          onClose={() => setLibraryActionsOpen(false)}
+          onNewFolder={() => {
+            setNewFolderParentId(activeFolder?.id ?? null);
+            setModal("folder");
+          }}
+          onNewCard={() => {
+            setEditingCard(null);
+            setModal("card");
+          }}
+          onImport={() => setModal("import")}
+          onStudy={(mode) => startReview(activeFolder?.id, mode)}
+          onMove={
+            activeFolder ? () => setMovingFolderId(activeFolder.id) : undefined
+          }
+          onDelete={
+            activeFolder ? () => deleteFolder(activeFolder.id) : undefined
+          }
+          onSelect={
+            activeFolder
+              ? () => {
+                  setBulkSelectMode((value) => !value);
+                  setSelectedCardIds([]);
+                  setBulkTargetFolderId("");
+                }
+              : undefined
+          }
+          onWritten={
+            activeFolder &&
+            cardsInFolderScope(state, activeFolder.id).some(isWrittenCard)
+              ? () =>
+                  startReview(
+                    activeFolder.id,
+                    "learn",
+                    cardsInFolderScope(state, activeFolder.id)
+                      .filter(isWrittenCard)
+                      .map((card) => card.id),
+                  )
+              : undefined
+          }
+        />
+      )}
+      {preferencesOpen && (
+        <StudyPreferences
+          settings={state.settings}
+          onClose={() => setPreferencesOpen(false)}
+          onSave={(settings) => {
+            void updateState((current) => ({
+              ...current,
+              settings: { ...current.settings, ...settings },
+            }));
+            setPreferencesOpen(false);
+          }}
+        />
+      )}
+      {studyFlow && (
+        <StudySession
+          key={studyFlow.index}
+          title={
+            studyFlowDone
+              ? "Sesión completada"
+              : (studyFlowNode?.name ?? "Apartado no disponible")
+          }
+          path={
+            studyFlowNode
+              ? studyNodePath(state.studyNodes, studyFlowNode.id)
+                  .slice(0, -1)
+                  .join(" · ")
+              : ""
+          }
+          note={studyFlowTask?.note || previousStudySession?.completionNote}
+          reference={studyReference}
+          position={studyFlow.index + 1}
+          total={studyFlow.entries.length}
+          status={saveStatus}
+          onExit={() => {
+            setStudyFlow(null);
+            navigate("today");
+          }}
+          onSkip={() =>
+            setStudyFlow((flow) =>
+              flow ? { ...flow, index: flow.index + 1 } : null,
+            )
+          }
+          onComplete={finishStudyEntry}
+          done={studyFlowDone}
+        />
+      )}
 
       {orthographySession && (
         <OrthographyStudy
           cards={orthographySession.groupIds
             .map((id) => state.cards.find((card) => card.id === id))
-            .filter((card): card is Card => Boolean(card && isOrthographyCard(card)))
+            .filter((card): card is Card =>
+              Boolean(card && isOrthographyCard(card)),
+            )
             .map(orthographyStudyCard)}
           selectedIds={orthographySelected}
           results={orthographySession.results}
@@ -2615,857 +3722,305 @@ export default function OpoApp() {
         />
       )}
 
-      {reviewQueue.length > 0 && reviewIndex < reviewQueue.length && currentCard && currentQueueItem && (
-        <div className="review-overlay">
-          <div className={`review-top ${isContinuousStudyMode(studyMode) ? "continuous" : ""}`}>
-            <button onClick={() => setReviewQueue([])}>×</button>
-            {isContinuousStudyMode(studyMode)
-              ? <div className="learn-session-title"><strong>{studyMode === "weakest" ? "Más falladas" : "Modo Aprender"}</strong><small>{studyMode === "weakest" ? "Priorizamos tus errores históricos y recientes; tú decides cuándo parar." : "Las difíciles vuelven más; tú decides cuándo parar."}</small></div>
-              : <div className="session-progress"><span style={{ width: `${Math.round((reviewIndex / reviewQueue.length) * 100)}%` }} /> </div>}
-            <span>{isContinuousStudyMode(studyMode) ? `${sessionDone} repasos` : `${reviewIndex + 1}/${reviewQueue.length}`}</span>
-            {isContinuousStudyMode(studyMode) && <button className="finish-learn-button" onClick={() => setReviewQueue([])}>Terminar</button>}
-          </div>
-          <div className="review-stage">
-            <div className="study-context-row">
-              <span className="deck-label">{state.folders.find((folder) => folder.id === currentCard.folderId)?.name ?? "Sin carpeta"}</span>
-              <button className="quick-review-note-button" onClick={() => openStudyQuick(null, currentCard.id)}>＋ Repasar</button>
-            </div>
-            <div className={`study-card ${revealed ? "revealed answer-side" : "question-side"}`}>
-              <span className="study-card-type">{currentQueueItem.reinforcement ? "REFUERZO · " : ""}{revealed ? (isWrittenCard(currentCard) ? "CORRECCIÓN" : "RESPUESTA") : isWrittenCard(currentCard) ? "RESPUESTA ESCRITA" : currentCard.type === "test" ? isMultipleAnswerTest(currentCard) ? "TEST · RESPUESTA MÚLTIPLE" : "PREGUNTA TIPO TEST" : currentCard.type === "choice" ? "VOCABULARIO" : "RECUERDA EL CONCEPTO"}</span>
-              {!revealed ? (
-                <>
-                  <RichContent html={currentCard.front} className="study-front" />
-                  {isWrittenCard(currentCard) ? (
-                    <div className="written-answer-input">
-                      <textarea autoFocus value={writtenAnswer} onChange={(event) => setWrittenAnswer(event.target.value)} placeholder="Escribe la respuesta con tus propias palabras o con la literalidad que exija la rúbrica…" />
-                      <button className="check-button written-check-button" disabled={!writtenAnswer.trim()} onClick={submitWrittenAnswer}>Corregir respuesta</button>
-                    </div>
-                  ) : isMultipleChoiceCard(currentCard) ? (
-                    <div className={`options-list ${isMultipleAnswerTest(currentCard) ? "multiple" : ""}`}>{currentCard.options.map((option, index) => {
-                      const selected = isMultipleAnswerTest(currentCard) ? selectedOptions.includes(index) : selectedOption === index;
-                      return <button key={`${index}-${option}`} className={selected ? "selected" : ""} onClick={() => {
-                        if (isMultipleAnswerTest(currentCard)) setSelectedOptions((current) => current.includes(index) ? current.filter((value) => value !== index) : [...current, index]);
-                        else setSelectedOption(index);
-                      }}><span>{isMultipleAnswerTest(currentCard) ? (selected ? "☑" : "☐") : String.fromCharCode(65 + index)}</span>{option}</button>;
-                    })}</div>
-                  ) : (
-                    <button className="reveal-button" onClick={() => setRevealed(true)}>Mostrar respuesta</button>
-                  )}
-                </>
-              ) : (
-                <div className="answer-side-content">
-                  {isWrittenCard(currentCard) && displayedWrittenResult ? (
-                    <>
-                      <div className={`written-score ${displayedWrittenResult.rating}`}><span>PRECISIÓN</span><strong>{displayedWrittenResult.accuracy}%</strong><small>{currentQueueItem.outcome === "unknown" ? "No me la sé" : displayedWrittenResult.rating === "again" ? "Otra vez" : displayedWrittenResult.rating === "hard" ? "Difícil" : displayedWrittenResult.rating === "good" ? "Bien" : "Fácil"}</small></div>
-                      <div className="written-user-answer"><span>TU RESPUESTA</span><p>{currentQueueItem.outcome === "unknown" ? "No respondida · marcada como «No me la sé»." : writtenAnswer}</p></div>
-                      <div className="written-criteria-list">{displayedWrittenResult.criteria.map((criterion) => <div key={criterion.id} className={criterion.cumplido ? "ok" : "miss"}><span>{criterion.cumplido ? "✓" : "×"}</span><div><strong>{criterion.esperado}</strong><small>{`${Math.round(criterion.conseguido * 10) / 10}/${criterion.puntos} puntos${criterion.critico ? " · concepto crítico" : ""}${!criterion.cumplido && criterion.similitud > 0 ? ` · ${Math.round(criterion.similitud * 100)}% coincidencia` : ""}`}</small></div></div>)}</div>
-                      {plainRichText(currentCard.back) && <div className="answer-box written-model-answer"><small>RESPUESTA MODELO</small><RichContent html={currentCard.back} /></div>}
-                      <button className="primary-button written-continue-button" onClick={() => currentQueueItem.completed ? goToNextCard() : rateCurrent(displayedWrittenResult.rating, displayedWrittenResult)}>Continuar</button>
-                    </>
-                  ) : (
-                    <>
-                      {!isMultipleChoiceCard(currentCard) && plainRichText(currentCard.back) && <div className="answer-box"><RichContent html={currentCard.back} /></div>}
-                      {isMultipleChoiceCard(currentCard) && <div className="answer-box choice-answer"><strong>{cardCorrectOptions(currentCard).map((index) => `${String.fromCharCode(65 + index)} · ${currentCard.options[index]}`).join("  ·  ")}</strong>{plainRichText(currentCard.back) && <RichContent html={currentCard.back} />}</div>}
-                      {currentCard.attachment && (
-                        <div className="answer-visual-block"><span>RESPUESTA VISUAL</span><AnnotatedCardImage attachment={currentCard.attachment} onOpen={() => setViewingStudyImage(true)} /><small>Toca la imagen para abrirla a pantalla completa.</small></div>
-                      )}
-                      {!plainRichText(currentCard.back) && !currentCard.attachment && !isMultipleChoiceCard(currentCard) && <p className="empty-answer">Esta tarjeta no tiene respuesta escrita ni visual.</p>}
-                      <button className="flip-back-button" onClick={() => { setRevealed(false); setViewingStudyImage(false); }}>↶ Volver a la pregunta</button>
-                    </>
-                  )}
-                </div>
-              )}
-              {isWrittenCard(currentCard) && (
-                <div className="written-controls-layer">
-                  {!revealed && !currentQueueItem.completed && <div className="precheck-actions written-session-actions"><button className="secondary-button unknown-button" onClick={markCurrentUnknown}>No me la sé</button><button className="secondary-button" onClick={goToNextCard}>Pasar</button></div>}
-                  <div className="study-navigation written-session-navigation"><button className="secondary-button" disabled={reviewIndex <= 0} onClick={goToPreviousCard}>← Anterior</button><button className="secondary-button" onClick={goToNextCard}>Siguiente →</button></div>
-                </div>
-              )}
-            </div>
-            {!isWrittenCard(currentCard) && !revealed && !currentQueueItem.completed && <div className="precheck-actions"><button className="secondary-button unknown-button" onClick={markCurrentUnknown}>No me la sé</button><button className="secondary-button" onClick={goToNextCard}>Pasar</button></div>}
-            {isMultipleChoiceCard(currentCard) && !revealed && !currentQueueItem.completed && <button className="check-button" disabled={isMultipleAnswerTest(currentCard) ? selectedOptions.length === 0 : selectedOption === null} onClick={() => setRevealed(true)}>Comprobar</button>}
-            {!isWrittenCard(currentCard) && <div className="study-navigation"><button className="secondary-button" disabled={reviewIndex <= 0} onClick={goToPreviousCard}>← Anterior</button><button className="secondary-button" onClick={goToNextCard}>Siguiente →</button></div>}
-            {revealed && !isWrittenCard(currentCard) && !currentQueueItem.completed && <div className="rating-bar"><p>{isMultipleChoiceCard(currentCard) ? currentSelectionIsCorrect(currentCard) ? "¡Correcto! ¿Cómo te ha resultado?" : "No es correcto. La tarjeta ganará prioridad en esta sesión." : "¿Qué tal la recordabas?"} <span className="fsrs-badge">{isContinuousStudyMode(studyMode) ? (studyMode === "weakest" ? "Refuerzo de errores · FSRS solo consolida el primer intento" : "Aprendizaje activo · FSRS solo consolida el primer intento") : personalModelLabel(personalModel)}</span></p><div>
-              <button className="again" onClick={() => rateCurrent("again")}><strong>Otra vez</strong><small>{isContinuousStudyMode(studyMode) ? "prioridad máxima" : "↻ tras 2 tarjetas"}</small></button>
-              <button className="hard" onClick={() => rateCurrent("hard")}><strong>Difícil</strong><small>{isContinuousStudyMode(studyMode) ? "saldrá más" : "↻ tras 4 tarjetas"}</small></button>
-              <button className="good" onClick={() => rateCurrent("good")}><strong>Bien</strong><small>{isContinuousStudyMode(studyMode) ? "baja prioridad" : fsrsDueLabel(currentCard, "good")}</small></button>
-              <button className="easy" onClick={() => rateCurrent("easy")}><strong>Fácil</strong><small>{isContinuousStudyMode(studyMode) ? "prioridad mínima" : fsrsDueLabel(currentCard, "easy")}</small></button>
-            </div></div>}
-            {currentQueueItem.completed && !(isWrittenCard(currentCard) && displayedWrittenResult) && <div className={`recorded-review ${currentQueueItem.outcome === "unknown" ? "unknown" : "rated"}`}><div><strong>{currentQueueItem.outcome === "unknown" ? "Fallo registrado · 0 %" : "Revisión ya registrada"}</strong><small>{currentQueueItem.outcome === "unknown" ? "Esta tarjeta queda en prioridad alta y volverá a aparecer según el modo de estudio." : "Puedes consultar la respuesta o continuar sin volver a modificar las estadísticas."}</small></div><button className="primary-button" onClick={goToNextCard}>Continuar</button></div>}
-          </div>
-        </div>
-      )}
+      {reviewQueue.length > 0 &&
+        reviewIndex < reviewQueue.length &&
+        currentCard &&
+        currentQueueItem && (
+          <ReviewSession
+            card={currentCard}
+            folder={
+              state.folders.find((folder) => folder.id === currentCard.folderId)
+                ?.name ?? "Mis tarjetas"
+            }
+            position={reviewIndex + 1}
+            total={reviewQueue.length}
+            continuous={isContinuousStudyMode(studyMode)}
+            doneCount={sessionDone}
+            status={saveStatus}
+            revealed={revealed}
+            completed={Boolean(currentQueueItem.completed)}
+            unknown={currentQueueItem.outcome === "unknown"}
+            selectedOption={selectedOption}
+            selectedOptions={selectedOptions}
+            writtenAnswer={writtenAnswer}
+            writtenResult={displayedWrittenResult}
+            onExit={() => setReviewQueue([])}
+            onReveal={() => setRevealed(true)}
+            onQuestion={() => {
+              setRevealed(false);
+              setViewingStudyImage(false);
+            }}
+            onOption={(index) => {
+              if (isMultipleAnswerTest(currentCard))
+                setSelectedOptions((current) =>
+                  current.includes(index)
+                    ? current.filter((value) => value !== index)
+                    : [...current, index],
+                );
+              else setSelectedOption(index);
+            }}
+            onWritten={setWrittenAnswer}
+            onCheckWritten={submitWrittenAnswer}
+            onRate={rateCurrent}
+            onNext={goToNextCard}
+            onPrevious={goToPreviousCard}
+            onUnknown={markCurrentUnknown}
+            onSchedule={() => openStudyQuick(null, currentCard.id)}
+            onImage={() => setViewingStudyImage(true)}
+            correct={currentSelectionIsCorrect(currentCard)}
+          />
+        )}
 
       {viewingStudyImage && currentCard?.attachment && (
-        <ImageLightbox attachment={currentCard.attachment} title={plainRichText(currentCard.back) || plainRichText(currentCard.front) || "Respuesta visual"} onClose={() => setViewingStudyImage(false)} />
+        <ImageLightbox
+          attachment={currentCard.attachment}
+          title={
+            plainRichText(currentCard.back) ||
+            plainRichText(currentCard.front) ||
+            "Respuesta visual"
+          }
+          onClose={() => setViewingStudyImage(false)}
+        />
       )}
 
-      {!isContinuousStudyMode(studyMode) && reviewQueue.length > 0 && reviewIndex >= reviewQueue.length && (
-        <div className="review-overlay complete"><div className="complete-card"><span className="complete-icon">✓</span><span className="section-label">SESIÓN COMPLETADA</span><h2>Buen trabajo, Marc</h2><p>Has registrado {sessionDone} revisiones. Las tarjetas pasadas no han modificado tus estadísticas ni el modelo.</p><div className="complete-actions"><button className="secondary-button" onClick={goToPreviousCard}>← Anterior</button><button className="primary-button" onClick={() => setReviewQueue([])}>Volver a Hoy</button></div></div></div>
-      )}
+      {!isContinuousStudyMode(studyMode) &&
+        reviewQueue.length > 0 &&
+        reviewIndex >= reviewQueue.length && (
+          <div className="review-overlay complete">
+            <div className="complete-card">
+              <span className="complete-icon">✓</span>
+              <span className="section-label">SESIÓN COMPLETADA</span>
+              <h2>Un paso más cerca.</h2>
+              <p>
+                Has registrado {sessionDone} revisiones. Tu progreso queda
+                guardado. Es buen momento para hacer una pausa.
+              </p>
+              <div className="complete-actions">
+                <button className="secondary-button" onClick={goToPreviousCard}>
+                  ← Anterior
+                </button>
+                <button
+                  className="primary-button"
+                  onClick={() => {
+                    setReviewQueue([]);
+                    navigate("today");
+                  }}
+                >
+                  Volver a Hoy
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
-      {movingFolder && <MoveFolderModal folders={state.folders} folder={movingFolder} onClose={() => setMovingFolderId(null)} onMove={(targetParentId) => moveFolder(movingFolder.id, targetParentId)} />}
-      {modal === "folder" && <FolderModal parentId={newFolderParentId} parentName={newFolderParentId ? state.folders.find((folder) => folder.id === newFolderParentId)?.name ?? "" : ""} onClose={() => { setModal(null); setNewFolderParentId(null); }} onCreate={(folder) => { updateState((current) => ({ ...current, folders: [...current.folders, folder] })); setModal(null); setNewFolderParentId(null); notify(folder.parentId ? "Apartado creado" : "Tema creado"); }} />}
-      {modal === "card" && <CardModal folders={state.folders} defaultFolder={selectedFolder} initialCard={openCard} onClose={() => { setModal(null); setEditingCard(null); }} onSave={(card) => { updateState((current) => ({ ...current, cards: openCard ? current.cards.map((item) => item.id === card.id ? card : item) : [...current.cards, card] })); setModal(null); setEditingCard(null); notify(openCard ? "Tarjeta actualizada" : "Tarjeta guardada"); }} />}
-      {modal === "import" && <CardImportModal onClose={() => setModal(null)} onImport={importGeneratedCards} />}
-      {modal === "psych" && <PsychModal initialTest={openPsychTest} onClose={() => { setModal(null); setEditingPsychTest(null); }} onSave={(test) => { updateState((current) => ({ ...current, psychTests: openPsychTest ? current.psychTests.map((item) => item.id === test.id ? test : item) : [...current.psychTests, test] })); setModal(null); setEditingPsychTest(null); setPsychDetail(test.id); notify(openPsychTest ? "Psicotécnico actualizado" : "Psicotécnico guardado"); }} />}
-      {modal === "attempt" && activePsych && <AttemptModal test={activePsych} initialAttempt={openAttempt} onClose={() => { setModal(null); setSelectedPsych(null); setEditingAttempt(null); }} onSave={(attempt) => { updateState((current) => ({ ...current, psychTests: current.psychTests.map((test) => test.id === activePsych.id ? { ...test, attempts: openAttempt ? test.attempts.map((item) => item.id === attempt.id ? attempt : item) : [...test.attempts, attempt] } : test) })); setModal(null); setSelectedPsych(null); setEditingAttempt(null); setPsychDetail(activePsych.id); notify(openAttempt ? "Intento actualizado" : "Intento registrado"); }} />}
-      {studyQuickOpen && <StudyQuickModal nodes={state.studyNodes} defaultNodeId={studyQuickDefaultNodeId} onClose={() => { setStudyQuickOpen(false); setStudyQuickDefaultNodeId(null); setStudyQuickSourceCardId(null); }} onSave={saveStudyTask} />}
-      {studyTaskEditId && state.studyTasks.find((task) => task.id === studyTaskEditId) && <StudyTaskEditModal task={state.studyTasks.find((task) => task.id === studyTaskEditId)!} nodes={state.studyNodes} onClose={() => setStudyTaskEditId(null)} onSave={saveStudyTaskEdits} onDelete={deleteStudyTask} />}
-      {studyCompletionPrompt && <StudyCompletionNoteModal assessment={studyCompletionPrompt.assessment} task={state.studyTasks.find((task) => (task as any)._sessionId === studyCompletionPrompt.sessionId || (task as any)._completionEventId === studyCompletionPrompt.sessionId) ?? null} nodes={state.studyNodes} onClose={() => setStudyCompletionPrompt(null)} onSave={(note) => saveStudyCompletionNote(studyCompletionPrompt.taskId, note, studyCompletionPrompt.sessionId)} />}
-      {studyNodeEditorOpen && <StudyNodeEditorModal nodes={state.studyNodes} nodeId={studyEditingNodeId} defaultParentId={studyNodeEditorParentId} onClose={() => { setStudyNodeEditorOpen(false); setStudyEditingNodeId(null); setStudyNodeEditorParentId(null); }} onSave={saveStudyNode} />}
-      {studyImportOpen && <StudyImportModal nodes={state.studyNodes} defaultParentId={studyImportParentId} onClose={() => { setStudyImportOpen(false); setStudyImportParentId(null); }} onImport={importStudyTree} />}
-      {openPsych?.attachment && openPsych.attachment.type !== "application/pdf" && <ImageAnnotator attachment={openPsych.attachment} title={openPsych.name} onClose={() => setEditingPsych(null)} />}
-      {openPsych?.attachment?.type === "application/pdf" && <PdfAnnotator attachment={openPsych.attachment} title={openPsych.name} onClose={() => setEditingPsych(null)} />}
+      {movingFolder && (
+        <MoveFolderModal
+          folders={state.folders}
+          folder={movingFolder}
+          onClose={() => setMovingFolderId(null)}
+          onMove={(targetParentId) =>
+            moveFolder(movingFolder.id, targetParentId)
+          }
+        />
+      )}
+      {modal === "folder" && (
+        <FolderModal
+          parentId={newFolderParentId}
+          parentName={
+            newFolderParentId
+              ? (state.folders.find((folder) => folder.id === newFolderParentId)
+                  ?.name ?? "")
+              : ""
+          }
+          onClose={() => {
+            setModal(null);
+            setNewFolderParentId(null);
+          }}
+          onCreate={(folder) => {
+            updateState((current) => ({
+              ...current,
+              folders: [...current.folders, folder],
+            }));
+            setModal(null);
+            setNewFolderParentId(null);
+            notify(folder.parentId ? "Apartado creado" : "Tema creado");
+          }}
+        />
+      )}
+      {modal === "card" && (
+        <CardModal
+          folders={state.folders}
+          defaultFolder={selectedFolder}
+          initialCard={openCard}
+          onClose={() => {
+            setModal(null);
+            setEditingCard(null);
+          }}
+          onSave={(card) => {
+            updateState((current) => ({
+              ...current,
+              cards: openCard
+                ? current.cards.map((item) =>
+                    item.id === card.id ? card : item,
+                  )
+                : [...current.cards, card],
+            }));
+            setModal(null);
+            setEditingCard(null);
+            notify(openCard ? "Tarjeta actualizada" : "Tarjeta guardada");
+          }}
+        />
+      )}
+      {modal === "import" && (
+        <CardImportModal
+          onClose={() => setModal(null)}
+          onImport={importGeneratedCards}
+        />
+      )}
+      {modal === "psych" && (
+        <PsychModal
+          initialTest={openPsychTest}
+          onClose={() => {
+            setModal(null);
+            setEditingPsychTest(null);
+          }}
+          onSave={(test) => {
+            updateState((current) => ({
+              ...current,
+              psychTests: openPsychTest
+                ? current.psychTests.map((item) =>
+                    item.id === test.id ? test : item,
+                  )
+                : [...current.psychTests, test],
+            }));
+            setModal(null);
+            setEditingPsychTest(null);
+            setPsychDetail(test.id);
+            notify(
+              openPsychTest
+                ? "Psicotécnico actualizado"
+                : "Psicotécnico guardado",
+            );
+          }}
+        />
+      )}
+      {modal === "attempt" && activePsych && (
+        <AttemptModal
+          test={activePsych}
+          initialAttempt={openAttempt}
+          onClose={() => {
+            setModal(null);
+            setSelectedPsych(null);
+            setEditingAttempt(null);
+          }}
+          onSave={(attempt) => {
+            updateState((current) => ({
+              ...current,
+              psychTests: current.psychTests.map((test) =>
+                test.id === activePsych.id
+                  ? {
+                      ...test,
+                      attempts: openAttempt
+                        ? test.attempts.map((item) =>
+                            item.id === attempt.id ? attempt : item,
+                          )
+                        : [...test.attempts, attempt],
+                    }
+                  : test,
+              ),
+            }));
+            setModal(null);
+            setSelectedPsych(null);
+            setEditingAttempt(null);
+            setPsychDetail(activePsych.id);
+            notify(openAttempt ? "Intento actualizado" : "Intento registrado");
+          }}
+        />
+      )}
+      {studyQuickOpen && (
+        <StudyQuickModal
+          nodes={state.studyNodes}
+          defaultNodeId={studyQuickDefaultNodeId}
+          onClose={() => {
+            setStudyQuickOpen(false);
+            setStudyQuickDefaultNodeId(null);
+            setStudyQuickSourceCardId(null);
+          }}
+          onSave={saveStudyTask}
+        />
+      )}
+      {studyTaskEditId &&
+        state.studyTasks.find((task) => task.id === studyTaskEditId) && (
+          <StudyTaskEditModal
+            task={state.studyTasks.find((task) => task.id === studyTaskEditId)!}
+            nodes={state.studyNodes}
+            onClose={() => setStudyTaskEditId(null)}
+            onSave={saveStudyTaskEdits}
+            onDelete={deleteStudyTask}
+          />
+        )}
+      {studyCompletionPrompt && (
+        <StudyCompletionNoteModal
+          assessment={studyCompletionPrompt.assessment}
+          task={
+            state.studyTasks.find(
+              (task) =>
+                (task as any)._sessionId === studyCompletionPrompt.sessionId ||
+                (task as any)._completionEventId ===
+                  studyCompletionPrompt.sessionId,
+            ) ?? null
+          }
+          nodes={state.studyNodes}
+          onClose={() => setStudyCompletionPrompt(null)}
+          onSave={(note) =>
+            saveStudyCompletionNote(
+              studyCompletionPrompt.taskId,
+              note,
+              studyCompletionPrompt.sessionId,
+            )
+          }
+        />
+      )}
+      {studyNodeEditorOpen && (
+        <StudyNodeEditorModal
+          nodes={state.studyNodes}
+          nodeId={studyEditingNodeId}
+          defaultParentId={studyNodeEditorParentId}
+          onClose={() => {
+            setStudyNodeEditorOpen(false);
+            setStudyEditingNodeId(null);
+            setStudyNodeEditorParentId(null);
+          }}
+          onSave={saveStudyNode}
+        />
+      )}
+      {studyImportOpen && (
+        <StudyImportModal
+          nodes={state.studyNodes}
+          defaultParentId={studyImportParentId}
+          onClose={() => {
+            setStudyImportOpen(false);
+            setStudyImportParentId(null);
+          }}
+          onImport={importStudyTree}
+        />
+      )}
+      {openPsych?.attachment &&
+        openPsych.attachment.type !== "application/pdf" && (
+          <ImageAnnotator
+            attachment={openPsych.attachment}
+            title={openPsych.name}
+            onClose={() => setEditingPsych(null)}
+          />
+        )}
+      {openPsych?.attachment?.type === "application/pdf" && (
+        <PdfAnnotator
+          attachment={openPsych.attachment}
+          title={openPsych.name}
+          onClose={() => setEditingPsych(null)}
+        />
+      )}
       {toast && <div className="toast">✓ {toast}</div>}
     </div>
   );
-}
-
-const navItems: { id: Tab; label: string; icon: string }[] = [
-  { id: "today", label: "Hoy", icon: "⌂" },
-  { id: "library", label: "Biblioteca", icon: "▰" },
-  { id: "study", label: "Estudio", icon: "▤" },
-  { id: "psych", label: "Psicotécnicos", icon: "◇" },
-  { id: "progress", label: "Progreso", icon: "↗" },
-];
-
-function NavButton({ item, active, onClick }: { item: (typeof navItems)[number]; active: boolean; onClick: () => void }) {
-  return <button className={active ? "active" : ""} onClick={onClick}><span>{item.icon}</span>{item.label}</button>;
-}
-
-function StudyTaskCard({ task, node, nodes, onComplete, onPostpone, onDelete, onEdit, onReorder, canMoveUp = false, canMoveDown = false, grouped = false }: {
-  task: StudyTask;
-  node: StudyNode | null;
-  nodes: StudyNode[];
-  onComplete: (taskId: string, assessment: Exclude<StudyAssessment, null>) => void;
-  onPostpone: (taskId: string, days?: number) => void;
-  onDelete: (taskId: string) => void;
-  onEdit: (taskId: string) => void;
-  onReorder?: (taskId: string, direction: -1 | 1) => void;
-  canMoveUp?: boolean;
-  canMoveDown?: boolean;
-  grouped?: boolean;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const overdue = task.plannedFor < localDateKey();
-  const path = node ? studyNodePath(nodes, node.id) : [];
-  const reasonLabels: Record<string, string> = { olvido: "Olvido", confusion: "Confusión", literalidad: "Literalidad", plazo_cifra: "Plazo / cifra", afianzar: "Afianzar" };
-  const runMenuAction = (action: () => void) => { setMenuOpen(false); action(); };
-  return <article className={`study-task-card ${overdue ? "overdue" : ""}`}>
-    <div className="study-task-main">
-      <div className="study-task-title-row"><strong>{node?.name ?? "Elemento eliminado"}</strong><span className={overdue ? "overdue" : "today"}>{overdue ? "Atrasado" : "Hoy"}</span></div>
-      {!grouped && <small>{path.slice(0, -1).join(" · ") || "Temario"}</small>}
-      {task.note && <p>{task.note}</p>}
-      {task.reason && <span className="study-reason-chip">{reasonLabels[task.reason] ?? task.reason}</span>}
-    </div>
-    <div className="study-task-actions">
-      <div className="study-assessment-actions" aria-label="Resultado del repaso">
-        <button className="bad" onClick={() => onComplete(task.id, "mal")}>Mal</button>
-        <button className="mid" onClick={() => onComplete(task.id, "regular")}>Regular</button>
-        <button className="good" onClick={() => onComplete(task.id, "bien")}>Bien</button>
-      </div>
-      <div className="study-task-secondary-actions">
-        <button onClick={() => onPostpone(task.id, 1)}>Mañana</button>
-        <div className={`study-task-more-wrap ${menuOpen ? "open" : ""}`}>
-          <button className="study-task-more-button" aria-label="Más opciones" title="Más opciones" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>•••</button>
-          {menuOpen && <div className="study-task-menu" role="menu">
-            <button role="menuitem" onClick={() => runMenuAction(() => onEdit(task.id))}>✎ Editar repaso</button>
-            <button role="menuitem" onClick={() => runMenuAction(() => onPostpone(task.id, 3))}>＋3 días</button>
-            <button role="menuitem" onClick={() => runMenuAction(() => onPostpone(task.id, 7))}>＋7 días</button>
-            {onReorder && <>
-              <button role="menuitem" disabled={!canMoveUp} onClick={() => canMoveUp && runMenuAction(() => onReorder(task.id, -1))}>↑ Subir en la lista</button>
-              <button role="menuitem" disabled={!canMoveDown} onClick={() => canMoveDown && runMenuAction(() => onReorder(task.id, 1))}>↓ Bajar en la lista</button>
-            </>}
-            <button role="menuitem" className="danger" onClick={() => runMenuAction(() => onDelete(task.id))}>Eliminar</button>
-          </div>}
-        </div>
-      </div>
-    </div>
-  </article>;
-}
-
-function StudyTaskGroupedList({ tasks, nodes, onComplete, onPostpone, onDelete, onEdit }: {
-  tasks: StudyTask[];
-  nodes: StudyNode[];
-  onComplete: (taskId: string, assessment: Exclude<StudyAssessment, null>) => void;
-  onPostpone: (taskId: string, days?: number) => void;
-  onDelete: (taskId: string) => void;
-  onEdit: (taskId: string) => void;
-}) {
-  const validNodeIds = new Set(nodes.map((node) => node.id));
-  const orphanTasks = tasks.filter((task) => !validNodeIds.has(task.nodeId));
-  const roots = nodes.filter((node) => !node.parentId && tasks.some((task) => studyDescendantIds(nodes, node.id).has(task.nodeId)));
-  return <div className="study-task-groups">
-    {roots.map((root) => <StudyTaskGroupBranch key={root.id} node={root} nodes={nodes} tasks={tasks} depth={0} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} />)}
-    {orphanTasks.length > 0 && <div className="study-task-orphans">{orphanTasks.map((task) => <StudyTaskCard key={task.id} task={task} node={null} nodes={nodes} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} grouped />)}</div>}
-  </div>;
-}
-
-function StudyTaskGroupBranch({ node, nodes, tasks, depth, onComplete, onPostpone, onDelete, onEdit }: {
-  node: StudyNode;
-  nodes: StudyNode[];
-  tasks: StudyTask[];
-  depth: number;
-  onComplete: (taskId: string, assessment: Exclude<StudyAssessment, null>) => void;
-  onPostpone: (taskId: string, days?: number) => void;
-  onDelete: (taskId: string) => void;
-  onEdit: (taskId: string) => void;
-}) {
-  const [open, setOpen] = useState(true);
-  const children = nodes.filter((child) => child.parentId === node.id);
-  const directTasks = tasks.filter((task) => task.nodeId === node.id).sort((a, b) => a.queueOrder - b.queueOrder || a.createdAt.localeCompare(b.createdAt));
-  const childBranches = children.filter((child) => tasks.some((task) => studyDescendantIds(nodes, child.id).has(task.nodeId)));
-  const descendantCount = directTasks.length + childBranches.reduce((sum, child) => sum + tasks.filter((task) => studyDescendantIds(nodes, child.id).has(task.nodeId)).length, 0);
-  const isLeaf = childBranches.length === 0;
-
-  if (isLeaf && directTasks.length === 1) {
-    return <StudyTaskCard task={directTasks[0]} node={node} nodes={nodes} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} grouped />;
-  }
-
-  return <div className={`study-task-group depth-${Math.min(depth, 3)}`}>
-    <button className="study-task-group-head" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-      <span className="study-task-group-chevron">{open ? "⌄" : "›"}</span>
-      <strong>{node.name}</strong>
-      <span className="study-task-group-count">{descendantCount}</span>
-    </button>
-    {open && <div className="study-task-group-children">
-      {directTasks.map((task) => <StudyTaskCard key={task.id} task={task} node={node} nodes={nodes} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} grouped />)}
-      {childBranches.map((child) => <StudyTaskGroupBranch key={child.id} node={child} nodes={nodes} tasks={tasks} depth={depth + 1} onComplete={onComplete} onPostpone={onPostpone} onDelete={onDelete} onEdit={onEdit} />)}
-    </div>}
-  </div>;
-}
-
-function StudyUpcomingRow({ task, node, nodes, onEdit, onDelete }: {
-  task: StudyTask;
-  node: StudyNode | null;
-  nodes: StudyNode[];
-  onEdit: (taskId: string) => void;
-  onDelete: (taskId: string) => void;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  return <div className="study-upcoming-row">
-    <span><strong>{node?.name ?? "Elemento eliminado"}</strong><small>{task.note || studyNodePath(nodes, task.nodeId).slice(0, -1).join(" · ") || "Sin nota"}</small></span>
-    <time>{dateLabel(task.plannedFor)}</time>
-    <div className={`study-task-more-wrap ${menuOpen ? "open" : ""}`}>
-      <button className="study-task-more-button" aria-label="Más opciones" title="Más opciones" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>•••</button>
-      {menuOpen && <div className="study-task-menu" role="menu">
-        <button role="menuitem" onClick={() => { setMenuOpen(false); onEdit(task.id); }}>✎ Editar repaso</button>
-        <button role="menuitem" className="danger" onClick={() => { setMenuOpen(false); onDelete(task.id); }}>Eliminar</button>
-      </div>}
-    </div>
-  </div>;
-}
-
-function StudyTreeBranch({ node, nodes, tasks, depth, onQuick, onExport, onAddChild, onEdit, onImportInto, onDelete, selectionMode, selectedIds, onToggleSelect }: {
-  node: StudyNode;
-  nodes: StudyNode[];
-  tasks: StudyTask[];
-  depth: number;
-  onQuick: (nodeId?: string | null, sourceCardId?: string | null) => void;
-  onExport: (rootId?: string) => void;
-  onAddChild: (parentId: string) => void;
-  onEdit: (nodeId: string) => void;
-  onImportInto: (parentId: string | null) => void;
-  onDelete: (nodeId: string) => void;
-  selectionMode: boolean;
-  selectedIds: string[];
-  onToggleSelect: (nodeId: string) => void;
-}) {
-  const [open, setOpen] = useState(depth === 0);
-  const children = nodes.filter((child) => child.parentId === node.id);
-  const scopedIds = studyDescendantIds(nodes, node.id);
-  const scopedTasks = tasks.filter((task) => scopedIds.has(task.nodeId));
-  const pending = scopedTasks.filter((task) => task.status === "pending");
-  const completed = scopedTasks.filter((task) => task.status === "done" && task.completedAt).sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
-  const latest = completed[0] ?? null;
-  const selected = selectedIds.includes(node.id);
-  const visibleOpen = selectionMode || open;
-  return <div className={`study-tree-branch depth-${Math.min(depth, 5)}`}>
-    <div className={`study-tree-row ${selectionMode ? "selecting" : ""} ${selected ? "selected" : ""}`}>
-      {selectionMode
-        ? <button className={`study-tree-select ${selected ? "selected" : ""}`} onClick={() => onToggleSelect(node.id)} aria-label={selected ? `Deseleccionar ${node.name}` : `Seleccionar ${node.name}`}>{selected ? "✓" : ""}</button>
-        : <button className={`study-tree-toggle ${children.length ? "has-children" : "leaf"}`} onClick={() => children.length && setOpen((value) => !value)} aria-label={children.length ? (open ? "Cerrar" : "Abrir") : "Sin subapartados"}>{children.length ? (open ? "⌄" : "›") : "·"}</button>}
-      <div className="study-tree-name"><strong>{node.name}</strong><small>{pending.length ? `${pending.length} pendiente${pending.length === 1 ? "" : "s"}` : latest ? `Último repaso ${dateLabel(latest.completedAt)}` : children.length ? `${children.length} subapartado${children.length === 1 ? "" : "s"}` : "Sin repasos registrados"}</small></div>
-      <div className="study-tree-metrics"><span>{completed.length} repasos</span>{latest?.assessment && <span className={`study-result ${latest.assessment}`}>{latest.assessment}</span>}</div>
-      {!selectionMode && <div className="study-tree-actions">
-        <button className="secondary-button study-tree-review" onClick={() => onQuick(node.id)}>＋ Repasar</button>
-        <button className="study-tree-mini-button" onClick={() => onAddChild(node.id)} title="Añadir dentro" aria-label={`Añadir dentro de ${node.name}`}>＋ Añadir</button>
-        <button className="study-tree-mini-button" onClick={() => onImportInto(node.id)} title="Importar o actualizar esta rama" aria-label={`Importar dentro de ${node.name}`}>⇧ Actualizar</button>
-        <button className="study-tree-mini-button" onClick={() => onEdit(node.id)} title="Editar nombre o ubicación" aria-label={`Editar ${node.name}`}>✎ Editar</button>
-        <button className={`tree-export-button ${depth === 0 ? "root" : ""}`} onClick={() => onExport(node.id)} title="Exportar este apartado">{depth === 0 ? "↓ Exportar" : "↓"}</button>
-        <button className="study-tree-icon-button danger" onClick={() => onDelete(node.id)} title="Eliminar esta rama" aria-label={`Eliminar ${node.name}`}>×</button>
-      </div>}
-    </div>
-    {visibleOpen && children.length > 0 && <div className="study-tree-children">{children.map((child) => <StudyTreeBranch key={child.id} node={child} nodes={nodes} tasks={tasks} depth={depth + 1} onQuick={onQuick} onExport={onExport} onAddChild={onAddChild} onEdit={onEdit} onImportInto={onImportInto} onDelete={onDelete} selectionMode={selectionMode} selectedIds={selectedIds} onToggleSelect={onToggleSelect} />)}</div>}
-  </div>;
-}
-
-function StudyQuickModal({ nodes, defaultNodeId, onClose, onSave }: {
-  nodes: StudyNode[];
-  defaultNodeId: string | null;
-  onClose: () => void;
-  onSave: (input: { nodeId: string; plannedFor: string; note: string; reason: string }) => void;
-}) {
-  const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
-  const [nodeId, setNodeId] = useState(defaultNodeId && nodes.some((node) => node.id === defaultNodeId) ? defaultNodeId : "");
-  const [plannedFor, setPlannedFor] = useState(addDaysKey(1));
-  const [note, setNote] = useState("");
-  const [reason, setReason] = useState("");
-  const selected = nodes.find((node) => node.id === nodeId) ?? null;
-  return <ModalShell title="Anotar próximo repaso" subtitle="Guárdalo sin salir del flujo de estudio. La nota es opcional." label="REPASO RÁPIDO" onClose={onClose}>
-    <form onSubmit={(event) => { event.preventDefault(); if (nodeId && plannedFor) onSave({ nodeId, plannedFor, note, reason }); }}>
-      <label>Elemento del temario<select value={nodeId} onChange={(event) => setNodeId(event.target.value)}><option value="" disabled>Selecciona tema, apartado o artículo…</option>{ordered.map((node) => <option key={node.id} value={node.id}>{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>)}</select></label>
-      {selected && <p className="study-selected-path">{studyNodePath(nodes, selected.id).join(" › ")}</p>}
-      <fieldset><legend>Cuándo</legend><div className="study-date-presets"><button type="button" className={plannedFor === localDateKey() ? "active" : ""} onClick={() => setPlannedFor(localDateKey())}>Hoy</button><button type="button" className={plannedFor === addDaysKey(1) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(1))}>Mañana</button><button type="button" className={plannedFor === addDaysKey(3) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(3))}>+3 días</button><button type="button" className={plannedFor === addDaysKey(7) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(7))}>+7 días</button></div></fieldset>
-      <label>Fecha<input type="date" value={plannedFor} onChange={(event) => setPlannedFor(event.target.value)} /></label>
-      <label>Motivo <small>(opcional)</small><select value={reason} onChange={(event) => setReason(event.target.value)}><option value="">Sin indicar</option><option value="olvido">Olvido</option><option value="confusion">Confusión</option><option value="literalidad">Literalidad</option><option value="plazo_cifra">Plazo / cifra</option><option value="afianzar">Quiero afianzarlo</option></select></label>
-      <label>Nota <small>(opcional)</small><textarea autoFocus={Boolean(defaultNodeId)} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ej. No olvidar iniciativa de 1/4 y mayoría absoluta" /></label>
-      <button className="primary-button full" disabled={!nodeId || !plannedFor}>Guardar repaso</button>
-    </form>
-  </ModalShell>;
-}
-
-function StudyCompletionNoteModal({ assessment, task, nodes, onClose, onSave }: {
-  assessment: Exclude<StudyAssessment, null>;
-  task: StudyTask | null;
-  nodes: StudyNode[];
-  onClose: () => void;
-  onSave: (note: string) => void;
-}) {
-  const [note, setNote] = useState(task?.completionNote ?? "");
-  const node = task ? nodes.find((item) => item.id === task.nodeId) ?? null : null;
-  const labels: Record<Exclude<StudyAssessment, null>, string> = { bien: "Bien", regular: "Regular", mal: "Mal" };
-  return <ModalShell title="Añadir comentario del repaso" subtitle="Es opcional. Úsalo para dejar constancia de qué ha fallado, qué ya tienes claro o qué quieres recordar la próxima vez." label="REPASO COMPLETADO" onClose={onClose}>
-    <div className="study-completion-summary">
-      <span className={`study-result ${assessment}`}>{labels[assessment]}</span>
-      <div><strong>{node?.name ?? "Repaso"}</strong>{node && <small>{studyNodePath(nodes, node.id).join(" · ")}</small>}</div>
-    </div>
-    <form onSubmit={(event) => { event.preventDefault(); onSave(note); }}>
-      <label>Comentario del repaso<textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ej. Ya recuerdo la iniciativa de 1/4, pero sigo confundiendo la mayoría absoluta." /></label>
-      <div className="study-completion-actions"><button type="button" className="secondary-button" onClick={onClose}>Sin comentario</button><button className="primary-button" type="submit">Guardar comentario</button></div>
-    </form>
-  </ModalShell>;
-}
-
-function StudyTaskEditModal({ task, nodes, onClose, onSave, onDelete }: {
-  task: StudyTask;
-  nodes: StudyNode[];
-  onClose: () => void;
-  onSave: (input: { id: string; nodeId: string; plannedFor: string; note: string; reason: string }) => void;
-  onDelete: (taskId: string) => void;
-}) {
-  const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
-  const [nodeId, setNodeId] = useState(nodes.some((node) => node.id === task.nodeId) ? task.nodeId : "");
-  const [plannedFor, setPlannedFor] = useState(task.plannedFor || localDateKey());
-  const [note, setNote] = useState(task.note || "");
-  const [reason, setReason] = useState(task.reason || "");
-  const selected = nodes.find((node) => node.id === nodeId) ?? null;
-  return <ModalShell title="Editar repaso" subtitle="Cambia la fecha, la nota, el motivo o el elemento del temario sin crear un repaso nuevo." label="EDITAR PENDIENTE" onClose={onClose}>
-    <form onSubmit={(event) => { event.preventDefault(); if (nodeId && plannedFor) onSave({ id: task.id, nodeId, plannedFor, note, reason }); }}>
-      <label>Elemento del temario<select value={nodeId} onChange={(event) => setNodeId(event.target.value)}><option value="" disabled>Selecciona tema, apartado o artículo…</option>{ordered.map((node) => <option key={node.id} value={node.id}>{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>)}</select></label>
-      {selected && <p className="study-selected-path">{studyNodePath(nodes, selected.id).join(" › ")}</p>}
-      <fieldset><legend>Cuándo</legend><div className="study-date-presets"><button type="button" className={plannedFor === localDateKey() ? "active" : ""} onClick={() => setPlannedFor(localDateKey())}>Hoy</button><button type="button" className={plannedFor === addDaysKey(1) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(1))}>Mañana</button><button type="button" className={plannedFor === addDaysKey(3) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(3))}>+3 días</button><button type="button" className={plannedFor === addDaysKey(7) ? "active" : ""} onClick={() => setPlannedFor(addDaysKey(7))}>+7 días</button></div></fieldset>
-      <label>Fecha<input type="date" value={plannedFor} onChange={(event) => setPlannedFor(event.target.value)} /></label>
-      <label>Motivo <small>(opcional)</small><select value={reason} onChange={(event) => setReason(event.target.value)}><option value="">Sin indicar</option><option value="olvido">Olvido</option><option value="confusion">Confusión</option><option value="literalidad">Literalidad</option><option value="plazo_cifra">Plazo / cifra</option><option value="afianzar">Quiero afianzarlo</option></select></label>
-      <label>Nota <small>(opcional)</small><textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} placeholder="Qué quieres recordar o revisar" /></label>
-      <div className="study-edit-task-actions"><button type="button" className="danger-button" onClick={() => onDelete(task.id)}>Eliminar</button><button className="primary-button" disabled={!nodeId || !plannedFor}>Guardar cambios</button></div>
-    </form>
-  </ModalShell>;
-}
-
-function StudyNodeEditorModal({ nodes, nodeId, defaultParentId, onClose, onSave }: {
-  nodes: StudyNode[];
-  nodeId: string | null;
-  defaultParentId: string | null;
-  onClose: () => void;
-  onSave: (input: { id: string | null; name: string; parentId: string | null }) => void;
-}) {
-  const editing = nodeId ? nodes.find((node) => node.id === nodeId) ?? null : null;
-  const blockedParents = editing ? studyDescendantIds(nodes, editing.id) : new Set<string>();
-  const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
-  const initialParent = editing?.parentId ?? (defaultParentId && nodes.some((node) => node.id === defaultParentId) ? defaultParentId : null);
-  const [name, setName] = useState(editing?.name ?? "");
-  const [parentId, setParentId] = useState(initialParent ?? "");
-  const resolvedParentId = parentId || null;
-  const duplicate = Boolean(name.trim()) && nodes.some((node) => node.id !== nodeId && node.parentId === resolvedParentId && normalizeStudyLabel(node.name) === normalizeStudyLabel(name));
-  const selectedParent = resolvedParentId ? nodes.find((node) => node.id === resolvedParentId) ?? null : null;
-  return <ModalShell title={editing ? "Editar elemento del temario" : "Añadir elemento al temario"} subtitle={editing ? "Puedes cambiar el nombre o mover este elemento a otra rama. Su historial de repaso se conserva." : "Ponle el nombre que quieras y decide exactamente en qué parte del árbol debe aparecer."} label={editing ? "EDITAR TEMARIO" : "NUEVO ELEMENTO"} onClose={onClose}>
-    <form onSubmit={(event) => { event.preventDefault(); if (name.trim() && !duplicate) onSave({ id: nodeId, name, parentId: resolvedParentId }); }}>
-      <label>Nombre<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Artículo 103, Título V, Tema 2…" /></label>
-      <label>Ubicación<select value={parentId} onChange={(event) => setParentId(event.target.value)}><option value="">Nivel principal · crear como tema raíz</option>{ordered.filter((node) => !blockedParents.has(node.id)).map((node) => <option key={node.id} value={node.id}>{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>)}</select></label>
-      {selectedParent && <p className="study-selected-path">Se guardará dentro de: {studyNodePath(nodes, selectedParent.id).join(" › ")}</p>}
-      {duplicate && <p className="form-error">Ya existe un elemento con ese nombre dentro de esa misma rama.</p>}
-      {editing && <p className="study-editor-note">Mover o renombrar este elemento no elimina sus repasos, notas ni historial.</p>}
-      <button className="primary-button full" disabled={!name.trim() || duplicate}>{editing ? "Guardar cambios" : "Añadir al temario"}</button>
-    </form>
-  </ModalShell>;
-}
-
-function StudyImportModal({ nodes, defaultParentId, onClose, onImport }: {
-  nodes: StudyNode[];
-  defaultParentId: string | null;
-  onClose: () => void;
-  onImport: (roots: StudyImportNode[], parentId: string | null) => void;
-}) {
-  const [raw, setRaw] = useState("");
-  const [fileName, setFileName] = useState("");
-  const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
-  const [parentId, setParentId] = useState(defaultParentId && nodes.some((node) => node.id === defaultParentId) ? defaultParentId : "");
-  const parsed = useMemo(() => parseStudyTextTree(raw), [raw]);
-  const total = countStudyImportNodes(parsed);
-  const selectedParent = parentId ? nodes.find((node) => node.id === parentId) ?? null : null;
-  async function loadFile(file: File | null) {
-    if (!file) return;
-    setFileName(file.name);
-    setRaw(await file.text());
-  }
-  return <div className="modal-backdrop study-import-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-    <section className="modal study-import-modal">
-      <button className="modal-close" onClick={onClose}>×</button>
-      <span className="section-label">IMPORTAR / ACTUALIZAR TEMARIO</span>
-      <h2>{selectedParent ? `Añadir contenido dentro de ${selectedParent.name}` : "Importa o amplía tu árbol"}</h2>
-      <p className="modal-subtitle">Elige dónde insertar el contenido. Si un elemento con el mismo nombre ya existe en esa rama, se reutiliza y solo se añaden los apartados nuevos. No se borra el historial.</p>
-      <label>Destino<select value={parentId} onChange={(event) => setParentId(event.target.value)}><option value="">Nivel principal · temas raíz</option>{ordered.map((node) => <option key={node.id} value={node.id}>{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>)}</select></label>
-      {selectedParent && <p className="study-selected-path">Los elementos de nivel superior que pegues se añadirán dentro de: {studyNodePath(nodes, selectedParent.id).join(" › ")}</p>}
-      <label className="study-import-file"><input type="file" accept=".json,.txt,application/json,text/plain" onChange={(event) => loadFile(event.target.files?.[0] ?? null)} /><span>⇧</span><strong>{fileName || "Cargar archivo .json o .txt"}</strong></label>
-      <div className="study-import-or"><span>o pega el contenido</span></div>
-      <textarea className="study-import-textarea" value={raw} onChange={(event) => { setRaw(event.target.value); setFileName(""); }} placeholder={selectedParent ? 'Artículo 103\nArtículo 104\nArtículo 105' : 'Constitución Española\nTítulo IV. Gobierno y Administración\nArtículo 97\nArtículo 98\nArtículo 102\n  - Responsabilidad criminal'} />
-      <details className="study-import-help"><summary>Formato JSON compatible</summary><pre>{`{
-  "nombre": "Constitución Española",
-  "hijos": [
-    {
-      "nombre": "Título IV",
-      "hijos": [
-        { "nombre": "Artículo 102", "hijos": [] }
-      ]
-    }
-  ]
-}`}</pre></details>
-      <div className={`study-import-preview ${total ? "ready" : ""}`}>
-        <div><span className="section-label">PREVISUALIZACIÓN</span><strong>{total ? `${total} elementos detectados` : "Pega o carga un temario"}</strong><small>{selectedParent ? `Destino: ${selectedParent.name}` : "Destino: nivel principal"}</small></div>
-        {parsed.length > 0 && <div className="study-import-root-chips">{parsed.slice(0, 6).map((node, index) => <span key={`${node.name}-${index}`}>{node.name}</span>)}{parsed.length > 6 && <span>+{parsed.length - 6}</span>}</div>}
-      </div>
-      <div className="study-import-actions"><button className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={!total} onClick={() => onImport(parsed, parentId || null)}>Importar / actualizar</button></div>
-    </section>
-  </div>;
-}
-
-function StatCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: string }) {
-  return <article className={`stat-card ${tone}`}><span>{label}</span><strong>{value}</strong><small>{detail}</small></article>;
-}
-
-function WeekStrip({ reviews }: { reviews: Review[] }) {
-  const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() - 6 + index); return date; });
-  return <div className="week-strip">{days.map((day) => { const key = day.toISOString().slice(0, 10); const count = reviews.filter((review) => review.reviewedAt.startsWith(key)).length; return <div key={key} className={count ? "done" : key === todayKey() ? "today" : ""}><span>{new Intl.DateTimeFormat("es-ES", { weekday: "narrow" }).format(day)}</span><strong>{day.getDate()}</strong><small>{count || "·"}</small></div>; })}</div>;
-}
-
-function Empty({ icon, title, copy, action, onAction }: { icon: string; title: string; copy: string; action: string; onAction: () => void }) {
-  return <div className="empty-state"><span>{icon}</span><h3>{title}</h3><p>{copy}</p><button className="primary-button" onClick={onAction}>{action}</button></div>;
-}
-
-function ModalShell({ title, subtitle, label = "NUEVO", onClose, children }: { title: string; subtitle: string; label?: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal"><button className="modal-close" onClick={onClose}>×</button><span className="section-label">{label}</span><h2>{title}</h2><p className="modal-subtitle">{subtitle}</p>{children}</section></div>;
-}
-
-function FolderModal({ parentId, parentName, onClose, onCreate }: { parentId: string | null; parentName: string; onClose: () => void; onCreate: (folder: Folder) => void }) {
-  const [name, setName] = useState("");
-  const [color, setColor] = useState(colors[0]);
-  const isNested = Boolean(parentId);
-  return <ModalShell title={isNested ? "Añadir dentro" : "Crear tema"} subtitle={isNested ? `Se añadirá dentro de ${parentName}. Puedes seguir creando tantos niveles como necesites.` : "Crea un tema principal. Después podrás organizar dentro títulos, capítulos, artículos o cualquier otro nivel."} onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); if (name.trim()) onCreate({ id: uid(), name: name.trim(), color, parentId, createdAt: nowIso() }); }}><label>Nombre<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder={isNested ? "Ej. Título III / Artículo 76 / Apartado 1" : "Ej. Tema 4 · Derecho Penal"} /></label><label>Color<div className="color-picker">{colors.map((item) => <button type="button" key={item} className={color === item ? "selected" : ""} style={{ background: item }} onClick={() => setColor(item)} aria-label={`Color ${item}`} />)}</div></label><button className="primary-button full" disabled={!name.trim()}>Crear {isNested ? "apartado" : "tema"}</button></form></ModalShell>;
-}
-
-function MoveFolderModal({ folders, folder, onClose, onMove }: { folders: Folder[]; folder: Folder; onClose: () => void; onMove: (targetParentId: string | null) => void }) {
-  const [targetParentId, setTargetParentId] = useState(folder.parentId ?? "");
-  const blocked = descendantFolderIds(folders, folder.id);
-  const options = flattenFolderTree(folders).filter(({ folder: candidate }) => !blocked.has(candidate.id));
-  const currentPath = folderPathLabel(folders, folder.id);
-  const targetPath = targetParentId ? folderPathLabel(folders, targetParentId) : "Biblioteca · nivel principal";
-  const unchanged = (folder.parentId ?? "") === targetParentId;
-  return <ModalShell title="Mover tema o apartado" subtitle="Mueve la rama completa. Sus tarjetas, subapartados, progreso e historial se conservan." label="ORGANIZAR" onClose={onClose}>
-    <div className="folder-move-summary"><span>VAS A MOVER</span><strong>{folder.name}</strong><small>{currentPath}</small></div>
-    <label>Nuevo destino<select autoFocus value={targetParentId} onChange={(event) => setTargetParentId(event.target.value)}><option value="">Biblioteca · nivel principal</option>{options.map(({ folder: candidate, depth }) => <option key={candidate.id} value={candidate.id}>{"↳ ".repeat(depth)}{candidate.name}</option>)}</select></label>
-    <div className="folder-move-destination"><span>QUEDARÁ DENTRO DE</span><strong>{targetPath}</strong></div>
-    <div className="study-import-actions"><button className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={unchanged} onClick={() => onMove(targetParentId || null)}>Mover</button></div>
-  </ModalShell>;
-}
-
-function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { folders: Folder[]; defaultFolder: string | null; initialCard: Card | null; onClose: () => void; onSave: (card: Card) => void }) {
-  const [type, setType] = useState<CardType>(initialCard?.type ?? "basic");
-  const [folderId, setFolderId] = useState(initialCard?.folderId ?? defaultFolder ?? folders[0]?.id ?? "");
-  const [front, setFront] = useState(initialCard?.front ?? "");
-  const [back, setBack] = useState(initialCard?.back ?? "");
-  const [options, setOptions] = useState(() => {
-    const existing = initialCard?.options ?? [];
-    return Array.from({ length: 4 }, (_, index) => existing[index] ?? "");
-  });
-  const initialCorrectOptions = initialCard ? cardCorrectOptions(initialCard) : [0];
-  const [correctOption, setCorrectOption] = useState(initialCorrectOptions[0] ?? 0);
-  const [correctOptions, setCorrectOptions] = useState<number[]>(initialCorrectOptions);
-  const [multipleAnswers, setMultipleAnswers] = useState(Boolean(initialCard?.type === "test" && initialCorrectOptions.length > 1));
-  const [attachment, setAttachment] = useState<Attachment | null>(initialCard?.attachment ?? null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [imageError, setImageError] = useState("");
-  const [editingImage, setEditingImage] = useState(false);
-  const [orthographyWord, setOrthographyWord] = useState(initialCard?.type === "orthography" ? plainRichText(initialCard.front) : "");
-  const [orthographyIsCorrect, setOrthographyIsCorrect] = useState(initialCard?.type === "orthography" ? initialCard.orthographyIsCorrect !== false : true);
-  const [orthographyCorrectForm, setOrthographyCorrectForm] = useState(initialCard?.type === "orthography" ? initialCard.orthographyCorrectForm : "");
-  const [orthographyExplanation, setOrthographyExplanation] = useState(initialCard?.type === "orthography" ? initialCard.orthographyExplanation : "");
-  const [orthographySource, setOrthographySource] = useState(initialCard?.type === "orthography" ? initialCard.orthographySource : "");
-  const [writtenEvaluation, setWrittenEvaluation] = useState<WrittenEvaluation | null>(() => initialCard?.type === "written" ? writtenRubric(initialCard) : null);
-  const [writtenEditorError, setWrittenEditorError] = useState("");
-
-  function updateWrittenCriterion(index: number, updater: (criterion: WrittenCriterion) => WrittenCriterion) {
-    setWrittenEvaluation((current) => current ? { ...current, criterios: current.criterios.map((criterion, criterionIndex) => criterionIndex === index ? updater(criterion) : criterion) } : current);
-    setWrittenEditorError("");
-  }
-
-  function addWrittenCriterion() {
-    setWrittenEvaluation((current) => {
-      if (!current) return current;
-      const number = current.criterios.length + 1;
-      return { ...current, criterios: [...current.criterios, { id: `criterio_${number}`, esperado: "", alternativas: [], puntos: 10, literal: false, critico: false, maximoSiFalla: null, minimoSimilitud: 0.8 }] };
-    });
-  }
-
-  function removeWrittenCriterion(index: number) {
-    setWrittenEvaluation((current) => current ? { ...current, criterios: current.criterios.filter((_, criterionIndex) => criterionIndex !== index) } : current);
-  }
-
-  async function compressIfNeeded(file: File) {
-    if (file.size <= 5.5 * 1024 * 1024) return file;
-    const url = URL.createObjectURL(file);
-    try {
-      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const element = new Image();
-        element.onload = () => resolve(element);
-        element.onerror = () => reject(new Error("No se pudo preparar la imagen"));
-        element.src = url;
-      });
-      const maxSide = 2200;
-      const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("No se pudo preparar la imagen");
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
-      if (!blob) throw new Error("No se pudo comprimir la imagen");
-      return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  }
-
-  async function uploadImage(file: File): Promise<Attachment | null> {
-    if (!file.type.startsWith("image/")) {
-      setImageError("Selecciona una imagen");
-      return null;
-    }
-    setUploadingImage(true);
-    setImageError("");
-    try {
-      const prepared = await compressIfNeeded(file);
-      const form = new FormData();
-      form.append("file", prepared);
-      const payload = { attachment: await uploadAttachment(prepared) };
-      if (!payload.attachment) throw new Error( "No se pudo subir la imagen");
-      setAttachment(payload.attachment);
-      return payload.attachment;
-    } catch (reason) {
-      setImageError(reason instanceof Error ? reason.message : "No se pudo subir la imagen");
-      return null;
-    } finally {
-      setUploadingImage(false);
-    }
-  }
-
-  async function createHandwrittenAnswer() {
-    setUploadingImage(true);
-    setImageError("");
-    try {
-      const canvas = document.createElement("canvas");
-      canvas.width = 1600;
-      canvas.height = 1200;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("No se pudo crear el lienzo");
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (!blob) throw new Error("No se pudo crear el lienzo");
-      const file = new File([blob], `respuesta-manuscrita-${Date.now()}.png`, { type: "image/png" });
-      const form = new FormData();
-      form.append("file", file);
-      const payload = { attachment: await uploadAttachment(file) };
-      if (!payload.attachment) throw new Error( "No se pudo crear la respuesta manuscrita");
-      setAttachment(payload.attachment);
-      setEditingImage(true);
-    } catch (reason) {
-      setImageError(reason instanceof Error ? reason.message : "No se pudo crear la respuesta manuscrita");
-    } finally {
-      setUploadingImage(false);
-    }
-  }
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    const base: Card = initialCard ?? {
-      id: uid(),
-      folderId: "",
-      type,
-      front: "",
-      back: "",
-      options: [],
-      correctOption: 0,
-      correctOptions: [0],
-      dueAt: nowIso(),
-      createdAt: nowIso(),
-      lastReviewedAt: null,
-      intervalDays: 0,
-      ease: 0,
-      repetitions: 0,
-      lapses: 0,
-      streak: 0,
-      reviewCount: 0,
-      successCount: 0,
-      attachment: null,
-      fsrsStability: 0,
-      fsrsDifficulty: 0,
-      orthographyIsCorrect: null,
-      orthographyCorrectForm: "",
-      orthographyExplanation: "",
-      orthographySource: "",
-      orthographyStage: 1,
-    };
-    if (type === "orthography" && !orthographyWord.trim()) return;
-    if (type === "orthography" && !orthographyIsCorrect && !orthographyCorrectForm.trim()) return;
-    if (type === "written") {
-      if (!writtenEvaluation || !writtenEvaluation.criterios.length) { setWrittenEditorError("La respuesta escrita necesita al menos un criterio de corrección."); return; }
-      const ids = new Set<string>();
-      for (const criterion of writtenEvaluation.criterios) {
-        if (!criterion.id.trim() || ids.has(criterion.id.trim())) { setWrittenEditorError("Cada criterio necesita un ID único."); return; }
-        ids.add(criterion.id.trim());
-        if (!criterion.esperado.trim()) { setWrittenEditorError("Todos los criterios necesitan un texto esperado."); return; }
-        if (!(criterion.puntos > 0)) { setWrittenEditorError("Los puntos de cada criterio deben ser mayores que 0."); return; }
-        if (criterion.minimoSimilitud < 0 || criterion.minimoSimilitud > 1) { setWrittenEditorError("La similitud mínima debe estar entre 0 y 1."); return; }
-      }
-      const { otraVezHasta, dificilHasta, bienHasta } = writtenEvaluation.umbrales;
-      if (!(otraVezHasta >= 0 && otraVezHasta < dificilHasta && dificilHasta < bienHasta && bienHasta < 100)) {
-        setWrittenEditorError("Los umbrales deben cumplir: Otra vez < Difícil < Bien < 100.");
-        return;
-      }
-    }
-    setWrittenEditorError("");
-    const finalOrthographyForm = orthographyIsCorrect ? (orthographyCorrectForm.trim() || orthographyWord.trim()) : orthographyCorrectForm.trim();
-    const writtenOptions = type === "written" && writtenEvaluation
-      ? [...(initialCard?.options ?? []).filter((item) => !item.startsWith(WRITTEN_RUBRIC_PREFIX)), encodeWrittenRubric(writtenEvaluation)]
-      : (initialCard?.options ?? []);
-    onSave({
-      ...base,
-      folderId,
-      type,
-      front: type === "orthography" ? sanitizeRichHtml(`<p>${escapeHtml(orthographyWord.trim())}</p>`) : sanitizeRichHtml(front),
-      back: type === "orthography"
-        ? orthographyBackHtml(orthographyWord.trim(), orthographyIsCorrect, finalOrthographyForm, orthographyExplanation.trim(), orthographySource.trim())
-        : sanitizeRichHtml(back),
-      options: type === "written" ? writtenOptions : isMultipleChoiceType(type) ? options.slice(0, 4).map((option) => option.trim()) : [],
-      correctOption: isMultipleChoiceType(type) ? ((type === "test" && multipleAnswers ? [...new Set(correctOptions)].sort((a, b) => a - b)[0] : correctOption) ?? 0) : 0,
-      correctOptions: isMultipleChoiceType(type) ? (type === "test" && multipleAnswers ? ([...new Set(correctOptions)].sort((a, b) => a - b).length ? [...new Set(correctOptions)].sort((a, b) => a - b) : [0]) : [Math.min(correctOption, 3)]) : [],
-      attachment: type === "orthography" ? null : attachment,
-      orthographyIsCorrect: type === "orthography" ? orthographyIsCorrect : null,
-      orthographyCorrectForm: type === "orthography" ? finalOrthographyForm : "",
-      orthographyExplanation: type === "orthography" ? orthographyExplanation.trim() : "",
-      orthographySource: type === "orthography" ? orthographySource.trim() : "",
-      orthographyStage: type === "orthography" ? Math.max(1, base.orthographyStage || 1) : 1,
-    });
-  }
-
-  return <ModalShell title={initialCard ? "Editar tarjeta" : "Crear tarjeta"} subtitle="Crea flashcards, vocabulario, tests u ortografía. Las respuestas escritas con rúbrica se crean desde ChatGPT / JSON y después pueden editarse aquí." label={initialCard ? "EDITAR" : "NUEVO"} onClose={onClose}>
-    <form onSubmit={submit}>
-      <div className="segmented five-types">
-        <button type="button" className={type === "basic" ? "active" : ""} onClick={() => setType("basic")}>Flashcard</button>
-        <button type="button" className={type === "choice" ? "active" : ""} onClick={() => setType("choice")}>Vocabulario</button>
-        <button type="button" className={type === "test" ? "active" : ""} onClick={() => setType("test")}>Tipo test</button>
-        <button type="button" className={type === "orthography" ? "active" : ""} onClick={() => setType("orthography")}>Ortografía</button>
-        <button type="button" className={type === "written" ? "active" : ""} disabled={!initialCard || initialCard.type !== "written"} title={!initialCard ? "Las respuestas escritas se crean desde ChatGPT / JSON" : initialCard.type !== "written" ? "No se convierte una tarjeta existente a respuesta escrita" : "Editar respuesta escrita"} onClick={() => initialCard?.type === "written" && setType("written")}>Respuesta escrita</button>
-      </div>
-      {type === "written" && <div className="written-import-note"><strong>Respuesta escrita</strong><span>Edita aquí la rúbrica importada. OpoGC seguirá usando estos criterios para calcular la precisión.</span></div>}
-      <label>Tema / apartado<select value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Sin carpeta</option>{flattenFolderTree(folders).map(({ folder, depth }) => <option key={folder.id} value={folder.id}>{"↳ ".repeat(depth)}{folder.name}</option>)}</select></label>
-      {type === "orthography" ? (
-        <div className="orthography-manual-editor">
-          <span className="flashcard-side-label">PALABRA · UNIDAD INDIVIDUAL DE ESTUDIO</span>
-          <label>Palabra<input value={orthographyWord} onChange={(event) => setOrthographyWord(event.target.value)} placeholder="Ej. haciago" /></label>
-          <div className="answer-mode-toggle orthography-correctness-toggle">
-            <button type="button" className={orthographyIsCorrect ? "active" : ""} onClick={() => { setOrthographyIsCorrect(true); if (!orthographyCorrectForm.trim()) setOrthographyCorrectForm(orthographyWord); }}>Está bien escrita</button>
-            <button type="button" className={!orthographyIsCorrect ? "active" : ""} onClick={() => setOrthographyIsCorrect(false)}>Está mal escrita</button>
-          </div>
-          <label>Forma correcta{!orthographyIsCorrect ? " · obligatoria" : " · puede coincidir con la palabra"}<input value={orthographyCorrectForm} onChange={(event) => setOrthographyCorrectForm(event.target.value)} placeholder={orthographyIsCorrect ? orthographyWord || "Forma correcta" : "Ej. aciago"} /></label>
-          <label>Explicación <small>(opcional)</small><textarea value={orthographyExplanation} onChange={(event) => setOrthographyExplanation(event.target.value)} placeholder="La forma correcta es…" /></label>
-          <label>Fuente <small>(opcional)</small><input value={orthographySource} onChange={(event) => setOrthographySource(event.target.value)} placeholder="Ejercicio 1, p. 13" /></label>
-          <p className="field-help">OpoGC no guardará esta palabra como un test fijo. La mezclará dinámicamente con otras tres y mantendrá su progreso SRS por separado.</p>
-        </div>
-      ) : (
-        <>
-          <div className="flashcard-side-editor question-editor">
-            <span className="flashcard-side-label">ANVERSO · PREGUNTA</span>
-            <label>Pregunta</label><RichTextEditor value={front} onChange={setFront} placeholder="Escribe la pregunta" />
-            {isMultipleChoiceType(type) && <fieldset><legend>{type === "test" ? "Opciones del test" : "Opciones de vocabulario"}</legend>{type === "test" && <div className="answer-mode-toggle"><button type="button" className={!multipleAnswers ? "active" : ""} onClick={() => { setMultipleAnswers(false); setCorrectOption(correctOptions[0] ?? correctOption); }}>Respuesta única</button><button type="button" className={multipleAnswers ? "active" : ""} onClick={() => { setMultipleAnswers(true); setCorrectOptions((current) => current.length ? current : [correctOption]); }}>Respuesta múltiple</button></div>}{type === "test" && multipleAnswers && <p className="field-help">Marca todas las opciones correctas. Al estudiar, habrá que seleccionar exactamente ese conjunto.</p>}{options.map((option, index) => { const checked = type === "test" && multipleAnswers ? correctOptions.includes(index) : correctOption === index; return <label className="option-input" key={index}><input type={type === "test" && multipleAnswers ? "checkbox" : "radio"} name={type === "test" && multipleAnswers ? undefined : "correct"} checked={checked} onChange={() => { if (type === "test" && multipleAnswers) setCorrectOptions((current) => current.includes(index) ? current.filter((value) => value !== index) : [...current, index]); else { setCorrectOption(index); setCorrectOptions([index]); } }} /><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Opción ${index + 1}`} /></label>; })}</fieldset>}
-          </div>
-          <div className="flashcard-side-editor answer-editor">
-            <span className="flashcard-side-label">REVERSO · RESPUESTA</span>
-            <label>Texto de la respuesta <small>(opcional)</small></label><RichTextEditor value={back} onChange={setBack} placeholder="Puedes escribir una respuesta, añadir una imagen, escribir a mano o combinarlo" />
-            <div className="card-media-field answer-media-field">
-              <span className="card-media-label">Respuesta visual <small>(opcional)</small></span>
-              {!attachment ? (
-                <div className="answer-media-actions">
-                  <label className="file-drop compact answer-upload"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /><span>🖼</span><strong>{uploadingImage ? "Subiendo…" : "Usar una imagen como respuesta"}</strong><small>Página de libro, esquema, captura, fotografía…</small></label>
-                  <button type="button" className="blank-answer-button" disabled={uploadingImage} onClick={() => void createHandwrittenAnswer()}><span>✎</span><strong>Crear respuesta manuscrita</strong><small>Abre un lienzo en blanco para Apple Pencil o dedo.</small></button>
-                </div>
-              ) : (
-                <div className="card-media-preview answer-media-preview">
-                  <AnnotatedCardImage attachment={attachment} onOpen={() => setEditingImage(true)} />
-                  <div><button type="button" className="secondary-button" onClick={() => setEditingImage(true)}>✎ Abrir / escribir</button><button type="button" className="secondary-button danger" onClick={() => setAttachment(null)}>Quitar respuesta visual</button></div>
-                  <small>Esta imagen no se mostrará con la pregunta. Aparecerá únicamente al mostrar la respuesta.</small>
-                </div>
-              )}
-              {imageError && <p className="form-error">{imageError}</p>}
-            </div>
-          </div>
-
-          {type === "written" && writtenEvaluation && (
-            <div className="written-rubric-editor">
-              <div className="written-rubric-head"><div><span className="flashcard-side-label">RÚBRICA DE CORRECCIÓN</span><strong>{writtenEvaluation.criterios.length} criterios</strong></div><button type="button" className="secondary-button" onClick={addWrittenCriterion}>＋ Criterio</button></div>
-              <p className="field-help">Puedes aflojar o endurecer cada criterio. Si el orden exacto no importa, desactiva «Literal» y ajusta la similitud mínima.</p>
-              <div className="written-normalization-grid">
-                <label><input type="checkbox" checked={writtenEvaluation.normalizacion.ignorarMayusculas} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, normalizacion: { ...writtenEvaluation.normalizacion, ignorarMayusculas: event.target.checked } })} /> Ignorar mayúsculas</label>
-                <label><input type="checkbox" checked={writtenEvaluation.normalizacion.ignorarPuntuacion} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, normalizacion: { ...writtenEvaluation.normalizacion, ignorarPuntuacion: event.target.checked } })} /> Ignorar puntuación</label>
-                <label><input type="checkbox" checked={writtenEvaluation.normalizacion.ignorarAcentos} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, normalizacion: { ...writtenEvaluation.normalizacion, ignorarAcentos: event.target.checked } })} /> Ignorar acentos</label>
-                <label><input type="checkbox" checked={writtenEvaluation.normalizacion.ignorarEspaciosExtra} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, normalizacion: { ...writtenEvaluation.normalizacion, ignorarEspaciosExtra: event.target.checked } })} /> Ignorar espacios extra</label>
-              </div>
-
-              <div className="written-rubric-criteria">
-                {writtenEvaluation.criterios.map((criterion, index) => (
-                  <section className="written-rubric-criterion" key={`${criterion.id}-${index}`}>
-                    <div className="written-rubric-criterion-head"><strong>Criterio {index + 1}</strong><button type="button" className="text-button danger-text" disabled={writtenEvaluation.criterios.length <= 1} onClick={() => removeWrittenCriterion(index)}>Eliminar</button></div>
-                    <div className="form-grid">
-                      <label>ID<input value={criterion.id} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, id: event.target.value }))} /></label>
-                      <label>Puntos<input type="number" min="0.1" step="0.1" value={criterion.puntos} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, puntos: Number(event.target.value) }))} /></label>
-                    </div>
-                    <label>Texto esperado<textarea value={criterion.esperado} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, esperado: event.target.value }))} /></label>
-                    <label>Alternativas aceptadas <small>(una por línea)</small><textarea value={criterion.alternativas.join("\n")} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, alternativas: event.target.value.split(/\n/).map((value) => value.trim()).filter(Boolean) }))} /></label>
-                    <div className="written-rubric-flags">
-                      <label><input type="checkbox" checked={criterion.literal} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, literal: event.target.checked }))} /> Literal</label>
-                      <label><input type="checkbox" checked={criterion.critico} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, critico: event.target.checked }))} /> Crítico</label>
-                    </div>
-                    <div className="form-grid">
-                      <label>Similitud mínima<input type="number" min="0" max="1" step="0.05" value={criterion.minimoSimilitud} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, minimoSimilitud: Number(event.target.value) }))} /></label>
-                      <label>Máximo si falla <small>(vacío = sin límite)</small><input type="number" min="0" max="100" step="1" value={criterion.maximoSiFalla ?? ""} onChange={(event) => updateWrittenCriterion(index, (current) => ({ ...current, maximoSiFalla: event.target.value === "" ? null : Number(event.target.value) }))} /></label>
-                    </div>
-                  </section>
-                ))}
-              </div>
-
-              <div className="written-thresholds">
-                <span className="flashcard-side-label">UMBRALES AUTOMÁTICOS</span>
-                <div className="form-grid three">
-                  <label>Otra vez hasta<input type="number" min="0" max="99" value={writtenEvaluation.umbrales.otraVezHasta} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, umbrales: { ...writtenEvaluation.umbrales, otraVezHasta: Number(event.target.value) } })} /></label>
-                  <label>Difícil hasta<input type="number" min="1" max="99" value={writtenEvaluation.umbrales.dificilHasta} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, umbrales: { ...writtenEvaluation.umbrales, dificilHasta: Number(event.target.value) } })} /></label>
-                  <label>Bien hasta<input type="number" min="2" max="99" value={writtenEvaluation.umbrales.bienHasta} onChange={(event) => setWrittenEvaluation({ ...writtenEvaluation, umbrales: { ...writtenEvaluation.umbrales, bienHasta: Number(event.target.value) } })} /></label>
-                </div>
-              </div>
-              {writtenEditorError && <p className="form-error">{writtenEditorError}</p>}
-            </div>
-          )}
-        </>
-      )}
-      <button className="primary-button full" disabled={uploadingImage || (type === "orthography" && (!orthographyWord.trim() || (!orthographyIsCorrect && !orthographyCorrectForm.trim()))) || (type === "written" && !writtenEvaluation)}>{initialCard ? "Guardar cambios" : type === "orthography" ? "Guardar palabra" : "Guardar tarjeta"}</button>
-    </form>
-    {editingImage && attachment && <ImageAnnotator attachment={attachment} title={plainRichText(back) || plainRichText(front) || "Respuesta visual"} onClose={() => setEditingImage(false)} />}
-  </ModalShell>;
-}
-
-function PsychModal({ initialTest, onClose, onSave }: { initialTest: PsychTest | null; onClose: () => void; onSave: (test: PsychTest) => void }) {
-  const [name, setName] = useState(initialTest?.name ?? "");
-  const [category, setCategory] = useState(initialTest?.category ?? "Razonamiento verbal");
-  const [total, setTotal] = useState(initialTest?.totalQuestions ?? 0);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [error, setError] = useState("");
-
-  async function readJson(response: Response) {
-    const text = await response.text();
-    try {
-      return JSON.parse(text) as Record<string, unknown>;
-    } catch {
-      if (response.status === 413) throw new Error("El documento es demasiado grande para enviarlo de una sola vez");
-      throw new Error(`No se pudo subir el documento (${response.status})`);
-    }
-  }
-
-  async function uploadDirect(selectedFile: File) {
-    const attachment = await uploadAttachment(selectedFile, (progress) => setUploadProgress(progress));
-    return attachment;
-  }
-  const uploadInParts = uploadDirect;
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setUploading(true);
-    setUploadProgress(0);
-    setError("");
-    try {
-      let attachment = initialTest?.attachment ?? null;
-      if (file) {
-        if (file.size > 50 * 1024 * 1024) throw new Error("El archivo no puede superar 50 MB");
-        attachment = file.size <= 6 * 1024 * 1024 ? await uploadDirect(file) : await uploadInParts(file);
-      }
-      const base = initialTest ?? { id: uid(), attempts: [], createdAt: nowIso(), attachment: null, name: "", category: "", totalQuestions: 0 };
-      onSave({ ...base, name: name.trim(), category: category.trim(), totalQuestions: Math.max(0, total), attachment });
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "No se pudo guardar");
-      setUploading(false);
-    }
-  }
-
-  return <ModalShell title={initialTest ? "Editar psicotécnico" : "Añadir psicotécnico"} subtitle={initialTest ? "Cambia los datos de la ficha sin perder el historial de intentos." : "Guarda el documento y registra todos tus intentos. Ningún campo es obligatorio."} label={initialTest ? "EDITAR" : "NUEVO"} onClose={onClose}><form onSubmit={submit}><label>Nombre <small>(opcional)</small><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Cuadernillo verbal 01" /></label><div className="form-grid"><label>Categoría<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Razonamiento verbal</option><option>Razonamiento numérico</option><option>Razonamiento abstracto</option><option>Atención y percepción</option><option>Memoria</option><option>Mixto</option><option>Otro</option></select></label><label>Preguntas<input type="number" min="0" value={total} onChange={(event) => setTotal(Number(event.target.value))} /></label></div><label className="file-drop"><input type="file" accept="application/pdf,image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><span>⇧</span><strong>{file ? file.name : initialTest?.attachment?.name ? `Actual: ${initialTest.attachment.name}` : "Seleccionar PDF o imagen"}</strong><small>{initialTest?.attachment && !file ? "Selecciona otro archivo solo si quieres sustituirlo · " : ""}Máximo 50 MB</small></label>{uploading && <div className="upload-progress"><span style={{ width: `${uploadProgress}%` }} /><small>{uploadProgress}%</small></div>}{error && <p className="form-error">{error}</p>}<button className="primary-button full" disabled={uploading}>{uploading ? `Subiendo… ${uploadProgress}%` : initialTest ? "Guardar cambios" : "Guardar psicotécnico"}</button></form></ModalShell>;
-}
-
-function AttemptModal({ test, initialAttempt, onClose, onSave }: { test: PsychTest; initialAttempt: Attempt | null; onClose: () => void; onSave: (attempt: Attempt) => void }) {
-  const [date, setDate] = useState(initialAttempt?.date.slice(0, 10) ?? todayKey());
-  const [correct, setCorrect] = useState(initialAttempt?.correct ?? 0);
-  const [wrong, setWrong] = useState(initialAttempt?.wrong ?? 0);
-  const [blank, setBlank] = useState(initialAttempt?.blank ?? 0);
-  const [minutes, setMinutes] = useState(initialAttempt?.minutes ?? 0);
-  const [score, setScore] = useState(initialAttempt?.score ?? 0);
-  const [notes, setNotes] = useState(initialAttempt?.notes ?? "");
-  const registered = correct + wrong + blank;
-  const expected = test.totalQuestions || 0;
-  return <ModalShell title={initialAttempt ? "Editar intento" : "Registrar intento"} subtitle={test.name || "Psicotécnico sin nombre"} label={initialAttempt ? "EDITAR" : "NUEVO"} onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); const attemptDate = date ? new Date(`${date}T12:00:00`).toISOString() : nowIso(); onSave({ id: initialAttempt?.id ?? uid(), date: attemptDate, correct, wrong, blank, score, minutes, notes: notes.trim() }); }}><label>Fecha<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><div className="form-grid three"><label>Aciertos<input type="number" min="0" value={correct} onChange={(event) => setCorrect(Number(event.target.value))} /></label><label>Fallos<input type="number" min="0" value={wrong} onChange={(event) => setWrong(Number(event.target.value))} /></label><label>Blancas<input type="number" min="0" value={blank} onChange={(event) => setBlank(Number(event.target.value))} /></label></div><div className="form-grid"><label>Puntuación<input type="number" step="0.01" value={score} onChange={(event) => setScore(Number(event.target.value))} /></label><label>Tiempo (min)<input type="number" min="0" step="0.1" value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} /></label></div><label>Notas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Qué te ha costado, errores repetidos…" /></label><p className={`attempt-total ${expected && registered !== expected ? "warning" : ""}`}>Registradas: <strong>{registered}</strong>{expected ? ` de ${expected} preguntas` : " preguntas"}{expected && registered !== expected ? " · comprueba el total si procede" : ""}</p><button className="primary-button full">{initialAttempt ? "Guardar cambios" : "Guardar intento"}</button></form></ModalShell>;
-}
-
-function ActivityChart({ reviews }: { reviews: Review[] }) {
-  const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() - 6 + index); return date; });
-  const values = days.map((day) => reviews.filter((review) => review.reviewedAt.startsWith(day.toISOString().slice(0, 10))).length);
-  const max = Math.max(1, ...values);
-  return <div className="activity-chart">{days.map((day, index) => <div key={day.toISOString()}><span className="bar-value">{values[index] || ""}</span><span className="bar" style={{ height: `${Math.max(7, (values[index] / max) * 150)}px` }} /><small>{new Intl.DateTimeFormat("es-ES", { weekday: "short" }).format(day).slice(0, 2)}</small></div>)}</div>;
-}
-
-function MemoryBreakdown({ cards }: { cards: Card[] }) {
-  const fresh = cards.filter((card) => card.reviewCount === 0).length;
-  const learning = cards.filter((card) => card.reviewCount > 0 && card.intervalDays < 7).length;
-  const solid = cards.filter((card) => card.intervalDays >= 7 && card.intervalDays < 21).length;
-  const mastered = cards.filter((card) => card.intervalDays >= 21).length;
-  const total = Math.max(1, cards.length);
-  const items = [{ label: "Nuevas", value: fresh, color: "#B8B7AE" }, { label: "Aprendiendo", value: learning, color: "#D89B55" }, { label: "Consolidadas", value: solid, color: "#6C8FA6" }, { label: "Dominadas", value: mastered, color: "#285943" }];
-  return <div className="memory-breakdown"><div className="memory-donut" style={{ background: `conic-gradient(${items.map((item, index) => `${item.color} ${items.slice(0, index).reduce((sum, part) => sum + part.value, 0) / total * 100}% ${(items.slice(0, index + 1).reduce((sum, part) => sum + part.value, 0) / total) * 100}%`).join(",")})` }}><span><strong>{cards.length}</strong><small>tarjetas</small></span></div><div>{items.map((item) => <p key={item.label}><i style={{ background: item.color }} />{item.label}<strong>{item.value}</strong></p>)}</div></div>;
-}
-
-function streakDays(reviews: Review[]) {
-  const days = new Set(reviews.map((review) => review.reviewedAt.slice(0, 10)));
-  let streak = 0;
-  const date = new Date();
-  while (days.has(date.toISOString().slice(0, 10))) { streak += 1; date.setDate(date.getDate() - 1); }
-  return streak;
 }

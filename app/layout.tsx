@@ -1,11 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource/geist/latin-400.css";
-import "@fontsource/geist/latin-500.css";
-import "@fontsource/geist/latin-600.css";
-import "@fontsource/geist/latin-700.css";
 import PwaManager from "../components/PwaManager";
 import "./globals.css";
 import "./account.css";
+import "./mobile-ux.css";
 export const metadata: Metadata = {
   title: "OpoGC",
   description: "Organiza, estudia y repasa tu oposición",

@@ -1,4 +1,4 @@
-# Arquitectura
+# Arquitectura — OpoGC v11 - Mobile UX
 
 La UI conserva el AppState anterior como una proyección de datos. La autoridad central es PostgreSQL; IndexedDB conserva los registros descargados y operaciones pendientes por cuenta.
 
@@ -31,3 +31,30 @@ Realtime solo comunica que hay cambios. No transmite el AppState ni es la única
 Los archivos se descargan por Storage con token y RLS y se convierten en blob URL local. Las URLs firmadas no se persisten como permisos portátiles. El bucket no es público. La caché de blobs está separada por usuario y las URLs se revocan al cambiar de sesión. Añadir archivos requiere red; las anotaciones y archivos descargados funcionan offline. El Service Worker no almacena respuestas Auth ni de base de datos.
 
 Un ciclo causado por movimientos concurrentes se rechaza en PostgreSQL. La app conserva ese lote en rejectedOperations local y en el backup, recupera el último árbol válido y continúa enviando los siguientes registros.
+
+
+## Capa de interfaz v11
+
+`OpoApp` sigue coordinando el AppState existente y el motor proporcionado por `SyncContext`. Los componentes visuales reciben datos y callbacks: no abren clientes Supabase propios, no cambian el modelo de cuenta y no escriben directamente en PostgreSQL.
+
+| Carpeta | Responsabilidad |
+|---|---|
+| components/navigation | Cinco destinos y acciones secundarias de Más. |
+| components/today | Acciones directas, prioridades y contadores diarios. |
+| components/study | Selector rápido, sesión secuencial, árbol progresivo y editores existentes. |
+| components/review | Inicio del repaso y representación inmersiva de tarjetas. |
+| components/library | Acciones y formularios de tarjetas/carpetas. |
+| components/progress | Información útil, gráficos existentes y ortografía. |
+| components/psych | Formularios existentes de tests e intentos. |
+| components/account | Cuenta y preferencias como ajustes. |
+| components/sheets | Panel inferior y adaptación de formularios antiguos. |
+| components/shared | Iconos SVG, viewport visual, portal y widgets existentes. |
+| lib/study/legacy.ts | Tipos y utilidades trasladados; cálculo y lógica conservados. |
+
+La sesión de estudio mantiene una cola temporal de IDs de nodos/tareas. Al terminar, una sola llamada al `engine.update` existente guarda valoración, nota y evento con ID único. Se avanza tras la escritura local durable; el motor original se encarga del envío offline/online. La cola temporal no es una tabla nueva. Una tarea planificada completada sigue usando el mismo ID; un estudio libre añade un registro normal del modelo ya existente.
+
+`sortOrder` es un atributo opcional de los datos JSONB ya sincronizados de `syllabus_nodes`. Cambiar el orden edita cada nodo mediante operaciones normales. Los nodos anteriores conservan el orden original mientras no sean reordenados. La navegación, exportación del árbol y selección de estudio leen ese orden.
+
+Auth, Storage, sync y SQL se verifican con `npm run check:preserved`. Las huellas se calcularon contra el ZIP v10 original, no contra una versión modificada. Los componentes Auth/Supabase y su gestión de sesión no se trasladan ni reescriben.
+
+La PWA conserva el generador y patrón de caché de v10: solo los recursos de aplicación reciben una nueva revisión. No se cambian las claves de IndexedDB ni el formato de copia de seguridad. El número 10 que aparezca internamente no indica que falte la actualización visual.

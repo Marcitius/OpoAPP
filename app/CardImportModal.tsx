@@ -1,4 +1,5 @@
 "use client";
+import BottomSheet from "../components/sheets/BottomSheet";
 import { useState } from "react";
 export interface WrittenCriterion {
   id: string;
@@ -182,81 +183,70 @@ export default function CardImportModal({
     }
   }
   return (
-    <div className="modal-backdrop">
-      <section
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="card-import-title"
-      >
-        <div className="modal-head">
-          <div>
-            <span className="eyebrow">IMPORTACIÓN</span>
-            <h2 id="card-import-title">Importar tarjetas</h2>
-          </div>
-          <button aria-label="Cerrar" onClick={onClose}>
-            ×
-          </button>
-        </div>
+    <BottomSheet
+      title="Importar tarjetas"
+      onClose={onClose}
+      fullScreen
+      className="legacy-editor card-import-editor"
+    >
+      <p>
+        Admite flashcards, test, vocabulario, ortografía y respuestas escritas
+        con rúbrica.
+      </p>
+      <details>
+        <summary>Ver formato JSON</summary>
+        <pre style={{ whiteSpace: "pre-wrap" }}>{example}</pre>
         <p>
-          Admite flashcards, test, vocabulario, ortografía y respuestas escritas
-          con rúbrica.
+          Test/vocabulario: opciones (4 textos), correctas (letras A–D).
+          Ortografía: palabra, esCorrecta, formaCorrecta. Escrita: respuesta y
+          evaluacion con criterios, normalizacion y umbrales.
         </p>
-        <details>
-          <summary>Ver formato JSON</summary>
-          <pre style={{ whiteSpace: "pre-wrap" }}>{example}</pre>
-          <p>
-            Test/vocabulario: opciones (4 textos), correctas (letras A–D).
-            Ortografía: palabra, esCorrecta, formaCorrecta. Escrita: respuesta y
-            evaluacion con criterios, normalizacion y umbrales.
-          </p>
-        </details>
-        <label>
-          Archivo JSON
-          <input
-            type="file"
-            accept=".json,application/json"
-            onChange={async (e) => {
-              if (e.target.files?.[0]) setText(await e.target.files[0].text());
-              setItems(null);
-            }}
-          />
-        </label>
-        <textarea
-          className="import-paste"
-          aria-label="JSON de tarjetas"
-          placeholder="Pega el JSON"
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
+      </details>
+      <label>
+        Archivo JSON
+        <input
+          type="file"
+          accept=".json,application/json"
+          onChange={async (e) => {
+            if (e.target.files?.[0]) setText(await e.target.files[0].text());
             setItems(null);
           }}
         />
-        {error && (
-          <p role="alert" className="form-error">
-            {error}
-          </p>
-        )}
-        {items ? (
-          <>
-            <p>{items.length} tarjetas listas para importar.</p>
-            <button
-              className="primary-button full"
-              onClick={() => onImport(items)}
-            >
-              Importar {items.length} tarjetas
-            </button>
-          </>
-        ) : (
+      </label>
+      <textarea
+        className="import-paste"
+        aria-label="JSON de tarjetas"
+        placeholder="Pega el JSON"
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          setItems(null);
+        }}
+      />
+      {error && (
+        <p role="alert" className="form-error">
+          {error}
+        </p>
+      )}
+      {items ? (
+        <>
+          <p>{items.length} tarjetas listas para importar.</p>
           <button
             className="primary-button full"
-            disabled={!text.trim()}
-            onClick={check}
+            onClick={() => onImport(items)}
           >
-            Validar JSON
+            Importar {items.length} tarjetas
           </button>
-        )}
-      </section>
-    </div>
+        </>
+      ) : (
+        <button
+          className="primary-button full"
+          disabled={!text.trim()}
+          onClick={check}
+        >
+          Validar JSON
+        </button>
+      )}
+    </BottomSheet>
   );
 }

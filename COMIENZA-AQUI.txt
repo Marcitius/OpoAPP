@@ -1,18 +1,22 @@
-OpoGC 10.0 · Proyecto completo con Supabase
+OpoGC v11 - Mobile UX
 
-Lee README.md antes de reemplazar tu instalación anterior.
+ACTUALIZACIÓN SOBRE TU V10 FUNCIONAL
 
-1. Conserva/exporta tu progreso antiguo.
-2. Crea un Supabase Free.
-3. Ejecuta los dos SQL de supabase/migrations, en orden.
-4. Configura Email Auth y las URLs autorizadas.
-5. Copia .env.example a .env.local e introduce URL y clave pública.
-6. Desde esta carpeta: npm ci, después npm run dev.
-7. Para Cloudflare: npm run build y despliega out/.
+1. Lee README.md. El ZIP contiene el proyecto completo dentro de opogc/.
+2. Sustituye el código de la rama conservando tu .env.local y las variables actuales de despliegue.
+3. Reutiliza el MISMO Supabase y dominio. No ejecutes otra vez los SQL de instalación.
+4. Desde la carpeta con package.json: npm ci, npm run typecheck, npm test, npm run build.
+5. Despliega out/ como en v10 y abre la PWA para aceptar su actualización.
 
-El ZIP contiene código fuente completo, no solo los tres archivos del parche anterior.
-Las cuentas y el backend son reales; debes conectar tu propio Supabase.
-No incluye claves, tu progreso personal ni un despliegue ya vinculado.
+No borres los datos locales ni reimportes tu progreso como parte de la actualización.
+No se han cambiado IDs, tablas, RLS, Auth, Storage, FSRS ni el motor de sincronización.
+No contiene tu cuenta, claves o progreso privado; conserva la configuración que ya funciona.
 
-Pruebas ejecutadas y pendientes: docs/PRUEBAS.md.
-Cambios y arquitectura: docs/ANALISIS-Y-CAMBIOS.md y docs/ARQUITECTURA.md.
+Navegación: Hoy / Estudiar / Repasar / Progreso / Más.
+Hoy permite iniciar directamente repaso o estudio planificado.
+La Biblioteca, Psicotécnicos, Organización y Cuenta se encuentran dentro de Más.
+
+Cambios: CHANGELOG.md.
+Archivos/componentes: docs/ARCHIVOS-V11.md.
+Pruebas ejecutadas y pendientes reales: docs/PRUEBAS.md.
+Capturas: docs/capturas/ (7 imágenes).

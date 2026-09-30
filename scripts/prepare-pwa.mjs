@@ -94,7 +94,7 @@ fs.writeFileSync(
 fs.writeFileSync(
   "public/version.json",
   JSON.stringify(
-    { version: "10.0.0", revision, architecture: "supabase-record-sync" },
+    { version: "11.0.0", revision, architecture: "supabase-record-sync" },
     null,
     2,
   ),
