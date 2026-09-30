@@ -1,6 +1,11 @@
 "use client";
 import BottomSheet from "../components/sheets/BottomSheet";
 import { useState } from "react";
+import {
+  buildCardPrompt,
+  cardPromptLabels,
+  type CardPromptKind,
+} from "../lib/chatgptPrompts";
 export interface WrittenCriterion {
   id: string;
   esperado: string;
@@ -168,6 +173,21 @@ export default function CardImportModal({
 }) {
   const [text, setText] = useState(""),
     [error, setError] = useState("");
+  const [promptType, setPromptType] =
+  useState<CardPromptKind>("flashcard");
+const [promptCopied, setPromptCopied] = useState(false);
+
+const generatedPrompt = buildCardPrompt(promptType);
+
+async function copyPrompt() {
+  try {
+    await navigator.clipboard.writeText(generatedPrompt);
+    setPromptCopied(true);
+    window.setTimeout(() => setPromptCopied(false), 1800);
+  } catch {
+    setPromptCopied(false);
+  }
+}
   const [items, setItems] = useState<ParsedImportItem[] | null>(null);
   function check() {
     try {
@@ -193,6 +213,48 @@ export default function CardImportModal({
         Admite flashcards, test, vocabulario, ortografía y respuestas escritas
         con rúbrica.
       </p>
+      <section className="import-step">
+  <div className="import-step-head">
+    <span>AI</span>
+    <div>
+      <strong>Crear con ChatGPT</strong>
+      <small>
+        Copia el prompt, adjunta tu material en ChatGPT y pega aquí el
+        JSON generado.
+      </small>
+    </div>
+  </div>
+
+  <label>
+    ¿Qué quieres crear?
+    <select
+      value={promptType}
+      onChange={(e) => {
+        setPromptType(e.target.value as CardPromptKind);
+        setPromptCopied(false);
+      }}
+    >
+      {Object.entries(cardPromptLabels).map(([value, label]) => (
+        <option key={value} value={value}>
+          {label}
+        </option>
+      ))}
+    </select>
+  </label>
+
+  <button
+    type="button"
+    className="secondary-button full-width"
+    onClick={copyPrompt}
+  >
+    {promptCopied ? "✓ Prompt copiado" : "Copiar prompt para ChatGPT"}
+  </button>
+
+  <details>
+    <summary>Ver prompt completo</summary>
+    <pre className="prompt-preview">{generatedPrompt}</pre>
+  </details>
+</section>
       <details>
         <summary>Ver formato JSON</summary>
         <pre style={{ whiteSpace: "pre-wrap" }}>{example}</pre>
