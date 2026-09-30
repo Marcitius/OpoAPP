@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEngine } from "../components/SyncContext";
+import { uploadAttachment } from "../lib/data/files";
 import PdfAnnotator from "./PdfAnnotator";
 import { AnnotatedCardImage, ImageAnnotator, ImageLightbox } from "./CardImage";
 import RichTextEditor, { plainRichText, RichContent, sanitizeRichHtml } from "./RichTextEditor";
@@ -146,7 +148,7 @@ const uid = () => typeof crypto !== "undefined" && "randomUUID" in crypto
   ? crypto.randomUUID()
   : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 const nowIso = () => new Date().toISOString();
-const todayKey = () => new Date().toISOString().slice(0, 10);
+const todayKey = () => localDateKey();
 const localDateKey = (date = new Date()) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -638,7 +640,7 @@ function normalizeAndSeed(state: AppState) {
   if (Array.isArray((state as any).studyTasks) && (state as any).studyTasks.some((task: any) => !Number.isFinite(Number(task?.queueOrder)) || typeof task?.completionNote !== "string")) changed = true;
   const studyTasks: StudyTask[] = Array.isArray((state as any).studyTasks)
     ? (state as any).studyTasks.map((task: any, index: number) => ({
-      id: String(task.id), nodeId: String(task.nodeId), plannedFor: String(task.plannedFor ?? localDateKey()), note: String(task.note ?? ""), reason: String(task.reason ?? ""),
+      ...task, id: String(task.id), nodeId: String(task.nodeId), plannedFor: String(task.plannedFor ?? localDateKey()), note: String(task.note ?? ""), reason: String(task.reason ?? ""),
       status: task.status === "done" ? "done" : "pending", createdAt: String(task.createdAt ?? nowIso()), completedAt: task.completedAt ? String(task.completedAt) : null,
       assessment: task.assessment === "bien" || task.assessment === "regular" || task.assessment === "mal" ? task.assessment : null,
       completionNote: String(task.completionNote ?? ""), sourceCardId: task.sourceCardId ? String(task.sourceCardId) : null,
@@ -1028,7 +1030,7 @@ function useStableOverlaySurfaces() {
     const lock = () => {
       if (locked) return;
       locked = true;
-      savedScrollX = window.scrollX;
+      savedScrollX = 0; // OpoGC has no horizontal document scrolling; keep mobile focus from shifting the page.
       savedScrollY = window.scrollY;
       readReviewScroll();
       savedBodyStyles = {
@@ -1117,12 +1119,14 @@ function orthographyStudyCard(card: Card): OrthographyStudyCard {
 }
 
 export default function OpoApp() {
+  const engine = useEngine();
+  const stateRef = useRef<AppState | null>(null);
   useStableOverlaySurfaces();
   const [tab, setTab] = useState<Tab>("today");
   const [studyView, setStudyView] = useState<StudyView>("today");
   const [studyQueueMode, setStudyQueueMode] = useState<StudyQueueMode>("grouped");
   const [studyTaskEditId, setStudyTaskEditId] = useState<string | null>(null);
-  const [studyCompletionPrompt, setStudyCompletionPrompt] = useState<{ taskId: string; assessment: Exclude<StudyAssessment, null> } | null>(null);
+  const [studyCompletionPrompt, setStudyCompletionPrompt] = useState<{ taskId: string; sessionId: string; assessment: Exclude<StudyAssessment, null> } | null>(null);
   const [studyQuickOpen, setStudyQuickOpen] = useState(false);
   const [studyQuickDefaultNodeId, setStudyQuickDefaultNodeId] = useState<string | null>(null);
   const [studyQuickSourceCardId, setStudyQuickSourceCardId] = useState<string | null>(null);
@@ -1178,56 +1182,29 @@ export default function OpoApp() {
   const orthographyGroupStartedAtRef = useRef(Date.now());
 
   useEffect(() => {
-    const onOnline = () => setOnline(true);
-    const onOffline = () => setOnline(false);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-
-    fetch("/api/state")
-      .then(async (response) => {
-        if (!response.ok) throw new Error("No se pudo abrir tu progreso");
-        return response.json() as Promise<{ state: AppState | null }>;
-      })
-      .then(({ state: remote }) => {
-        const upgraded = normalizeAndSeed(remote ?? initialState());
-        const loaded = upgraded.state;
-        setState(loaded);
-        setSync("saved");
-        if (!remote || upgraded.changed) saveNow(loaded);
-      })
-      .catch(() => {
-        setState(initialState());
-        setSync("error");
-      });
-
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
+    const update = () => {
+      const loaded = normalizeAndSeed({ ...engine.state, settings: { ...engine.state.settings, seedVersion: 2 } } as AppState).state;
+      stateRef.current = loaded;
+      setState(loaded);
+      setOnline(navigator.onLine);
+      setSync(engine.status.phase === "saved" ? "saved" : engine.status.phase === "error" ? "error" : "saving");
     };
-  }, []);
-
-  function saveNow(next: AppState) {
-    setSync("saving");
-    fetch("/api/state", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ state: next }),
-    })
-      .then((response) => {
-        if (!response.ok) throw new Error();
-        setSync("saved");
-      })
-      .catch(() => setSync("error"));
-  }
+    update();
+    return engine.subscribe(update);
+  }, [engine]);
 
   function updateState(updater: (current: AppState) => AppState) {
-    setState((current) => {
-      if (!current) return current;
-      const next = updater(current);
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => saveNow(next), 350);
-      return next;
+    const current = stateRef.current;
+    if (!current) return;
+    const next = updater(current);
+    stateRef.current = next;
+    setState(next);
+    setSync("saving");
+    void engine.update(current, next).catch((error) => {
+      stateRef.current = engine.state as AppState;
+      setState(engine.state as AppState);
+      setSync("error");
+      notify(`No se pudo guardar la acción: ${error.message}`);
     });
   }
 
@@ -1384,18 +1361,19 @@ export default function OpoApp() {
   }
 
   function completeStudyTask(taskId: string, assessment: Exclude<StudyAssessment, null>) {
+    const sessionId = `session-${uid()}`;
     updateState((current) => ({
       ...current,
-      studyTasks: current.studyTasks.map((task) => task.id === taskId ? { ...task, status: "done", completedAt: nowIso(), assessment } : task),
+      studyTasks: current.studyTasks.map((task) => task.id === taskId ? { ...task, status: "done", completedAt: nowIso(), assessment, _completionEventId: sessionId } : task),
     }));
-    setStudyCompletionPrompt({ taskId, assessment });
+    setStudyCompletionPrompt({ taskId, sessionId, assessment });
     notify(assessment === "bien" ? "Repaso completado" : assessment === "regular" ? "Repaso completado · conviene volver" : "Repaso completado · prioridad alta");
   }
 
-  function saveStudyCompletionNote(taskId: string, completionNote: string) {
+  function saveStudyCompletionNote(taskId: string, completionNote: string, sessionId?: string) {
     updateState((current) => ({
       ...current,
-      studyTasks: current.studyTasks.map((task) => task.id === taskId ? { ...task, completionNote: completionNote.trim() } : task),
+      studyTasks: current.studyTasks.map((task) => (sessionId ? ((task as any)._sessionId === sessionId || (task as any)._completionEventId === sessionId) : task.id === taskId) ? { ...task, completionNote: completionNote.trim() } : task),
     }));
     setStudyCompletionPrompt(null);
     if (completionNote.trim()) notify("Comentario del repaso guardado");
@@ -1457,7 +1435,7 @@ export default function OpoApp() {
         notas: tasks.flatMap((task) => [task.note, task.completionNote]).filter(Boolean).slice(-12),
         motivos: [...new Set(tasks.map((task) => task.reason).filter(Boolean))],
         pendientes: pending.map((task) => ({ fecha: task.plannedFor, nota: task.note, motivo: task.reason, orden: task.queueOrder })),
-        historial: done.slice(0, 20).map((task) => ({ fecha: task.completedAt, resultado: task.assessment, nota_previa: task.note, comentario_resultado: task.completionNote, motivo: task.reason })),
+        historial: done.map((task) => ({ fecha: task.completedAt, resultado: task.assessment, nota_previa: task.note, comentario_resultado: task.completionNote, motivo: task.reason })),
       };
     });
     const root = rootId ? state.studyNodes.find((node) => node.id === rootId) : null;
@@ -2050,7 +2028,7 @@ export default function OpoApp() {
   }
 
   function deletePsychTest(testId: string) {
-    if (!confirm("¿Eliminar este psicotécnico y todo su historial de intentos? El PDF no se borrará automáticamente de R2 por seguridad.")) return;
+    if (!confirm("¿Eliminar este psicotécnico y todo su historial de intentos? El archivo seguirá disponible en tu cuenta hasta que lo elimines expresamente.")) return;
     updateState((current) => ({ ...current, psychTests: current.psychTests.filter((test) => test.id !== testId) }));
     if (psychDetail === testId) setPsychDetail(null);
     notify("Psicotécnico eliminado");
@@ -2152,7 +2130,7 @@ export default function OpoApp() {
 
   return (
     <div className="app-shell">
-      {!online && <div className="offline-banner">Sin conexión · puedes consultar lo ya cargado</div>}
+      {!online && <div className="offline-banner">Sin conexión · puedes estudiar y registrar cambios; se enviarán al volver Internet</div>}
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">OG</div>
@@ -2171,7 +2149,7 @@ export default function OpoApp() {
             <span className="eyebrow">{new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}</span>
             <h1>{tab === "today" ? "Tu sesión de hoy" : tab === "library" ? "Biblioteca" : tab === "study" ? "Organización de estudio" : tab === "psych" ? "Psicotécnicos" : "Tu progreso"}</h1>
           </div>
-          <button className="avatar" aria-label="Perfil">M</button>
+          <button className="avatar" aria-label="Abrir cuenta" onClick={() => document.querySelector<HTMLButtonElement>(".account-fab")?.click()}>OG</button>
         </header>
 
         {tab === "today" && (
@@ -2189,6 +2167,12 @@ export default function OpoApp() {
                 <small>pendientes</small>
               </div>
             </div>
+
+            <section className="panel today-study-plan">
+              <div className="panel-head"><div><span className="section-label">HOY · TEMARIO</span><h3>{studyDue.length} repasos pendientes</h3></div><button className="text-button" onClick={() => { setTab("study"); setStudyView("today"); }}>Abrir planificación</button></div>
+              <div className="today-study-columns"><div><strong>Prioridad alta</strong>{studyDue.filter(task => { const latest = studyCompleted.find(t => t.nodeId === task.nodeId); return latest?.assessment === "mal" || latest?.assessment === "regular" || /mal|regular|dific|error/i.test(task.reason); }).slice(0, 5).map(task => <button key={task.id} className="review-row" onClick={() => { setTab("study"); setStudyView("today"); }}><span className="review-row-copy"><strong>{state.studyNodes.find(n => n.id === task.nodeId)?.name}</strong><small>{task.note}</small></span></button>)}{!studyDue.length && <p>Sin repasos pendientes para hoy.</p>}</div>
+              <div><strong>Estudio nuevo</strong>{state.studyNodes.filter(n => !state.studyNodes.some(child => child.parentId === n.id) && !studyCompleted.some(task => task.nodeId === n.id)).slice(0, 3).map(node => <button key={node.id} className="review-row" onClick={() => openStudyQuick(node.id)}><span className="review-row-copy"><strong>{node.name}</strong><small>Añadir a mi planificación</small></span></button>)}{!state.studyNodes.length && <button className="text-button" onClick={() => { setTab("study"); openStudyImport(); }}>Importar mi temario</button>}</div></div>
+            </section>
 
             <div className="stats-row">
               <StatCard label="Repasadas hoy" value={todayReviews.length.toString()} detail={`Meta ${state.settings.dailyReviewGoal}`} tone="green" />
@@ -2455,7 +2439,7 @@ export default function OpoApp() {
                   </select>
                 </div>
                 <section className="panel study-history-panel">
-                  {filteredStudyCompleted.length ? <div className="study-history-list">{filteredStudyCompleted.slice(0, 100).map((task) => {
+                  {filteredStudyCompleted.length ? <div className="study-history-list">{filteredStudyCompleted.map((task) => {
                     const node = state.studyNodes.find((item) => item.id === task.nodeId);
                     return <div className="study-history-row" key={task.id}><span className={`study-assessment-dot ${task.assessment ?? ""}`} /><div><strong>{node?.name ?? "Elemento eliminado"}</strong><small>{studyNodePath(state.studyNodes, task.nodeId).join(" · ")}</small>{task.note && <p className="study-history-note"><b>Para repasar:</b> {task.note}</p>}{task.completionNote && <p className="study-history-completion-note"><b>Comentario:</b> {task.completionNote}</p>}</div><span className={`study-result ${task.assessment ?? ""}`}>{task.assessment ?? "—"}</span><time>{dateLabel(task.completedAt)}</time></div>;
                   })}</div> : <div className="study-inline-empty"><strong>Aún no hay repasos completados.</strong><span>Cuando marques un pendiente como Bien, Regular o Mal aparecerá aquí.</span></div>}
@@ -2480,7 +2464,7 @@ export default function OpoApp() {
                     </div>
                     <div className="psych-detail-actions">
                       <button className="secondary-button" onClick={() => { setEditingPsychTest(detailPsych.id); setModal("psych"); }}>Editar ficha</button>
-                      {detailPsych.attachment?.type === "application/pdf" ? <button className="secondary-button" onClick={() => setEditingPsych(detailPsych.id)}>✎ Abrir PDF</button> : detailPsych.attachment ? <a className="secondary-button" href={detailPsych.attachment.url} target="_blank" rel="noreferrer">Abrir documento</a> : null}
+                      {detailPsych.attachment?.type === "application/pdf" ? <button className="secondary-button" onClick={() => setEditingPsych(detailPsych.id)}>✎ Abrir PDF</button> : detailPsych.attachment ? <a className="secondary-button" href="#" onClick={(event) => { event.preventDefault(); setEditingPsych(detailPsych.id); }}>Abrir documento</a> : null}
                       <button className="primary-button" onClick={() => openAttemptEditor(detailPsych.id)}>＋ Registrar intento</button>
                     </div>
                   </div>
@@ -2566,7 +2550,7 @@ export default function OpoApp() {
                           </div>
                           <div className="psych-actions psych-actions-wrap">
                             <button onClick={() => setPsychDetail(test.id)}>Ver ficha</button>
-                            {test.attachment?.type === "application/pdf" ? <button onClick={() => setEditingPsych(test.id)}>✎ Abrir PDF</button> : test.attachment ? <a href={test.attachment.url} target="_blank" rel="noreferrer">Abrir documento</a> : null}
+                            {test.attachment?.type === "application/pdf" ? <button onClick={() => setEditingPsych(test.id)}>✎ Abrir PDF</button> : test.attachment ? <a href="#" onClick={(event) => { event.preventDefault(); setEditingPsych(test.id); }}>Abrir documento</a> : null}
                             <button className="psych-register" onClick={() => openAttemptEditor(test.id)}>＋ Intento</button>
                           </div>
                         </div>
@@ -2728,9 +2712,10 @@ export default function OpoApp() {
       {modal === "attempt" && activePsych && <AttemptModal test={activePsych} initialAttempt={openAttempt} onClose={() => { setModal(null); setSelectedPsych(null); setEditingAttempt(null); }} onSave={(attempt) => { updateState((current) => ({ ...current, psychTests: current.psychTests.map((test) => test.id === activePsych.id ? { ...test, attempts: openAttempt ? test.attempts.map((item) => item.id === attempt.id ? attempt : item) : [...test.attempts, attempt] } : test) })); setModal(null); setSelectedPsych(null); setEditingAttempt(null); setPsychDetail(activePsych.id); notify(openAttempt ? "Intento actualizado" : "Intento registrado"); }} />}
       {studyQuickOpen && <StudyQuickModal nodes={state.studyNodes} defaultNodeId={studyQuickDefaultNodeId} onClose={() => { setStudyQuickOpen(false); setStudyQuickDefaultNodeId(null); setStudyQuickSourceCardId(null); }} onSave={saveStudyTask} />}
       {studyTaskEditId && state.studyTasks.find((task) => task.id === studyTaskEditId) && <StudyTaskEditModal task={state.studyTasks.find((task) => task.id === studyTaskEditId)!} nodes={state.studyNodes} onClose={() => setStudyTaskEditId(null)} onSave={saveStudyTaskEdits} onDelete={deleteStudyTask} />}
-      {studyCompletionPrompt && <StudyCompletionNoteModal assessment={studyCompletionPrompt.assessment} task={state.studyTasks.find((task) => task.id === studyCompletionPrompt.taskId) ?? null} nodes={state.studyNodes} onClose={() => setStudyCompletionPrompt(null)} onSave={(note) => saveStudyCompletionNote(studyCompletionPrompt.taskId, note)} />}
+      {studyCompletionPrompt && <StudyCompletionNoteModal assessment={studyCompletionPrompt.assessment} task={state.studyTasks.find((task) => (task as any)._sessionId === studyCompletionPrompt.sessionId || (task as any)._completionEventId === studyCompletionPrompt.sessionId) ?? null} nodes={state.studyNodes} onClose={() => setStudyCompletionPrompt(null)} onSave={(note) => saveStudyCompletionNote(studyCompletionPrompt.taskId, note, studyCompletionPrompt.sessionId)} />}
       {studyNodeEditorOpen && <StudyNodeEditorModal nodes={state.studyNodes} nodeId={studyEditingNodeId} defaultParentId={studyNodeEditorParentId} onClose={() => { setStudyNodeEditorOpen(false); setStudyEditingNodeId(null); setStudyNodeEditorParentId(null); }} onSave={saveStudyNode} />}
       {studyImportOpen && <StudyImportModal nodes={state.studyNodes} defaultParentId={studyImportParentId} onClose={() => { setStudyImportOpen(false); setStudyImportParentId(null); }} onImport={importStudyTree} />}
+      {openPsych?.attachment && openPsych.attachment.type !== "application/pdf" && <ImageAnnotator attachment={openPsych.attachment} title={openPsych.name} onClose={() => setEditingPsych(null)} />}
       {openPsych?.attachment?.type === "application/pdf" && <PdfAnnotator attachment={openPsych.attachment} title={openPsych.name} onClose={() => setEditingPsych(null)} />}
       {toast && <div className="toast">✓ {toast}</div>}
     </div>
@@ -3184,9 +3169,8 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
       const prepared = await compressIfNeeded(file);
       const form = new FormData();
       form.append("file", prepared);
-      const response = await fetch("/api/files", { method: "POST", body: form });
-      const payload = await response.json() as { attachment?: Attachment; error?: string };
-      if (!response.ok || !payload.attachment) throw new Error(payload.error ?? "No se pudo subir la imagen");
+      const payload = { attachment: await uploadAttachment(prepared) };
+      if (!payload.attachment) throw new Error( "No se pudo subir la imagen");
       setAttachment(payload.attachment);
       return payload.attachment;
     } catch (reason) {
@@ -3213,9 +3197,8 @@ function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { f
       const file = new File([blob], `respuesta-manuscrita-${Date.now()}.png`, { type: "image/png" });
       const form = new FormData();
       form.append("file", file);
-      const response = await fetch("/api/files", { method: "POST", body: form });
-      const payload = await response.json() as { attachment?: Attachment; error?: string };
-      if (!response.ok || !payload.attachment) throw new Error(payload.error ?? "No se pudo crear la respuesta manuscrita");
+      const payload = { attachment: await uploadAttachment(file) };
+      if (!payload.attachment) throw new Error( "No se pudo crear la respuesta manuscrita");
       setAttachment(payload.attachment);
       setEditingImage(true);
     } catch (reason) {
@@ -3422,59 +3405,10 @@ function PsychModal({ initialTest, onClose, onSave }: { initialTest: PsychTest |
   }
 
   async function uploadDirect(selectedFile: File) {
-    const form = new FormData();
-    form.append("file", selectedFile);
-    const response = await fetch("/api/files", { method: "POST", body: form });
-    const result = await readJson(response) as { attachment?: Attachment; error?: string };
-    if (!response.ok || !result.attachment) throw new Error(result.error ?? "No se pudo subir el documento");
-    setUploadProgress(100);
-    return result.attachment;
+    const attachment = await uploadAttachment(selectedFile, (progress) => setUploadProgress(progress));
+    return attachment;
   }
-
-  async function uploadInParts(selectedFile: File) {
-    const initResponse = await fetch("/api/files/multipart?action=init", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: selectedFile.name, type: selectedFile.type || "application/pdf", size: selectedFile.size }),
-    });
-    const init = await readJson(initResponse) as { id?: string; key?: string; uploadId?: string; error?: string };
-    if (!initResponse.ok || !init.id || !init.key || !init.uploadId) throw new Error(init.error ?? "No se pudo iniciar la subida");
-
-    const chunkSize = 5 * 1024 * 1024;
-    const totalParts = Math.ceil(selectedFile.size / chunkSize);
-    const parts: Array<{ partNumber: number; etag: string }> = [];
-
-    try {
-      for (let index = 0; index < totalParts; index += 1) {
-        const partNumber = index + 1;
-        const chunk = selectedFile.slice(index * chunkSize, Math.min(selectedFile.size, (index + 1) * chunkSize));
-        const query = new URLSearchParams({ key: init.key, uploadId: init.uploadId, partNumber: String(partNumber) });
-        const partResponse = await fetch(`/api/files/multipart?${query.toString()}`, {
-          method: "PUT",
-          headers: { "content-type": "application/octet-stream" },
-          body: chunk,
-        });
-        const part = await readJson(partResponse) as { partNumber?: number; etag?: string; error?: string };
-        if (!partResponse.ok || !part.partNumber || !part.etag) throw new Error(part.error ?? `No se pudo subir la parte ${partNumber}`);
-        parts.push({ partNumber: part.partNumber, etag: part.etag });
-        setUploadProgress(Math.round((partNumber / (totalParts + 1)) * 100));
-      }
-
-      const completeResponse = await fetch("/api/files/multipart?action=complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: init.id, key: init.key, uploadId: init.uploadId, name: selectedFile.name, type: selectedFile.type || "application/pdf", size: selectedFile.size, parts }),
-      });
-      const completed = await readJson(completeResponse) as { attachment?: Attachment; error?: string };
-      if (!completeResponse.ok || !completed.attachment) throw new Error(completed.error ?? "No se pudo completar la subida");
-      setUploadProgress(100);
-      return completed.attachment;
-    } catch (reason) {
-      const query = new URLSearchParams({ key: init.key, uploadId: init.uploadId });
-      fetch(`/api/files/multipart?${query.toString()}`, { method: "DELETE" }).catch(() => undefined);
-      throw reason;
-    }
-  }
+  const uploadInParts = uploadDirect;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -3484,7 +3418,7 @@ function PsychModal({ initialTest, onClose, onSave }: { initialTest: PsychTest |
     try {
       let attachment = initialTest?.attachment ?? null;
       if (file) {
-        if (file.size > 100 * 1024 * 1024) throw new Error("El archivo no puede superar 100 MB");
+        if (file.size > 50 * 1024 * 1024) throw new Error("El archivo no puede superar 50 MB");
         attachment = file.size <= 6 * 1024 * 1024 ? await uploadDirect(file) : await uploadInParts(file);
       }
       const base = initialTest ?? { id: uid(), attempts: [], createdAt: nowIso(), attachment: null, name: "", category: "", totalQuestions: 0 };
@@ -3495,7 +3429,7 @@ function PsychModal({ initialTest, onClose, onSave }: { initialTest: PsychTest |
     }
   }
 
-  return <ModalShell title={initialTest ? "Editar psicotécnico" : "Añadir psicotécnico"} subtitle={initialTest ? "Cambia los datos de la ficha sin perder el historial de intentos." : "Guarda el documento y registra todos tus intentos. Ningún campo es obligatorio."} label={initialTest ? "EDITAR" : "NUEVO"} onClose={onClose}><form onSubmit={submit}><label>Nombre <small>(opcional)</small><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Cuadernillo verbal 01" /></label><div className="form-grid"><label>Categoría<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Razonamiento verbal</option><option>Razonamiento numérico</option><option>Razonamiento abstracto</option><option>Atención y percepción</option><option>Memoria</option><option>Mixto</option><option>Otro</option></select></label><label>Preguntas<input type="number" min="0" value={total} onChange={(event) => setTotal(Number(event.target.value))} /></label></div><label className="file-drop"><input type="file" accept="application/pdf,image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><span>⇧</span><strong>{file ? file.name : initialTest?.attachment?.name ? `Actual: ${initialTest.attachment.name}` : "Seleccionar PDF o imagen"}</strong><small>{initialTest?.attachment && !file ? "Selecciona otro archivo solo si quieres sustituirlo · " : ""}Máximo 100 MB</small></label>{uploading && <div className="upload-progress"><span style={{ width: `${uploadProgress}%` }} /><small>{uploadProgress}%</small></div>}{error && <p className="form-error">{error}</p>}<button className="primary-button full" disabled={uploading}>{uploading ? `Subiendo… ${uploadProgress}%` : initialTest ? "Guardar cambios" : "Guardar psicotécnico"}</button></form></ModalShell>;
+  return <ModalShell title={initialTest ? "Editar psicotécnico" : "Añadir psicotécnico"} subtitle={initialTest ? "Cambia los datos de la ficha sin perder el historial de intentos." : "Guarda el documento y registra todos tus intentos. Ningún campo es obligatorio."} label={initialTest ? "EDITAR" : "NUEVO"} onClose={onClose}><form onSubmit={submit}><label>Nombre <small>(opcional)</small><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Cuadernillo verbal 01" /></label><div className="form-grid"><label>Categoría<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Razonamiento verbal</option><option>Razonamiento numérico</option><option>Razonamiento abstracto</option><option>Atención y percepción</option><option>Memoria</option><option>Mixto</option><option>Otro</option></select></label><label>Preguntas<input type="number" min="0" value={total} onChange={(event) => setTotal(Number(event.target.value))} /></label></div><label className="file-drop"><input type="file" accept="application/pdf,image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><span>⇧</span><strong>{file ? file.name : initialTest?.attachment?.name ? `Actual: ${initialTest.attachment.name}` : "Seleccionar PDF o imagen"}</strong><small>{initialTest?.attachment && !file ? "Selecciona otro archivo solo si quieres sustituirlo · " : ""}Máximo 50 MB</small></label>{uploading && <div className="upload-progress"><span style={{ width: `${uploadProgress}%` }} /><small>{uploadProgress}%</small></div>}{error && <p className="form-error">{error}</p>}<button className="primary-button full" disabled={uploading}>{uploading ? `Subiendo… ${uploadProgress}%` : initialTest ? "Guardar cambios" : "Guardar psicotécnico"}</button></form></ModalShell>;
 }
 
 function AttemptModal({ test, initialAttempt, onClose, onSave }: { test: PsychTest; initialAttempt: Attempt | null; onClose: () => void; onSave: (attempt: Attempt) => void }) {

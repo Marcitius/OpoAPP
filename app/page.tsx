@@ -1,5 +1,4 @@
-import OpoApp from "./OpoApp";
-
-export default function Home() {
-  return <OpoApp />;
+import AccountApp from "../components/AccountApp";
+export default function Page() {
+  return <AccountApp />;
 }

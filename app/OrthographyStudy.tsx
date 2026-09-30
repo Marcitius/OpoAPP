@@ -1,22 +1,19 @@
 "use client";
-
-export type OrthographyStudyCard = {
+export interface OrthographyStudyCard {
   id: string;
   word: string;
   isCorrect: boolean;
   correctForm: string;
   explanation: string;
   source: string;
-};
-
-export type OrthographyStudyResult = {
+}
+export interface OrthographyStudyResult {
   cardId: string;
   userMarked: boolean;
   shouldBeMarked: boolean;
   correct: boolean;
-};
-
-type Props = {
+}
+interface Props {
   cards: OrthographyStudyCard[];
   selectedIds: string[];
   results: OrthographyStudyResult[] | null;
@@ -24,104 +21,79 @@ type Props = {
   responses: number;
   correctResponses: number;
   scopeLabel: string;
-  onToggle: (cardId: string) => void;
+  onToggle: (id: string) => void;
   onCorrect: () => void;
   onContinue: () => void;
   onClose: () => void;
-};
-
-function resultMessage(card: OrthographyStudyCard, result: OrthographyStudyResult) {
-  if (!card.isCorrect && result.userMarked) return "Incorrecta bien detectada";
-  if (!card.isCorrect && !result.userMarked) return "Era incorrecta y no la marcaste";
-  if (card.isCorrect && result.userMarked) return "Era correcta y la marcaste como incorrecta";
-  return "Correcta y bien dejada sin marcar";
 }
-
-export default function OrthographyStudy({
-  cards,
-  selectedIds,
-  results,
-  groupNumber,
-  responses,
-  correctResponses,
-  scopeLabel,
-  onToggle,
-  onCorrect,
-  onContinue,
-  onClose,
-}: Props) {
-  const resultMap = new Map((results ?? []).map((result) => [result.cardId, result]));
-  const accuracy = responses ? Math.round((correctResponses / responses) * 100) : null;
-
+export default function OrthographyStudy(p: Props) {
   return (
     <div className="review-overlay orthography-overlay">
-      <div className="review-top continuous orthography-top">
-        <button onClick={onClose} aria-label="Cerrar práctica">×</button>
-        <div className="learn-session-title">
-          <strong>Ortografía · práctica dinámica</strong>
-          <small>{scopeLabel} · cada palabra mantiene su progreso individual</small>
-        </div>
-        <span>{responses} palabras{accuracy !== null ? ` · ${accuracy}%` : ""}</span>
-        <button className="finish-learn-button" onClick={onClose}>Terminar sesión</button>
-      </div>
-
-      <div className="orthography-stage">
-        <div className="orthography-question-card">
-          <span className="study-card-type">GRUPO {groupNumber}</span>
-          <h2>Señala la palabra o palabras escritas incorrectamente.</h2>
-          <p className="orthography-hint">Puede haber ninguna, una o varias. Marca solo las que consideres incorrectas.</p>
-
-          <div className={`orthography-options ${results ? "corrected" : ""}`}>
-            {cards.map((card) => {
-              const selected = selectedIds.includes(card.id);
-              const result = resultMap.get(card.id) ?? null;
-              const resultClass = result ? (result.correct ? "result-correct" : "result-wrong") : "";
+      <header className="review-top orthography-top">
+        <button onClick={p.onClose} aria-label="Cerrar">
+          ×
+        </button>
+        <strong>{p.scopeLabel}</strong>
+        <span>Grupo {p.groupNumber}</span>
+      </header>
+      <div className="review-stage orthography-stage">
+        <section className="orthography-question-card">
+          <span className="eyebrow">ORTOGRAFÍA</span>
+          <h2>Marca las palabras incorrectas</h2>
+          <p className="orthography-hint">Puedes marcar varias o ninguna.</p>
+          <div className="orthography-options">
+            {p.cards.map((c) => {
+              const r = p.results?.find((r) => r.cardId === c.id),
+                selected = p.selectedIds.includes(c.id);
               return (
                 <button
-                  type="button"
-                  key={card.id}
-                  className={`orthography-option ${selected ? "selected" : ""} ${resultClass}`}
-                  onClick={() => !results && onToggle(card.id)}
-                  disabled={Boolean(results)}
+                  className={`orthography-option ${selected ? "selected" : ""} ${r ? (r.correct ? "result-correct" : "result-wrong") : ""}`}
+                  key={c.id}
+                  disabled={!!p.results}
+                  aria-pressed={selected}
+                  onClick={() => p.onToggle(c.id)}
                 >
-                  <span className="orthography-checkbox" aria-hidden="true">{selected ? "✓" : ""}</span>
-                  <strong>{card.word}</strong>
-                  {result && <span className="orthography-result-icon">{result.correct ? "✓" : "✕"}</span>}
+                  <span className="orthography-checkbox">
+                    {selected ? "✓" : ""}
+                  </span>
+                  <strong>{c.word}</strong>
+                  {r && (
+                    <span className="orthography-result-icon">
+                      {r.correct ? "✓" : "×"}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
-
-          {!results ? (
-            <button type="button" className="primary-button full orthography-correct-button" onClick={onCorrect}>Corregir</button>
+          {!p.results ? (
+            <button className="primary-button full" onClick={p.onCorrect}>
+              Corregir
+            </button>
           ) : (
             <div className="orthography-feedback">
+              <p>
+                {p.correctResponses} aciertos de {p.responses} respuestas en
+                esta sesión.
+              </p>
               <div className="orthography-feedback-list">
-                {cards.map((card) => {
-                  const result = resultMap.get(card.id)!;
-                  return (
-                    <article key={card.id} className={`orthography-feedback-item ${result.correct ? "correct" : "wrong"}`}>
-                      <div className="orthography-feedback-main">
-                        <strong>
-                          {card.isCorrect
-                            ? <>{card.word} <span>✓</span></>
-                            : <>{card.word} <span>✗</span> <em>→</em> {card.correctForm} <span>✓</span></>}
-                        </strong>
-                        <small>{resultMessage(card, result)}</small>
-                      </div>
-                      {card.explanation && <p>{card.explanation}</p>}
-                      {card.source && <span className="orthography-source">Fuente: {card.source}</span>}
-                    </article>
-                  );
-                })}
+                {p.cards.map((c) => (
+                  <div key={c.id} className="orthography-feedback-item">
+                    <strong>
+                      {c.word}
+                      {!c.isCorrect && ` → ${c.correctForm}`}
+                    </strong>
+                    <p>{c.explanation}</p>
+                    <small>{c.source}</small>
+                  </div>
+                ))}
               </div>
-              <div className="orthography-feedback-actions">
-                <button type="button" className="secondary-button" onClick={onClose}>Terminar</button>
-                <button type="button" className="primary-button" onClick={onContinue}>Continuar</button>
-              </div>
+              <button className="primary-button" onClick={p.onContinue}>
+                Continuar
+              </button>
             </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

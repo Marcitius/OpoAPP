@@ -1,36 +1,33 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import "@fontsource/geist/latin-400.css";
+import "@fontsource/geist/latin-500.css";
+import "@fontsource/geist/latin-600.css";
+import "@fontsource/geist/latin-700.css";
+import PwaManager from "../components/PwaManager";
 import "./globals.css";
-import LocalDataManager from "./LocalDataManager";
-
-const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
-
+import "./account.css";
 export const metadata: Metadata = {
   title: "OpoGC",
-  description: "Preparación inteligente para la oposición de Guardia Civil",
+  description: "Organiza, estudia y repasa tu oposición",
   applicationName: "OpoGC",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "OpoGC" },
+  icons: { icon: "/icon.svg", apple: "/apple-icon.png" },
   formatDetection: { telephone: false },
-  icons: { icon: "/icon.svg", apple: "/apple-icon.svg" },
-  other: { "codex-preview": "development" },
 };
-
 export const viewport: Viewport = {
-  themeColor: "#F5F3ED",
+  themeColor: "#285943",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
-
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className={geist.variable}>
-        <LocalDataManager />
+      <body>
         {children}
+        <PwaManager />
       </body>
     </html>
   );

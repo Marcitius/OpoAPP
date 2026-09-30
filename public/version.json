@@ -1,13 +1,5 @@
 {
-  "version": "opogc-v9.17.2-stable-overlay-surfaces",
-  "date": "2026-09-30",
-  "features": [
-    "full-screen study and editor layers no longer combine fixed inset with dynamic 100dvh sizing",
-    "background document is frozen while study, modal, PDF, image editor or image viewer surfaces are open",
-    "body scroll position is restored exactly when the blocking surface closes",
-    "study scroll position is preserved across app switching, Control Center, visibility changes and focus return",
-    "desktop scrollbar space remains stable so opening dialogs does not shift the page horizontally",
-    "modal scrolling remains independent and responsive to the visible device viewport",
-    "all v9.17.1 cloud sync, study history, Biblioteca hierarchy and earlier functionality retained unchanged"
-  ]
+  "version": "10.0.0",
+  "revision": "b5b540596cd7",
+  "architecture": "supabase-record-sync"
 }

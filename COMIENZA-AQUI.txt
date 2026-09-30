@@ -1,0 +1,18 @@
+OpoGC 10.0 · Proyecto completo con Supabase
+
+Lee README.md antes de reemplazar tu instalación anterior.
+
+1. Conserva/exporta tu progreso antiguo.
+2. Crea un Supabase Free.
+3. Ejecuta los dos SQL de supabase/migrations, en orden.
+4. Configura Email Auth y las URLs autorizadas.
+5. Copia .env.example a .env.local e introduce URL y clave pública.
+6. Desde esta carpeta: npm ci, después npm run dev.
+7. Para Cloudflare: npm run build y despliega out/.
+
+El ZIP contiene código fuente completo, no solo los tres archivos del parche anterior.
+Las cuentas y el backend son reales; debes conectar tu propio Supabase.
+No incluye claves, tu progreso personal ni un despliegue ya vinculado.
+
+Pruebas ejecutadas y pendientes: docs/PRUEBAS.md.
+Cambios y arquitectura: docs/ANALISIS-Y-CAMBIOS.md y docs/ARQUITECTURA.md.
