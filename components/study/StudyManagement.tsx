@@ -18,6 +18,7 @@ import {
 } from "../../lib/study/legacy";
 import BottomSheet from "../sheets/BottomSheet";
 import { ModalShell } from "../sheets/ModalShell";
+import { buildStudyTreePrompt } from "../../lib/chatgptPrompts";
 
 export function StudyTaskCard({
   task,
@@ -1064,8 +1065,21 @@ export function StudyImportModal({
   onClose: () => void;
   onImport: (roots: StudyImportNode[], parentId: string | null) => void;
 }) {
-  const [raw, setRaw] = useState("");
-  const [fileName, setFileName] = useState("");
+const [raw, setRaw] = useState("");
+const [fileName, setFileName] = useState("");
+const [promptCopied, setPromptCopied] = useState(false);
+
+const studyPrompt = buildStudyTreePrompt();
+
+async function copyStudyPrompt() {
+  try {
+    await navigator.clipboard.writeText(studyPrompt);
+    setPromptCopied(true);
+    window.setTimeout(() => setPromptCopied(false), 1800);
+  } catch {
+    setPromptCopied(false);
+  }
+}
   const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
   const [parentId, setParentId] = useState(
     defaultParentId && nodes.some((node) => node.id === defaultParentId)
@@ -1094,6 +1108,31 @@ export function StudyImportModal({
       fullScreen
       className="study-import-editor"
     >
+      <section className="import-step">
+  <div className="import-step-head">
+    <span>AI</span>
+    <div>
+      <strong>Crear temario con ChatGPT</strong>
+      <small>
+        Copia el prompt, adjunta o pega tu temario en ChatGPT y vuelve
+        con el JSON generado.
+      </small>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    className="secondary-button full-width"
+    onClick={copyStudyPrompt}
+  >
+    {promptCopied ? "✓ Prompt copiado" : "Copiar prompt para ChatGPT"}
+  </button>
+
+  <details>
+    <summary>Ver prompt completo</summary>
+    <pre className="prompt-preview">{studyPrompt}</pre>
+  </details>
+</section>
       <label>
         Destino
         <select
