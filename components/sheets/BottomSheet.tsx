@@ -26,9 +26,11 @@ export default function BottomSheet({
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const el = ref.current!;
-    if (!el.contains(document.activeElement)) el.focus({ preventScroll: true });
+    el.focus({ preventScroll: true });
     const key = (e: KeyboardEvent) => {
       if (document.querySelector(".overlay-portal")) return;
+      if (Array.from(document.querySelectorAll(".ux-sheet")).at(-1) !== el)
+        return;
       if (e.key === "Escape" && dismissible) {
         e.preventDefault();
         closeRef.current();
@@ -62,7 +64,11 @@ export default function BottomSheet({
     document.addEventListener("keydown", key);
     return () => {
       document.removeEventListener("keydown", key);
-      if (previous?.isConnected) previous.focus({ preventScroll: true });
+      if (
+        previous?.isConnected &&
+        !previous.matches("input,textarea,select,[contenteditable=true]")
+      )
+        previous.focus({ preventScroll: true });
     };
   }, [dismissible]);
   return (

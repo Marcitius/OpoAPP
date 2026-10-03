@@ -23,7 +23,7 @@ export default function OverlayPortal({
           'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex="0"]',
         ),
       ).filter((el) => el.getClientRects().length);
-    controls()[0]?.focus({ preventScroll: true });
+    root.focus({ preventScroll: true });
     const key = (event: KeyboardEvent) => {
       if (
         Array.from(document.querySelectorAll(".overlay-portal")).at(-1) !== root
@@ -41,10 +41,16 @@ export default function OverlayPortal({
         event.preventDefault();
         return;
       }
-      if (event.shiftKey && document.activeElement === first) {
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || document.activeElement === root)
+      ) {
         event.preventDefault();
         last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last || document.activeElement === root)
+      ) {
         event.preventDefault();
         first.focus();
       }
@@ -52,13 +58,17 @@ export default function OverlayPortal({
     document.addEventListener("keydown", key);
     return () => {
       document.removeEventListener("keydown", key);
-      if (previous?.isConnected) previous.focus({ preventScroll: true });
+      if (
+        previous?.isConnected &&
+        !previous.matches("input,textarea,select,[contenteditable=true]")
+      )
+        previous.focus({ preventScroll: true });
     };
   }, []);
   return typeof document === "undefined"
     ? null
     : createPortal(
-        <div className="overlay-portal" ref={ref}>
+        <div className="overlay-portal" tabIndex={-1} ref={ref}>
           {children}
         </div>,
         document.body,

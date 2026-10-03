@@ -39,6 +39,8 @@ interface Props {
   onSchedule: () => void;
   onImage: () => void;
   correct: boolean;
+  busy?: boolean;
+  canGoBack?: boolean;
 }
 export default function ReviewSession(p: Props) {
   const [more, setMore] = useState(false);
@@ -52,7 +54,7 @@ export default function ReviewSession(p: Props) {
   return (
     <div className="review-overlay review-v11 immersion">
       <header className="immersion-header">
-        <button className="exit-session" onClick={p.onExit}>
+        <button className="exit-session" onClick={p.onExit} disabled={p.busy}>
           <Icon name="back" size={20} />
           Salir
         </button>
@@ -224,19 +226,20 @@ export default function ReviewSession(p: Props) {
           )}
         </article>
       </div>
-      <footer className="review-controls">
+      <footer className="review-controls" aria-busy={p.busy}>
         {!p.revealed && !p.completed ? (
           <>
             <button
               className="primary-button full"
               disabled={
-                written
+                p.busy ||
+                (written
                   ? !p.writtenAnswer.trim()
                   : choice
                     ? multi
                       ? p.selectedOptions.length === 0
                       : p.selectedOption === null
-                    : false
+                    : false)
               }
               onClick={written ? p.onCheckWritten : p.onReveal}
             >
@@ -247,19 +250,26 @@ export default function ReviewSession(p: Props) {
                   : "Mostrar respuesta"}
             </button>
             <div className="review-secondary-actions">
-              <button onClick={p.onUnknown}>No me la sé</button>
-              <button onClick={p.onNext}>
+              <button disabled={p.busy} onClick={p.onUnknown}>
+                No me la sé
+              </button>
+              <button disabled={p.busy} onClick={p.onNext}>
                 Pasar <Icon name="arrow" size={15} />
               </button>
             </div>
           </>
         ) : p.completed ? (
-          <button className="primary-button full" onClick={p.onNext}>
+          <button
+            className="primary-button full"
+            disabled={p.busy}
+            onClick={p.onNext}
+          >
             Continuar <Icon name="arrow" size={18} />
           </button>
         ) : written && p.writtenResult ? (
           <button
             className="primary-button full"
+            disabled={p.busy}
             onClick={() => p.onRate(p.writtenResult!.rating, p.writtenResult)}
           >
             Guardar y continuar <Icon name="arrow" size={18} />
@@ -280,6 +290,15 @@ export default function ReviewSession(p: Props) {
               ).map((r) => (
                 <button
                   aria-label={r.label}
+                  disabled={p.busy}
+                  title={
+                    {
+                      again: "No la recordé",
+                      hard: "Recordé con esfuerzo",
+                      good: "La recordé bien",
+                      easy: "La recordé fácilmente",
+                    }[r.value]
+                  }
                   className={r.value}
                   key={r.value}
                   onClick={() => p.onRate(r.value)}
@@ -296,7 +315,7 @@ export default function ReviewSession(p: Props) {
         <BottomSheet title="En este repaso" onClose={() => setMore(false)}>
           <button
             className="sheet-action"
-            disabled={p.position <= 1}
+            disabled={p.busy || !p.canGoBack}
             onClick={() => action(p.onPrevious)}
           >
             Volver a la tarjeta anterior

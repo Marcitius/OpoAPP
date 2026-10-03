@@ -25,12 +25,13 @@ interface Props {
   onCorrect: () => void;
   onContinue: () => void;
   onClose: () => void;
+  busy?: boolean;
 }
 export default function OrthographyStudy(p: Props) {
   return (
     <div className="review-overlay orthography-overlay">
       <header className="review-top orthography-top">
-        <button onClick={p.onClose} aria-label="Cerrar">
+        <button onClick={p.onClose} disabled={p.busy} aria-label="Cerrar">
           ×
         </button>
         <strong>{p.scopeLabel}</strong>
@@ -49,7 +50,7 @@ export default function OrthographyStudy(p: Props) {
                 <button
                   className={`orthography-option ${selected ? "selected" : ""} ${r ? (r.correct ? "result-correct" : "result-wrong") : ""}`}
                   key={c.id}
-                  disabled={!!p.results}
+                  disabled={!!p.results || p.busy}
                   aria-pressed={selected}
                   onClick={() => p.onToggle(c.id)}
                 >
@@ -67,7 +68,11 @@ export default function OrthographyStudy(p: Props) {
             })}
           </div>
           {!p.results ? (
-            <button className="primary-button full" onClick={p.onCorrect}>
+            <button
+              className="primary-button full"
+              disabled={p.busy}
+              onClick={p.onCorrect}
+            >
               Corregir
             </button>
           ) : (

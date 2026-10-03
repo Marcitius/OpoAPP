@@ -1,12 +1,11 @@
-# OpoGC v11 - Mobile UX
+# OpoGC v12 — Memoria y estudio
 
-Aplicación completa sobre la base funcional de OpoGC v10. La pantalla inicial es **Hoy**: repasar y continuar el estudio planificado se abren directamente. Supabase sigue siendo el backend real. Las cuentas existentes usan los mismos datos y los mismos IDs.
+Aplicación real sobre OpoGC v11 Mobile UX, con el mismo Supabase y los mismos datos. Esta iteración mejora el aprendizaje, la planificación y la relación Biblioteca → Estudiar → Repasar. No es una demo; las fixtures solo pertenecen a los tests.
 
-## Actualizar tu v10
+## Actualizar la rama actual
 
-1. Sustituye el código de tu rama por el contenido de `opogc/` de este ZIP. Conserva tu `.env.local` y las variables del despliegue actual.
-2. Mantén **el mismo proyecto Supabase, la misma URL y la misma clave pública**. Mantén también el dominio actual de la app para conservar el almacenamiento y la sesión de la PWA.
-3. Ejecuta, desde la carpeta de `package.json`:
+1. Sustituye el código por el contenido de `opogc/` de este ZIP. Conserva tu `.env.local`, las variables del despliegue, el dominio y el mismo proyecto Supabase.
+2. Desde la carpeta con `package.json`, con Node >=22.13.0:
 
 ```bash
 npm ci
@@ -15,56 +14,68 @@ npm test
 npm run build
 ```
 
-4. Despliega `out/` mediante el procedimiento que ya usabas. En Cloudflare Pages siguen siendo `npm run build` y directorio de salida `out`.
-5. Abre la app y acepta el aviso de actualización cuando aparezca. La sesión y la cola se mantienen con el mecanismo de v10.
+3. Despliega `out/` mediante tu procedimiento actual y acepta la actualización de la PWA. No borres el almacenamiento del sitio, IndexedDB ni la sesión.
+   **No requiere migraciones SQL ni volver a configurar Supabase.** Los SQL conservados son para instalaciones nuevas, no para volver a ejecutarlos al actualizar.
+   Reutiliza `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` actuales; sigue admitiéndose `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Nunca uses `service_role` en el cliente. El ZIP no contiene credenciales ni datos privados. Desarrollo: `npm run dev`; compilación local: `npm run start`.
 
-**Esta actualización no requiere SQL, migraciones nuevas ni reconfigurar Supabase.** Los dos SQL existentes se conservan para instalaciones nuevas; no debes volver a ejecutarlos para actualizar una v10 configurada. No borres IndexedDB, el almacenamiento del sitio ni los datos de tu cuenta como paso de actualización. No hace falta reimportar tu progreso.
+## Uso diario
 
-El ZIP contiene código fuente y documentación; no contiene claves ni una copia de tus datos privados. Antes de compilar, reutiliza la configuración que ya funciona:
+| Entrada  | Qué hacer                                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Hoy      | Repasar ahora, retomar la sesión guardada o continuar estudio planificado.                                                  |
+| Estudiar | Aprender tarjetas nuevas, retomar una sesión o elegir un apartado. Los apartados enlazados abren sus tarjetas directamente. |
+| Repasar  | Programados, temario, libre, aleatorio y más falladas.                                                                      |
+| Progreso | Detectar contenido que necesita atención e historial.                                                                       |
+| Más      | Biblioteca, Organizar estudio, psicotécnicos, cuenta y preferencias.                                                        |
 
-```dotenv
-NEXT_PUBLIC_SUPABASE_URL=https://TU_PROYECTO_ACTUAL.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=TU_CLAVE_PUBLICA_ACTUAL
-```
+Se conservan barra inferior móvil, lateral en escritorio, safe areas, tablet, scroll interior y formularios a pantalla completa de v11.
 
-La variable antigua `NEXT_PUBLIC_SUPABASE_ANON_KEY` continúa admitida. No uses una clave privada o `service_role`. Para desarrollo: `npm run dev`. Para servir la compilación: `npm run start`. Se conserva Node.js >=22.13.0 y el mismo conjunto de dependencias de v10.
+## Memoria y sesiones
 
-## Nueva navegación
+Se mantiene **ts-fsrs 5.4.2 / FSRS-6**, sin cambiar dependencias, retención objetivo (90 %) ni parámetros predeterminados. Se corrige el adaptador para conservar estado, pasos de aprendizaje y número de intentos. **Cada intento real**, también el refuerzo, actualiza FSRS y genera un registro con ID propio.
 
-| Entrada | Uso principal |
-|---|---|
-| Hoy | Pendientes, prioridades y dos acciones directas: Repasar ahora / Continuar estudio. |
-| Estudiar | Continuar una planificación o buscar y empezar rápidamente un apartado. |
-| Repasar | Tarjetas programadas, repaso libre, repasos del temario y modos alternativos. |
-| Progreso | Apartados débiles, tarjetas que cuestan, evolución, días y acceso al historial. |
-| Más | Biblioteca, psicotécnicos, organización avanzada, cuenta/datos y preferencias. |
+- Otra vez: no recordada. Difícil: recordada con esfuerzo. Bien: recordada correctamente. Fácil: recordada sin esfuerzo. Un test incorrecto siempre se registra como fallo.
+- Las tarjetas nuevas/falladas vuelven según los pasos de aprendizaje/reaprendizaje de FSRS, con separación entre tarjetas cuando hay otras disponibles. No se repiten inmediatamente al agotarse la cola.
+- Una tarjeta madura marcada Difícil recibe una comprobación espaciada adicional; su fecha de largo plazo sigue viniendo de FSRS.
+- Cuando solo quedan tarjetas esperando, puedes salir y retomar. Si permaneces, reaparecen automáticamente al estar listas.
+- Una sesión tiene un conjunto finito. Tras seis intentos débiles de una misma tarjeta se deja explícitamente pendiente de refuerzo, sin declarar que está aprendida ni eliminar su próximo repaso.
+- Al finalizar ves estudiadas, recordadas y pendientes de refuerzo. Pasar una tarjeta no inventa una valoración.
+- La cola, intentos, esperas y avance se guardan junto al rating y la tarjeta en la transacción/outbox existente. Una sesión activa por cuenta; otra sesión elegida explícitamente sustituye su cola, nunca el historial.
+- Ortografía conserva su selección por grupos de hasta cuatro palabras y su corrección automática; ahora utiliza las mismas esperas y persistencia. La rúbrica de respuesta escrita se conserva.
 
-En móvil, la barra inferior tiene icono y texto y respeta la zona segura. En escritorio, las mismas cinco entradas aparecen en una barra lateral. El temario dispone de lista y detalle en tablet cuando hay espacio.
+Los contadores históricos de primer encuentro no se inflan con refuerzos; `fsrsReps` registra todos los intentos. Los parámetros FSRS no se entrenan automáticamente: se conserva el modelo existente, que utiliza su memoria acumulada y el historial para priorizar. La calibración personal es una prioridad de cola, no un entrenamiento de pesos.
 
-## Sesiones de estudio y repaso
+## Organización rápida
 
-**Tarjetas:** Hoy → Repasar ahora. Se oculta la navegación y se mantiene visible el avance. Los controles de revelar/comprobar y Otra vez / Difícil / Bien / Fácil están al alcance sin bajar hasta el final de una tarjeta larga. Se conservan FSRS, vocabulario, test simple/múltiple, respuesta escrita, ortografía, aprendizaje, aleatorio y más falladas.
+Más → Organizar temario abre **Hoy / Después / Repasos**. Añade un apartado con una pulsación desde el selector o el menú del temario:
 
-**Estudio:** Hoy → Continuar estudio. Terminar estudio abre la valoración Mal / Regular / Bien y una nota opcional; Guardar y siguiente guarda mediante el motor existente y abre el siguiente elemento automáticamente. Si no hay estudio planificado, Estudiar ahora abre un selector rápido. Las sesiones sin planificación generan el registro existente al completar el apartado, no al abrirlo.
+- Estudiar hoy / Añadir a hoy.
+- Estudiar después, sin fecha obligatoria.
+- Repasar mañana.
+- Subir/bajar prioridad, empezar, fecha/nota opcional o quitar del plan.
 
-Los repasos del temario existentes permanecen en **Repasar → Repasos del temario** y en **Más → Organizar temario → Hoy**. Conservan su motivo original. Para nuevas planificaciones, el panel permite escoger Estudiar o Repasar usando el campo `reason` ya existente (`estudio` para estudio). Esto separa los contadores diarios sin migrar ni reclasificar registros antiguos.
+Las tareas pendientes del mismo apartado y tipo se reutilizan conservando ID y nota. Las completadas permanecen en Historial. Temario sigue accesible con navegación progresiva y búsqueda; JSON/texto, creación, edición, importación/exportación y valoraciones Bien/Regular/Mal siguen disponibles.
 
-**Organizar:** Más → Organizar temario. El árbol se recorre nivel a nivel, con atrás y búsqueda global. El menú ··· permite editar/mover, reordenar hermanos, añadir, importar, exportar y eliminar. Para estudiar no es obligatorio pasar por este árbol.
+## Reordenación
 
-**Biblioteca:** búsqueda global por contenido y carpeta, filtro por tipo y navegación por carpetas. Creación/edición e importación ocupan toda la pantalla móvil; los modos y acciones secundarias están en ···. **Cuenta** es una pantalla de ajustes con guardado, copias, contraseña y sesión.
+Menú ··· en carpetas, tarjetas y temario: arriba, abajo, sacar un nivel y mover a otra rama. El formulario Editar o mover del temario permite elegir cualquier padre válido. Una rama se mueve cambiando su padre, no recreando sus hijos. No se utiliza drag & drop como requisito: todas las operaciones funcionan con touch y teclado. `sortOrder` es opcional, persistido en el JSONB existente. Los elementos antiguos sin orden explícito conservan su orden anterior.
 
-## Compatibilidad y conservación
+## Biblioteca → temario
 
-- Sin cambios en Auth, PostgreSQL, RLS, Realtime, motor de sincronización, outbox, esquema o versión de IndexedDB, Storage, FSRS o modelo de memoria.
-- Sin seeds nuevos, reinicios de cuenta, IDs reemplazados ni base de datos nueva.
-- La versión **10** del formato de backup y los nombres internos `v10` del almacenamiento/caché se conservan deliberadamente por compatibilidad. La aplicación se identifica como 11.0.0.
-- El orden manual del temario usa `sortOrder` opcional dentro del JSONB existente del nodo. No añade columnas ni cambia SQL. Los nodos sin este dato mantienen el orden anterior.
-- El generador del Service Worker conserva su comportamiento. Regenera únicamente la revisión de recursos y la versión visible para distribuir la nueva interfaz.
-- Fuentes de sistema, zonas seguras, `100dvh`, altura de `visualViewport`, campos móviles de 16 px, scroll interior, foco restaurado y movimiento reducido.
+Biblioteca → ··· → **Importar al temario de estudio**.
 
-El acceso inicial a una cuenta y los nuevos adjuntos siguen requiriendo conexión, como en v10. La sincronización es automática: no se añaden botones de subir, descargar o sincronizar.
+1. Toda Biblioteca o la carpeta actual, con sus subcarpetas y artículos identificables.
+2. Selecciona/desmarca elementos, edita nombres, cambia el padre o saca un nivel.
+3. Elige un destino, previsualiza y confirma.
+4. Se generan nodos enlazados a carpetas/IDs de tarjetas; no se duplican tarjetas, contenido ni ratings.
+   Una segunda importación reutiliza los nodos enlazados existentes. La vista previa indica qué se creará y qué se actualizará. No mezcla por nombre ramas antiguas sin vínculo ni elimina contenido preexistente. Los nombres editados en esta importación pertenecen al temario; no renombran las carpetas de origen. La importación JSON original se conserva.
 
-## Verificación reproducible
+## Datos y seguridad
+
+Sin cambios en Auth, RLS, SQL, Realtime, Storage, IndexedDB, proyección, motor de sincronización, persistencia de sesión ni importación/exportación. No se resetea contenido ni se insertan seeds. Campos nuevos opcionales dentro del JSONB ya existente; no hay columnas, tablas ni migraciones nuevas. El formato de backup y los nombres internos v10 de almacenamiento/caché permanecen por compatibilidad. No se ha accedido a la cuenta real.
+Los formularios no llevan `autoFocus`. Los diálogos enfocan su contenedor y mantienen el trap de teclado, sin restaurar foco sobre inputs al cerrar. Formatear texto no fuerza el foco de un editor no activado.
+
+## Verificar
 
 ```bash
 npm run check:preserved
@@ -75,10 +86,10 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-`check:preserved` verifica hashes de 15 archivos críticos y huellas estructurales de 29 funciones conservadas de v10. `npm test` ejecuta además las 16 pruebas originales de PostgreSQL/RLS/Storage/IndexedDB/outbox. Las pruebas de navegador recorren ocho tamaños y los flujos reales de la UI con un motor de prueba que utiliza las mismas transacciones y proyecciones locales. Las fixtures solo están en `tests/ui`; **no se compilan en la aplicación** y no reemplazan Supabase.
+`check:preserved` conserva las huellas históricas v10 y verifica **13 archivos críticos y 21 funciones** intactos. Declara expresamente los dos adaptadores y ocho funciones autorizados a cambiar en v12, cubiertos por pruebas nuevas.
+`npm test`: 16 pruebas anteriores + 12 de memoria + 7 de planificación/jerarquías/conversión.
+`npm run test:ui`: recorridos en ocho tamaños, sesiones, 50 tarjetas, offline local, overlays, foco, planificación, creación, reordenación, conversión y recuperación de la sesión con reloj controlado. Solo usa fixtures aisladas y los servicios locales reales.
+El test de caché PWA de producción usa una compilación sin variables: valida la pantalla de configuración offline, no una sesión autenticada en Safari instalado.
+El script existente `npm run test:live` requiere dos cuentas de pruebas confirmadas y `TEST_EMAIL_A`, `TEST_PASSWORD_A`, `TEST_EMAIL_B`, `TEST_PASSWORD_B`. **No se ejecutó contra tu Supabase ni tu cuenta.**
 
-El test automático de caché PWA usa una compilación sin variables y comprueba la pantalla de configuración offline. Para ejecutarlo sobre una compilación configurada debes adaptar esa expectativa. No es una prueba de sesión autenticada en Safari instalado.
-
-El script existente `npm run test:live` permite validar Auth/RLS/Realtime contra dos cuentas de prueba confirmadas del mismo proyecto usando `TEST_EMAIL_A`, `TEST_PASSWORD_A`, `TEST_EMAIL_B` y `TEST_PASSWORD_B` en `.env.local`. No lo ejecutes con cuentas privadas que no quieras usar para pruebas. No se ejecutó contra tu cuenta en esta entrega: no se facilitaron las credenciales ni un proyecto conectado.
-
-Consulta **docs/PRUEBAS.md** para los resultados reales, los límites de la validación y la matriz A–O; **CHANGELOG.md** para cambios; **docs/ARCHIVOS-V11.md** para el inventario; **docs/capturas/** para las siete capturas solicitadas. La guía de instalación inicial de v10 se conserva como referencia histórica en `docs/INSTALACION-V10.md`; no es el procedimiento para actualizar.
+Consulta `docs/MEMORIA-V12.md` (auditoría y comportamiento), `docs/PRUEBAS.md` (resultados y límites), `docs/ARCHIVOS-V12.md` y `CHANGELOG.md`. Capturas reales de navegador en `docs/capturas/`, con datos de prueba. Los documentos V10/V11 se conservan como referencia histórica, no como instrucciones de esta actualización.

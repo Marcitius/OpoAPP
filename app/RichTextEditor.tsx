@@ -88,7 +88,10 @@ export default function RichTextEditor({
       ref.current.innerHTML = sanitizeRichHtml(value);
   }, [value]);
   const command = (cmd: string, val?: string) => {
-    ref.current?.focus();
+    // Formatting never opens the keyboard on a previously untouched editor.
+    const selection = window.getSelection();
+    if (!selection?.anchorNode || !ref.current?.contains(selection.anchorNode))
+      return;
     document.execCommand(cmd, false, val);
     onChange(sanitizeRichHtml(ref.current?.innerHTML ?? ""));
   };

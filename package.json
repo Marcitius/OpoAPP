@@ -1,6 +1,6 @@
 {
   "name": "opogc",
-  "version": "11.0.0",
+  "version": "12.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -11,7 +11,7 @@
     "build": "node scripts/prepare-pwa.mjs && next build --webpack && node scripts/prepare-pwa.mjs --built",
     "start": "serve out -l 3000",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/check-preserved.mjs && node --import tsx tests/database.test.ts && node --import tsx tests/data.test.ts",
+    "test": "node scripts/check-preserved.mjs && node --import tsx tests/database.test.ts && node --import tsx tests/data.test.ts && node --import tsx tests/memory.test.ts && node --import tsx tests/study.test.ts",
     "test:ui": "playwright test",
     "test:live": "node --import tsx --env-file=.env.local scripts/test-live.ts",
     "check:preserved": "node scripts/check-preserved.mjs"

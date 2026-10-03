@@ -5,7 +5,14 @@ interface Model {
 }
 export function fitPersonalMemoryModel(cards: any[], reviews: any[]): Model {
   const eligible = reviews
-    .filter((r) => typeof r.predictedRecall === "number" && !r.reinforcement)
+    .filter(
+      (r) =>
+        Number.isFinite(r.predictedRecall) &&
+        r.predictedRecall >= 0 &&
+        r.predictedRecall <= 1 &&
+        !r.reinforcement,
+    )
+    .sort((a, b) => String(a.reviewedAt).localeCompare(String(b.reviewedAt)))
     .slice(-500);
   if (eligible.length < 30) return { samples: eligible.length, calibration: 1 };
   const observed =
@@ -14,10 +21,13 @@ export function fitPersonalMemoryModel(cards: any[], reviews: any[]): Model {
       eligible.reduce((s, r) => s + r.predictedRecall, 0) / eligible.length;
   return {
     samples: eligible.length,
-    calibration: Math.min(
-      1.25,
-      Math.max(0.75, observed / Math.max(0.1, predicted)),
-    ),
+    // Shrink noisy history toward the existing FSRS prediction. This only
+    // prioritizes the queue; it does not pretend to train FSRS parameters.
+    calibration:
+      1 +
+      Math.min(1, eligible.length / 200) *
+        (Math.min(1.25, Math.max(0.75, observed / Math.max(0.1, predicted))) -
+          1),
   };
 }
 export function predictPersonalRecall(

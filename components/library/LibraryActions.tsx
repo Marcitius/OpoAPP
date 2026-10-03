@@ -12,6 +12,10 @@ export default function LibraryActions({
   onDelete,
   onSelect,
   onWritten,
+  onToStudy,
+  onUp,
+  onDown,
+  onOut,
 }: {
   name?: string;
   onClose: () => void;
@@ -23,6 +27,10 @@ export default function LibraryActions({
   onDelete?: () => void;
   onSelect?: () => void;
   onWritten?: () => void;
+  onToStudy: () => void;
+  onUp?: () => void;
+  onDown?: () => void;
+  onOut?: () => void;
 }) {
   const action = (fn: () => void) => {
     onClose();
@@ -43,6 +51,9 @@ export default function LibraryActions({
         Importar tarjetas JSON
       </button>
       <hr />
+      <button className="sheet-action" onClick={() => action(onToStudy)}>
+        <Icon name="study" /> Importar al temario de estudio
+      </button>
       <button
         className="sheet-action"
         onClick={() => action(() => onStudy("recommended"))}
@@ -83,6 +94,21 @@ export default function LibraryActions({
       {onSelect && (
         <button className="sheet-action" onClick={() => action(onSelect)}>
           Seleccionar tarjetas
+        </button>
+      )}
+      {onUp && (
+        <button className="sheet-action" onClick={() => action(onUp)}>
+          Mover arriba
+        </button>
+      )}
+      {onDown && (
+        <button className="sheet-action" onClick={() => action(onDown)}>
+          Mover abajo
+        </button>
+      )}
+      {onOut && (
+        <button className="sheet-action" onClick={() => action(onOut)}>
+          Sacar un nivel
         </button>
       )}
       {onDelete && (

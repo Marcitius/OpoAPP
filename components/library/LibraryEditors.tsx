@@ -71,7 +71,6 @@ export function FolderModal({
         <label>
           Nombre
           <input
-            autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder={
@@ -140,7 +139,6 @@ export function MoveFolderModal({
       <label>
         Nuevo destino
         <select
-          autoFocus
           value={targetParentId}
           onChange={(event) => setTargetParentId(event.target.value)}
         >

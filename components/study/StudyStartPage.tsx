@@ -10,6 +10,9 @@ export default function StudyStartPage({
   onNode,
   onOrganize,
   onPlan,
+  newCards,
+  onCards,
+  onResume,
 }: {
   nodes: StudyNode[];
   tasks: StudyTask[];
@@ -17,6 +20,9 @@ export default function StudyStartPage({
   onNode: (id: string) => void;
   onOrganize: () => void;
   onPlan: () => void;
+  newCards?: number;
+  onCards?: () => void;
+  onResume?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const leaves = nodes.filter(
@@ -35,6 +41,24 @@ export default function StudyStartPage({
       <div className="ux-intro">
         <p>Un apartado. Toda tu atención.</p>
       </div>
+      {onResume && (
+        <button className="primary-button full" onClick={onResume}>
+          Retomar sesión de tarjetas <Icon name="arrow" size={18} />
+        </button>
+      )}
+      {!!newCards && onCards && (
+        <button className="today-start" onClick={onCards}>
+          <span className="action-symbol">
+            <Icon name="study" size={26} />
+          </span>
+          <span className="action-main">
+            <small>CONTENIDO NUEVO</small>
+            <strong>Aprender tarjetas</strong>
+            <span>{newCards} por descubrir · refuerzo incluido</span>
+          </span>
+          <Icon name="arrow" />
+        </button>
+      )}
       {tasks.length > 0 && (
         <button className="today-start review-start" onClick={onContinue}>
           <span className="action-symbol">

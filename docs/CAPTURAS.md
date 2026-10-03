@@ -1,15 +1,17 @@
-# Capturas de OpoGC v11 - Mobile UX
+# Capturas de OpoGC v12
 
-Capturas de la interfaz implementada y ejecutada en navegador, no imágenes generadas ni maquetas. Se obtienen desde la fixture aislada de pruebas de componentes y IndexedDB: muestran contenido de prueba y no los datos privados de una cuenta. La app distribuida se abre con Supabase Auth real y no incluye esta fixture en su compilación.
+Interfaz real ejecutada en Chromium, con fixtures de prueba aisladas y los servicios locales reales. No son imágenes generadas ni mockups. Las fixtures no se compilan en producción.
 
-| Imagen | Vista / tamaño |
-|---|---|
-| capturas/hoy-movil.png | Hoy · 390 × 844 |
-| capturas/repaso-movil.png | Repaso con respuesta y valoración · 390 × 844 |
-| capturas/estudio-movil.png | Sesión de estudio · 390 × 844 |
-| capturas/temario-movil.png | Navegación progresiva del temario · 390 × 844 |
-| capturas/progreso-movil.png | Progreso · 390 × 844 |
-| capturas/ipad.png | Hoy en tablet horizontal · 1024 × 768 |
-| capturas/desktop.png | Hoy en escritorio · 1366 × 768 |
-
-Las pruebas también recorren iPad vertical, iPhone grande, Android pequeño/grande y escritorio grande. Todas las capturas son del viewport completo, con animaciones detenidas para evitar textos a medio aparecer. `npm run test:ui` las regenera.
+| Archivo en capturas/                                                                                                                                                                                                              | Pantalla / tamaño                              |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| hoy-movil.png                                                                                                                                                                                                                     | Hoy · 390×844                                  |
+| repaso-movil.png                                                                                                                                                                                                                  | Repaso con valoración · 390×844                |
+| estudio-movil.png                                                                                                                                                                                                                 | Apartado y sesión de estudio · 390×844         |
+| temario-movil.png                                                                                                                                                                                                                 | Temario progresivo · 390×844                   |
+| progreso-movil.png                                                                                                                                                                                                                | Progreso · 390×844                             |
+| organizar-movil.png                                                                                                                                                                                                               | Plan Hoy/Después/Repasos · 390×844             |
+| biblioteca-temario-movil.png                                                                                                                                                                                                      | Previsualización editable/conversión · 390×844 |
+| refuerzo-movil.png                                                                                                                                                                                                                | Espera de aprendizaje espaciado · 390×844      |
+| ipad.png                                                                                                                                                                                                                          | Hoy · 1024×768                                 |
+| desktop.png                                                                                                                                                                                                                       | Hoy · 1366×768                                 |
+| npm run test:ui las regenera. También se prueban iPad vertical, iPhone grande, Android y desktop grande. Para ver la aplicación con contenido privado es necesario utilizar la configuración actual de Supabase, no las fixtures. |

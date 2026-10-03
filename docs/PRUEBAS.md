@@ -1,91 +1,50 @@
-# Pruebas — OpoGC v11 - Mobile UX
+# Pruebas ejecutadas — OpoGC v12
 
-Fecha de entrega: 30/09/2026. Base inspeccionada: ZIP completo de OpoGC v10.0 Supabase. No se utilizó la cuenta privada ni se modificaron datos remotos.
+Fecha: 2 de octubre de 2026. Proyecto base: ZIP v11 actual. Los fallos iniciales (selectors de navegación/capas en tests nuevos, tipo de fixture y error detectado en sacar un nivel) se corrigieron; resultados finales abajo.
 
-## Resultados ejecutados
+| Comprobación ejecutada                             | Resultado                                            |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| npm run typecheck                                  | Correcto, sin errores                                |
+| npm test: PostgreSQL/PGLite + SQL/RLS/Storage      | 7/7                                                  |
+| npm test: datos, IDB/outbox, importación y cuentas | 9/9                                                  |
+| npm test: scheduler y sesiones deterministas       | 12/12                                                |
+| npm test: jerarquía, planificación y conversión    | 7/7                                                  |
+| check:preserved                                    | 13 archivos críticos y 21 funciones conservados      |
+| npm run build                                      | Compilación Next.js y exportación estática correctas |
+| Playwright Chromium                                | 30/30; sin saltados ni fallos                        |
 
-| Comprobación | Resultado | Evidencia / alcance |
-|---|---|---|
-| TypeScript estricto | PASS | `npm run typecheck` y verificación TypeScript de Next. |
-| Compilación de producción | PASS | `npm run build`; export estático Next completo. |
-| Integridad del núcleo v10 | PASS | 15 archivos byte a byte y 29 funciones de negocio por huella de AST. Huellas obtenidas del ZIP original. |
-| Datos y persistencia | PASS · 16/16 | 7 pruebas PostgreSQL/PGlite + 9 de IndexedDB/proyección/outbox originales. |
-| Navegador y UX | PASS · 25/25 | Chromium automatizado, ocho tamaños y flujos descritos debajo. |
-| Capturas | PASS | Siete PNG de la interfaz implementada; contenido de la fixture de pruebas. |
+## Qué se comprobó
 
-**Las pruebas locales no sustituyen una prueba contra el Supabase de producción.** No se recibió su URL/clave pública ni cuentas de prueba en esta iteración. Auth, envío/recepción Realtime y Storage HTTP reales no se han ejecutado aquí. Se conserva el código que el usuario indica que ya funciona en v10.
+- Creación real de tarjeta en el editor, todos los tipos existentes, test simple/múltiple, vocabulario, escrita y ortografía.
+- Aprender tarjetas nuevas: Again repetido, espera, otras tarjetas, reaparición automática, Good progresivo y graduación real. Reloj del navegador controlado, sin esperar minutos de pared.
+- FSRS determinista: Again nuevo → Learning; metadatos conservados; cada refuerzo cuenta en fsrsReps; Hard antes que Good/Easy; intervalos crecen con recuerdo; lapso tras 90 días extra entra Relearning sin borrar historial/reps; adopción compatible de tarjetas antiguas.
+- Reapertura: se recarga el navegador con checkpoint pendiente; mantiene intento, cooldown y ratings. Se comprueba estado final de FSRS tras otra recarga.
+- Seis fallos no generan un bucle infinito ni éxito falso; saltar no genera ratings.
+- Transacción real IndexedDB: tarjeta + rating + checkpoint en outbox; aislamiento por cuenta; mismas proyecciones al recibir datos remotos.
+- 50 tarjetas seguidas, 50 IDs de registros únicos. Valoraciones manuales Bien/Regular/Mal con notas y siguiente automático.
+- Árbol: crear, editar, mover, subir/bajar, eliminar. Ciclos y destinos inválidos rechazados. Rama conserva hijos/IDs.
+- Biblioteca: tarjetas ordenadas, movimiento entre carpetas y sacar rama; conservación de progreso tras recarga.
+- Organización: Hoy → Después → Hoy conserva tarea/ID; nota sin fecha; prioridades y acciones rápidas.
+- Biblioteca → temario: nombres editados, reparentado, destino, preview, confirmación, sin copia de tarjetas; reimportación conserva IDs; apartado enlazado inicia tarjetas.
+- Campos sin foco al abrir; clic explícito sí enfoca. Sheets anidados: Escape solo cierra el superior. Trapping, arrastre, fondo estable y capas de imagen/PDF.
+- PWA de producción sin configuración: manifest standalone, iconos, Service Worker, recarga offline de la pantalla de configuración.
+- Backup portable local: importación/exportación de estructura, IDs, historial y comentarios mediante funciones existentes.
 
-## Tamaños y recorridos UX
+## Tamaños recorridos realmente
 
-Cada tamaño recorre Hoy → Repaso → valoración → Hoy → Estudio → valoración con nota → siguiente → Temario → editar/cerrar → Progreso. Comprueba cinco destinos, controles visibles, límite del viewport, ausencia de overflow horizontal, posición de scroll restaurada y ausencia de errores JavaScript.
+390×844; 430×932; 360×800; 412×915; iPad 768×1024 y 1024×768; desktop 1366×768 y 1920×1080. También orientación 844×390, árbol de doce niveles, contenido largo, scroll interior y viewport reducido de teclado.
+Son viewports Chromium, no ocho dispositivos físicos. No se simula un teclado del sistema abriéndose: se comprueba foco DOM y reducción de visualViewport. Las capturas son de la aplicación implementada con fixtures aisladas; no datos privados.
 
-| Dispositivo / viewport | Tamaño | Resultado |
-|---|---|---|
-| iPhone pequeño | 390 × 844 | PASS |
-| iPhone grande | 430 × 932 | PASS |
-| Android pequeño | 360 × 800 | PASS |
-| Android grande | 412 × 915 | PASS |
-| iPad vertical | 768 × 1024 | PASS |
-| iPad horizontal | 1024 × 768 | PASS |
-| Desktop | 1366 × 768 | PASS |
-| Desktop grande | 1920 × 1080 | PASS |
+## Límites importantes: NO ejecutado contra tu cuenta
 
-Se ejecuta en Chromium de escritorio con esos viewports. No se afirma validación en Safari/WebKit ni en hardware iPhone/Android. Los `env(safe-area-inset-*)` están implementados; el home indicator y la Dynamic Island requieren la comprobación física indicada abajo.
+- Login real en Supabase, cerrar/abrir PWA manteniendo sesión autenticada.
+- Cambios PC ↔ iPhone a través de Realtime del proyecto real.
+- Reconexion offline con envío/acuse real de Supabase HTTP.
+- Pruebas A/B con dos cuentas reales de tu proyecto; la RLS sí se ejecutó contra los SQL conservados dentro de PostgreSQL/PGLite.
+- Storage HTTP real ni descargas de adjuntos privados.
+- PWA instalada en Safari/iOS o Android físico, home indicator/teclado nativo.
 
-## Pruebas de flujo adicionales
-
-- Cinco tarjetas consecutivas: cinco registros con IDs propios y actualización del estado FSRS.
-- Cincuenta tarjetas seguidas: sin volver a configurar, sin perder registros.
-- Bien, Regular y Mal con notas distintas: siguiente automático y datos conservados al recargar IndexedDB; tres eventos de sesión.
-- Árbol: creación, renombrado, movimiento, orden manual y eliminación; el ID se conserva en edición/movimiento.
-- Búsqueda y tipos de Biblioteca: vocabulario, test múltiple, respuesta escrita con rúbrica y ortografía, además de flashcards.
-- Tarjeta larga: scroll interior y valoración visible sin tener que ir hasta el final del contenido.
-- Psicotécnicos: listado, ficha, intento existente, nota y apertura del formulario de registro.
-- Bottom sheet: arrastre para cerrar, Escape, foco, cuenta y reducción de altura.
-- Temario de doce niveles: navegación atrás y cambio de orientación sin overflow.
-- Teclado: reducción del viewport a 500 px y simulación de `visualViewport` con altura 480 px/offset 80 px. No reproduce el teclado físico de Safari.
-- Offline: valoración y nota durable en IndexedDB, operación en outbox y backup portable con IDs/historial conservados. La prueba no envía el outbox al Supabase remoto.
-- Cuenta vacía: no aparece seed data ni se reinician datos existentes.
-- Editor de tarjetas e importación: pantalla completa móvil, controles/formulario accesibles y cierre.
-- Imagen y PDF sobre formulario: portal al body, tamaño de pantalla, capa superior, foco y Escape sin cerrar el formulario inferior. Esta prueba no abre un archivo privado real ni verifica su subida HTTP.
-- Planificación heredada de v10: motivo conservado, valoración y siguiente desde Repasar → Repasos del temario, sin contar como estudio nuevo.
-- Plan mixto: una prioridad de estudio continúa únicamente los elementos de estudio; conserva pendientes los repasos distintos.
-- PWA de producción sin configuración: manifest standalone, iconos, Service Worker y recarga de su pantalla de configuración offline. No equivale a una sesión autenticada instalada.
-
-## Matriz obligatoria A–O
-
-| Test | Resultado real de esta entrega | Pendiente externo |
-|---|---|---|
-| A · Login, cerrar PWA, reabrir y sesión | Gestión de Auth/sesión conservada byte a byte. | Iniciar sesión y reabrir PWA instalada contra tu proyecto. |
-| B · PC → iPhone | Motor y fusiones conservados; concurrencia y campos verificados localmente. | Recepción Realtime entre dispositivos autenticados. |
-| C · iPhone → PC | Mismo motor; persistencia/transacciones verificadas localmente. | Envío/recepción en ambos dispositivos reales. |
-| D · Offline, modificar, recuperar conexión | PASS local: escritura durable, outbox y conservación al recargar. | Confirmar entrega al servidor y aparición en el otro dispositivo. |
-| E · A nunca ve B | PASS SQL/RLS/RPC, propiedad de relaciones y políticas Storage; aislamiento local/token PASS. | Peticiones HTTP con dos cuentas de tu proyecto. |
-| F · Importar/exportar copia | PASS portable: preparar, JSON, parsear, validar y conservar IDs/historial; tests originales de fusión. | Descarga/subida de los adjuntos privados reales y gesto de descarga del navegador móvil. |
-| G · Repaso desde Hoy | PASS UI: una pulsación abre sesión. | — |
-| H · Varias tarjetas seguidas | PASS UI: 5 y 50 tarjetas; registros y estado FSRS. | — |
-| I · Estudio desde Hoy | PASS UI: una pulsación abre planificación. | — |
-| J · Bien/Regular/Mal y nota | PASS UI/IndexedDB: las tres valoraciones y sus notas. | — |
-| K · Siguiente automático | PASS UI: siguiente después de guardar; sin volver al árbol. | — |
-| L · Crear/editar/mover/reordenar/eliminar | PASS UI: todas las operaciones y conservación de ID al editar/mover. | — |
-| M · Todos los tipos de tarjeta | PASS UI: flashcard, vocabulario, test múltiple, escrita y ortografía. Parser/importación original conservado. | Adjuntos de una cuenta real. |
-| N · Psicotécnicos | PASS UI: listado, ficha, nota, resultado e intento; lógica existente conservada. | PDFs/imagen y anotación sobre archivos privados reales. |
-| O · Standalone instalada | PASS manifest, recursos y caché offline del frontend. | Instalación y reapertura física en Safari/Android. |
-
-## Comprobación final en tu instalación
-
-Usa el mismo dominio y proyecto ya configurados. No hace falta migrar datos.
-
-1. Inicia sesión como A en PC e iPhone/PWA. Cierra y vuelve a abrir la PWA: conserva sesión y datos.
-2. Desde Más → Organizar temario crea un elemento, planifica un estudio o repaso, y espera al estado Guardado. Comprueba su aparición en el otro dispositivo. Repite en sentido inverso.
-3. Abre una sesión desde Hoy, registra Bien con nota y confirma historial y siguiente elemento. Repite Regular y Mal.
-4. Desconecta la PWA, completa otro elemento, cierra/reabre y confirma su persistencia. Recupera red: aparece en el otro dispositivo sin botones de sincronización.
-5. Con una cuenta de prueba B, comprueba que no aparecen los datos de A. Regresa a A sin perder su cola.
-6. Exporta desde Más → Cuenta y datos, conserva el JSON e importa una copia compatible. Comprueba IDs, historial y adjuntos.
-7. Abre un PDF y una imagen existentes, anota y comprueba que las anotaciones siguen sincronizadas.
-8. En PWA standalone, ambas orientaciones: barra inferior por encima del home indicator, encabezado fuera de la zona superior, campos al abrir teclado y capa inferior inmóvil al cerrar paneles.
-
-`npm run test:live` conserva el script de v10 para dos cuentas desechables confirmadas. Usa Auth y RPC reales, RLS y Realtime; no necesita clave privada. Sus resultados no se incluyen como PASS porque no se ejecutó aquí.
+No se disponía de URL/claves/sesiones o dispositivos de tu proyecto. No se modificó tu cuenta ni se introdujeron credenciales nuevas. Los tests locales y hashes no sustituyen estas pruebas de integración. El script test:live existente permite ejecutar las comprobaciones autorizadas con dos cuentas de pruebas, no con usuarios privados.
 
 ## Reproducir
 
@@ -99,4 +58,5 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-Con un Chromium disponible en otra ruta puede usarse `CHROMIUM_EXECUTABLE=/ruta/chromium npm run test:ui`. El servidor estático de pruebas solo sirve `out/` localmente; no cambia el alojamiento de producción. El informe resumido de la ejecución está en `docs/ui-results.json` y las pruebas en `tests/ui/responsive.spec.ts`.
+Se usó Chromium 153 externo al repo por disponibilidad del entorno; la suite admite CHROMIUM_EXECUTABLE. No se añade esa dependencia a la app. El build de las pruebas PWA se realizó sin variables Supabase. En un build configurado debe adaptarse la expectativa de “Configura OpoGC”, no sustituir Auth por una fixture.
+Resultados máquina de navegador: ui-results.json. Las pruebas vuelven a generar test-results/ui-report.json, excluido del ZIP.

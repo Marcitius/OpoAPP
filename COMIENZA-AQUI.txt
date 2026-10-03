@@ -1,22 +1,12 @@
-OpoGC v11 - Mobile UX
-
-ACTUALIZACIÓN SOBRE TU V10 FUNCIONAL
-
-1. Lee README.md. El ZIP contiene el proyecto completo dentro de opogc/.
-2. Sustituye el código de la rama conservando tu .env.local y las variables actuales de despliegue.
-3. Reutiliza el MISMO Supabase y dominio. No ejecutes otra vez los SQL de instalación.
-4. Desde la carpeta con package.json: npm ci, npm run typecheck, npm test, npm run build.
-5. Despliega out/ como en v10 y abre la PWA para aceptar su actualización.
-
-No borres los datos locales ni reimportes tu progreso como parte de la actualización.
-No se han cambiado IDs, tablas, RLS, Auth, Storage, FSRS ni el motor de sincronización.
-No contiene tu cuenta, claves o progreso privado; conserva la configuración que ya funciona.
-
-Navegación: Hoy / Estudiar / Repasar / Progreso / Más.
-Hoy permite iniciar directamente repaso o estudio planificado.
-La Biblioteca, Psicotécnicos, Organización y Cuenta se encuentran dentro de Más.
-
-Cambios: CHANGELOG.md.
-Archivos/componentes: docs/ARCHIVOS-V11.md.
-Pruebas ejecutadas y pendientes reales: docs/PRUEBAS.md.
-Capturas: docs/capturas/ (7 imágenes).
+OpoGC v12 — Memoria y estudio
+ACTUALIZACIÓN SOBRE TU V11 FUNCIONAL
+1. Lee README.md y docs/MEMORIA-V12.md. Proyecto completo en opogc/.
+2. Sustituye código conservando .env.local, variables, dominio y el MISMO Supabase.
+3. npm ci · npm run typecheck · npm test · npm run build.
+4. Despliega out/ como antes y acepta la actualización de la PWA.
+No hay SQL nuevo, reinicios, seeds ni IDs sustituidos. No borres datos locales.
+FSRS sigue siendo el algoritmo: ahora conserva el aprendizaje corto y usa cada intento.
+Organizar: Hoy / Después / Repasos. Biblioteca → ··· → Importar al temario de estudio.
+Nuevas esperas, refuerzos y checkpoint de sesión; acciones táctiles de reordenación.
+Documentación: CHANGELOG.md, docs/ARCHIVOS-V12.md, docs/PRUEBAS.md.
+No se probó tu sesión ni sincronización PC ↔ iPhone contra tu Supabase real.

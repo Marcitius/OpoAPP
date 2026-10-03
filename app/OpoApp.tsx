@@ -92,7 +92,42 @@ import OrthographyStudy, {
 } from "./OrthographyStudy";
 import PdfAnnotator from "./PdfAnnotator";
 import { plainRichText, sanitizeRichHtml } from "./RichTextEditor";
-import { fsrsCurrentRetrievability } from "./fsrs";
+import {
+  applyFsrsReview,
+  fsrsSnapshot,
+  isLearning,
+  fsrsCurrentRetrievability,
+} from "./fsrs";
+import {
+  createCardSession,
+  nextSessionCard,
+  answerSession,
+  sessionSummary,
+  skipSessionCard,
+  validSession,
+  type CardSession,
+} from "../lib/memory/session";
+import {
+  orderedChildren,
+  appendRank,
+  reorderItems,
+  moveBranch,
+  moveOut,
+} from "../lib/study/hierarchy";
+import {
+  planNode,
+  dueStudyTasks,
+  cardsForStudyNode,
+  type PlanAction,
+} from "../lib/study/planning";
+import {
+  materializeLibraryDraft,
+  type LibraryDraftNode,
+} from "../lib/study/libraryBridge";
+import StudyPlanPage from "../components/study/StudyPlanPage";
+import LibraryToStudySheet from "../components/library/LibraryToStudySheet";
+import SessionStatus from "../components/review/SessionStatus";
+import CardActionsSheet from "../components/library/CardActionsSheet";
 import { fitPersonalMemoryModel, predictPersonalRecall } from "./memoryModel";
 
 import StudyPreferences from "../components/account/StudyPreferences";
@@ -187,6 +222,13 @@ export default function OpoApp() {
   const [writtenResult, setWrittenResult] =
     useState<WrittenAnswerResult | null>(null);
   const [sessionDone, setSessionDone] = useState(0);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [sessionClock, setSessionClock] = useState(Date.now());
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const reviewBusyRef = useRef(false);
+  const presentationKeyRef = useRef("");
+  const [libraryBridgeOpen, setLibraryBridgeOpen] = useState(false);
+  const [cardActionsId, setCardActionsId] = useState<string | null>(null);
   const [orthographySession, setOrthographySession] =
     useState<OrthographySessionState | null>(null);
   const [orthographySelected, setOrthographySelected] = useState<string[]>([]);
@@ -203,29 +245,7 @@ export default function OpoApp() {
     index: number;
     completed: number;
   } | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardShownAtRef = useRef(Date.now());
-  const reinforcementCountsRef = useRef<Map<string, number>>(new Map());
-  const learnStatsRef = useRef<
-    Map<
-      string,
-      {
-        seen: number;
-        again: number;
-        hard: number;
-        good: number;
-        easy: number;
-        cooldownUntil: number;
-      }
-    >
-  >(new Map());
-  const studyScopeRef = useRef<string[]>([]);
-  const orthographyStatsRef = useRef<Map<string, OrthographySessionStat>>(
-    new Map(),
-  );
-  const orthographyLongTermSeenRef = useRef<Set<string>>(new Set());
-  const orthographyScopeRef = useRef<string[]>([]);
-  const orthographyPreviousGroupRef = useRef<string[]>([]);
   const orthographyGroupStartedAtRef = useRef(Date.now());
 
   useEffect(() => {
@@ -369,28 +389,91 @@ export default function OpoApp() {
     return saved;
   }
 
-  function reorderStudyNode(nodeId: string, direction: -1 | 1) {
+  function reorderStudyNode(id: string, direction: -1 | 1) {
+    void updateState((c) => ({
+      ...c,
+      studyNodes: reorderItems(c.studyNodes, id, direction),
+    }));
+  }
+  function planStudyNode(id: string, action: PlanAction) {
+    void updateState((c) => ({
+      ...c,
+      studyTasks: planNode(c.studyTasks, id, action, uid(), nowIso()),
+    }));
+  }
+  function moveStudyOut(id: string) {
+    void updateState((c) => ({ ...c, studyNodes: moveOut(c.studyNodes, id) }));
+  }
+  function startStudyWithContent(nodeId?: string, tasks?: StudyTask[]) {
     const current = stateRef.current;
     if (!current) return;
-    const node = current.studyNodes.find((n) => n.id === nodeId);
-    if (!node) return;
-    const siblings = current.studyNodes
-      .filter((n) => n.parentId === node.parentId)
-      .sort(
-        (a, b) =>
-          (a.sortOrder ?? current.studyNodes.indexOf(a)) -
-          (b.sortOrder ?? current.studyNodes.indexOf(b)),
-      );
-    const from = siblings.findIndex((n) => n.id === nodeId),
-      to = from + direction;
-    if (to < 0 || to >= siblings.length) return;
-    [siblings[from], siblings[to]] = [siblings[to], siblings[from]];
-    const order = new Map(siblings.map((n, index) => [n.id, index]));
-    void updateState((value) => ({
-      ...value,
-      studyNodes: value.studyNodes.map((n) =>
-        order.has(n.id) ? { ...n, sortOrder: order.get(n.id) } : n,
+    const task = tasks?.[0],
+      id = nodeId ?? task?.nodeId;
+    if (id) {
+      const linked = cardsForStudyNode(
+        current.studyNodes,
+        current.folders,
+        current.cards,
+        id,
+      ).filter(isStudyableCard);
+      if (linked.length) {
+        void startReview(
+          undefined,
+          "learn",
+          linked.map((c) => c.id),
+          task?.id,
+          id,
+        );
+        return;
+      }
+    }
+    startStudySession(nodeId, tasks);
+  }
+  async function importLibraryToStudy(
+    draft: LibraryDraftNode[],
+    destination: string | null,
+  ) {
+    const current = stateRef.current;
+    if (!current) return false;
+    const result = materializeLibraryDraft(
+      current.studyNodes,
+      draft,
+      destination,
+      uid,
+      nowIso(),
+    );
+    const ok = await updateState((c) => ({ ...c, studyNodes: result.nodes }));
+    if (ok) notify(result.created + " elementos añadidos · tarjetas enlazadas");
+    return ok;
+  }
+  function reorderFolder(id: string, direction: -1 | 1) {
+    void updateState((c) => ({
+      ...c,
+      folders: reorderItems(c.folders, id, direction),
+    }));
+  }
+  function moveFolderOut(id: string) {
+    void updateState((c) => ({ ...c, folders: moveOut(c.folders, id) }));
+  }
+  function moveCard(id: string, folderId: string) {
+    if (!stateRef.current?.folders.some((f) => f.id === folderId)) return;
+    void updateState((c) => ({
+      ...c,
+      cards: c.cards.map((card) =>
+        card.id === id
+          ? {
+              ...card,
+              folderId,
+              sortOrder: appendRank(c.cards, folderId, "folderId"),
+            }
+          : card,
       ),
+    }));
+  }
+  function reorderCard(id: string, direction: -1 | 1) {
+    void updateState((c) => ({
+      ...c,
+      cards: reorderItems(c.cards, id, direction, "folderId"),
     }));
   }
 
@@ -452,17 +535,23 @@ export default function OpoApp() {
       input.id
         ? {
             ...current,
-            studyNodes: current.studyNodes.map((node) =>
-              node.id === input.id
-                ? { ...node, name, parentId: finalParentId }
-                : node,
-            ),
+            studyNodes: moveBranch(
+              current.studyNodes,
+              input.id!,
+              finalParentId,
+            ).map((node) => (node.id === input.id ? { ...node, name } : node)),
           }
         : {
             ...current,
             studyNodes: [
               ...current.studyNodes,
-              { id: uid(), name, parentId: finalParentId, createdAt: nowIso() },
+              {
+                id: uid(),
+                name,
+                parentId: finalParentId,
+                createdAt: nowIso(),
+                sortOrder: appendRank(current.studyNodes, finalParentId),
+              },
             ],
           },
     );
@@ -595,6 +684,7 @@ export default function OpoApp() {
               ...task,
               nodeId: input.nodeId,
               plannedFor: input.plannedFor,
+              planBucket: input.plannedFor ? "today" : "next",
               note: input.note.trim(),
               reason: input.reason,
             }
@@ -605,34 +695,35 @@ export default function OpoApp() {
     notify("Repaso actualizado");
   }
 
-  function reorderStudyTask(taskId: string, direction: -1 | 1) {
-    if (!state) return;
-    const due = state.studyTasks
-      .filter(
-        (task) =>
-          task.status === "pending" && task.plannedFor <= localDateKey(),
-      )
-      .sort(
-        (a, b) =>
-          a.queueOrder - b.queueOrder ||
-          a.plannedFor.localeCompare(b.plannedFor) ||
-          a.createdAt.localeCompare(b.createdAt),
-      );
-    const index = due.findIndex((task) => task.id === taskId);
-    const target = due[index + direction];
-    if (index < 0 || !target) return;
-    const currentOrder = due[index].queueOrder;
-    const targetOrder = target.queueOrder;
-    updateState((current) => ({
-      ...current,
-      studyTasks: current.studyTasks.map((task) =>
-        task.id === taskId
-          ? { ...task, queueOrder: targetOrder }
-          : task.id === target.id
-            ? { ...task, queueOrder: currentOrder }
-            : task,
-      ),
-    }));
+  function reorderStudyTask(id: string, direction: -1 | 1) {
+    void updateState((c) => {
+      const target = c.studyTasks.find((t) => t.id === id);
+      if (!target) return c;
+      const category = (t: StudyTask) =>
+        t.reason !== "estudio"
+          ? "review"
+          : t.planBucket === "next" ||
+              !t.plannedFor ||
+              t.plannedFor > localDateKey()
+            ? "next"
+            : "today";
+      const siblings = c.studyTasks
+        .filter(
+          (t) => t.status === "pending" && category(t) === category(target),
+        )
+        .sort((a, b) => a.queueOrder - b.queueOrder);
+      const from = siblings.findIndex((t) => t.id === id),
+        to = from + direction;
+      if (to < 0 || to >= siblings.length) return c;
+      [siblings[from], siblings[to]] = [siblings[to], siblings[from]];
+      const ranks = new Map(siblings.map((t, i) => [t.id, i]));
+      return {
+        ...c,
+        studyTasks: c.studyTasks.map((t) =>
+          ranks.has(t.id) ? { ...t, queueOrder: ranks.get(t.id)! } : t,
+        ),
+      };
+    });
   }
 
   function completeStudyTask(
@@ -873,6 +964,37 @@ export default function OpoApp() {
       ) ?? [],
     [state],
   );
+  const savedCardSession = validSession(state?.settings.activeCardSession)
+    ? state!.settings.activeCardSession!
+    : null;
+  const sessionNext = savedCardSession
+    ? nextSessionCard(savedCardSession, state?.cards ?? [], sessionClock)
+    : null;
+  const cardSessionSummary = savedCardSession
+    ? sessionSummary(savedCardSession)
+    : null;
+  useEffect(() => {
+    if (!sessionOpen) return;
+    const timer = setInterval(() => setSessionClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [sessionOpen]);
+  useEffect(() => {
+    if (
+      sessionOpen &&
+      !orthographySession &&
+      savedCardSession &&
+      reviewIndex >= reviewQueue.length &&
+      sessionNext?.kind === "card"
+    )
+      showSessionNext(savedCardSession, state?.cards ?? []);
+  }, [
+    sessionOpen,
+    sessionClock,
+    state,
+    reviewIndex,
+    reviewQueue.length,
+    orthographySession,
+  ]);
   const currentQueueItem = reviewQueue[reviewIndex] ?? null;
   const currentCard =
     state?.cards.find((card) => card.id === currentQueueItem?.cardId) ?? null;
@@ -972,334 +1094,308 @@ export default function OpoApp() {
     startReview(activeFolder?.id, mode, ids);
   }
 
-  function startOrthographySession(
+  async function startOrthographySession(
     folderId: string | undefined,
     mode: StudyMode,
     scope: Card[],
   ) {
-    if (!state) return;
-    const words = scope.filter(isOrthographyCard);
+    const current = stateRef.current;
+    if (!current || reviewBusyRef.current) return;
+    let words = scope.filter(isOrthographyCard);
+    if (mode === "weakest")
+      words = weakestStudyCards(words, current.reviews, personalModel);
+    if (mode === "random") words = shuffled(words);
+    if (mode === "recommended")
+      words = words
+        .filter((c) => !c.reviewCount || Date.parse(c.dueAt) <= Date.now())
+        .slice(0, current.settings.dailyReviewGoal);
     if (!words.length)
-      return notify("No hay palabras de ortografía en este tema o subtema");
-    if (
-      mode === "weakest" &&
-      !words.some((card) => failureCount(card.id, state.reviews) > 0)
-    ) {
-      return notify("Aún no hay palabras falladas en este tema o subtema");
-    }
-    const group = chooseOrthographyGroup(
-      words,
-      state.reviews,
-      personalModel,
-      new Map(),
-      1,
-      [],
-      mode,
-    );
-    if (!group.length)
-      return notify("No hay palabras disponibles para practicar");
-    const folder = folderId
-      ? state.folders.find((item) => item.id === folderId)
-      : null;
-    orthographyStatsRef.current = new Map();
-    orthographyLongTermSeenRef.current = new Set();
-    orthographyScopeRef.current = words.map((card) => card.id);
-    orthographyPreviousGroupRef.current = group.map((card) => card.id);
-    orthographyGroupStartedAtRef.current = Date.now();
+      return notify("No hay palabras pendientes en este ámbito");
+    const session: CardSession = {
+      ...createCardSession(words, mode, uid(), Date.now()),
+      format: "orthography",
+    };
+    reviewBusyRef.current = true;
+    setReviewSaving(true);
+    const saved = await updateState((c) => ({
+      ...c,
+      settings: { ...c.settings, activeCardSession: session },
+    }));
+    reviewBusyRef.current = false;
+    setReviewSaving(false);
+    if (!saved) return;
+    setStudyFlow(null);
     setReviewQueue([]);
-    setOrthographySelected([]);
-    setOrthographySession({
-      folderId: folderId ?? null,
-      mode,
-      groupIds: group.map((card) => card.id),
-      results: null,
-      groupNumber: 1,
-      responses: 0,
-      correctResponses: 0,
-      scopeLabel: folder?.name ?? "Ortografía",
-    });
+    setReviewIndex(0);
+    presentationKeyRef.current = "";
+    setSessionOpen(true);
+    setSessionClock(Date.now());
+    showSessionNext(session, current.cards);
   }
-
-  function toggleOrthographyWord(cardId: string) {
-    if (orthographySession?.results) return;
-    setOrthographySelected((current) =>
-      current.includes(cardId)
-        ? current.filter((id) => id !== cardId)
-        : [...current, cardId],
+  function toggleOrthographyWord(id: string) {
+    if (orthographySession?.results || reviewBusyRef.current) return;
+    setOrthographySelected((ids) =>
+      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
     );
   }
-
-  function correctOrthographyGroup() {
-    if (!state || !orthographySession || orthographySession.results) return;
-    const groupCards = orthographySession.groupIds
-      .map((id) => state.cards.find((card) => card.id === id))
-      .filter((card): card is Card => Boolean(card && isOrthographyCard(card)));
-    if (!groupCards.length) return;
-    const selected = new Set(orthographySelected);
-    const now = new Date();
-    const responseMs = Math.max(
-      0,
-      Date.now() - orthographyGroupStartedAtRef.current,
-    );
-    const results: OrthographyStudyResult[] = groupCards.map((card) => {
-      const shouldBeMarked = card.orthographyIsCorrect === false;
-      const userMarked = selected.has(card.id);
-      return {
-        cardId: card.id,
-        userMarked,
-        shouldBeMarked,
-        correct: userMarked === shouldBeMarked,
-      };
-    });
-    const resultById = new Map(
-      results.map((result) => [result.cardId, result]),
-    );
-    const newReviews: Review[] = [];
-    const updatedById = new Map<string, Card>();
-    const currentTurn = orthographySession.groupNumber;
-
-    for (const card of groupCards) {
-      const result = resultById.get(card.id)!;
-      const rating: Rating = result.correct ? "good" : "again";
-      const firstLongTermEncounter = !orthographyLongTermSeenRef.current.has(
-        card.id,
-      );
-      let updated = firstLongTermEncounter ? scheduleCard(card, rating) : card;
-      const previousStat = orthographyStatsRef.current.get(card.id) ?? {
-        seen: 0,
-        correct: 0,
-        wrong: 0,
-        cooldownUntil: 0,
-      };
-      const nextWrong = previousStat.wrong + (result.correct ? 0 : 1);
-      if (!result.correct && (nextWrong >= 2 || updated.lapses >= 2))
+  async function correctOrthographyGroup() {
+    const current = stateRef.current,
+      session = current?.settings.activeCardSession;
+    if (
+      !current ||
+      !orthographySession ||
+      orthographySession.results ||
+      !validSession(session) ||
+      reviewBusyRef.current
+    )
+      return;
+    reviewBusyRef.current = true;
+    setReviewSaving(true);
+    const selected = new Set(orthographySelected),
+      now = new Date();
+    let nextSession = session;
+    const updates = new Map<string, Card>(),
+      reviews: Review[] = [],
+      results: OrthographyStudyResult[] = [];
+    for (const id of orthographySession.groupIds) {
+      const card = current.cards.find((c) => c.id === id),
+        item = session.items.find((i) => i.id === id);
+      if (!card || !item || !["new", "reinforce"].includes(item.status))
+        continue;
+      const shouldBeMarked = card.orthographyIsCorrect === false,
+        userMarked = selected.has(id),
+        correct = shouldBeMarked === userMarked;
+      const rating: Rating = correct ? "good" : "again",
+        reinforcement = item.attempts > 0;
+      let updated = applyFsrsReview(card, rating, now, reinforcement);
+      if (!correct && (item.failures >= 1 || updated.lapses >= 2))
         updated = {
           ...updated,
           orthographyStage: Math.max(2, updated.orthographyStage || 1),
         };
-      updatedById.set(card.id, updated);
-      if (firstLongTermEncounter)
-        orthographyLongTermSeenRef.current.add(card.id);
-
-      const recall = predictPersonalRecall(
-        card,
-        state.reviews,
-        personalModel,
-        now,
-      );
-      newReviews.push({
+      const review: Review = {
         id: uid(),
-        cardId: card.id,
+        cardId: id,
         rating,
-        correct: result.correct,
+        correct,
         reviewedAt: now.toISOString(),
-        responseMs,
-        sessionMode: orthographySession.mode,
-        reinforcement: !firstLongTermEncounter,
-        predictedRecall: recall.probability,
+        responseMs: Math.max(0, +now - orthographyGroupStartedAtRef.current),
+        sessionMode: session.mode,
+        reinforcement,
+        predictedRecall: predictPersonalRecall(
+          card,
+          current.reviews,
+          personalModel,
+          now,
+        ).probability,
         fsrsRetrievability: fsrsCurrentRetrievability(card, now),
-      });
-
-      orthographyStatsRef.current.set(card.id, {
-        seen: previousStat.seen + 1,
-        correct: previousStat.correct + (result.correct ? 1 : 0),
-        wrong: nextWrong,
-        cooldownUntil: currentTurn + (result.correct ? 3 : 1),
-      });
+        schedulerVersion: "ts-fsrs-5.4.2",
+        fsrsBefore: fsrsSnapshot(card),
+        fsrsAfter: fsrsSnapshot(updated),
+      };
+      updates.set(id, updated);
+      reviews.push(review);
+      nextSession = answerSession(
+        nextSession,
+        updated,
+        rating,
+        review.id,
+        +now,
+      );
+      results.push({ cardId: id, userMarked, shouldBeMarked, correct });
     }
-
-    updateState((current) => ({
-      ...current,
-      cards: current.cards.map((card) => updatedById.get(card.id) ?? card),
-      reviews: [...current.reviews, ...newReviews],
+    const saved = await updateState((c) => ({
+      ...c,
+      cards: c.cards.map((card) => updates.get(card.id) ?? card),
+      reviews: [...c.reviews, ...reviews],
+      settings: { ...c.settings, activeCardSession: nextSession },
     }));
-
-    const correctCount = results.filter((result) => result.correct).length;
-    setOrthographySession((current) =>
-      current
+    reviewBusyRef.current = false;
+    setReviewSaving(false);
+    if (!saved) return;
+    setOrthographySession((s) =>
+      s
         ? {
-            ...current,
+            ...s,
             results,
-            responses: current.responses + results.length,
-            correctResponses: current.correctResponses + correctCount,
+            responses: nextSession.history.length,
+            correctResponses: nextSession.history.filter(
+              (r) => r.rating !== "again",
+            ).length,
           }
-        : current,
+        : null,
     );
+    setSessionClock(+now);
   }
-
   function continueOrthographySession() {
-    if (!state || !orthographySession || !orthographySession.results) return;
-    const scope = state.cards.filter(
-      (card) =>
-        orthographyScopeRef.current.includes(card.id) &&
-        isOrthographyCard(card),
-    );
-    const nextTurn = orthographySession.groupNumber + 1;
-    const group = chooseOrthographyGroup(
-      scope,
-      state.reviews,
-      personalModel,
-      orthographyStatsRef.current,
-      nextTurn,
-      orthographySession.groupIds,
-      orthographySession.mode,
-    );
-    if (!group.length)
-      return notify("No quedan palabras disponibles en este ámbito");
-    orthographyPreviousGroupRef.current = group.map((card) => card.id);
-    orthographyGroupStartedAtRef.current = Date.now();
-    setOrthographySelected([]);
-    setOrthographySession((current) =>
-      current
-        ? {
-            ...current,
-            groupIds: group.map((card) => card.id),
-            results: null,
-            groupNumber: nextTurn,
-          }
-        : current,
-    );
+    if (reviewBusyRef.current) return;
+    const current = stateRef.current,
+      session = current?.settings.activeCardSession;
+    if (!current || !validSession(session)) return;
+    setOrthographySession(null);
+    setSessionClock(Date.now());
+    showSessionNext(session, current.cards);
   }
-
   function closeOrthographySession() {
     setOrthographySession(null);
     setOrthographySelected([]);
-    orthographyScopeRef.current = [];
-    orthographyPreviousGroupRef.current = [];
+    setSessionOpen(false);
   }
 
-  function startReview(
+  function showSessionNext(session: CardSession, cards: Card[]) {
+    const next = nextSessionCard(session, cards, Date.now());
+    if (next.kind !== "card") return;
+    const key = session.id + ":" + session.turn + ":" + next.id;
+    if (presentationKeyRef.current === key) return;
+    presentationKeyRef.current = key;
+    if (session.format === "orthography") {
+      let candidate = session;
+      const groupIds: string[] = [];
+      for (let i = 0; i < 4; i++) {
+        const chosen = nextSessionCard(candidate, cards, Date.now());
+        if (chosen.kind !== "card") break;
+        groupIds.push(chosen.id);
+        candidate = skipSessionCard(candidate, chosen.id, Date.now());
+      }
+      setOrthographySelected([]);
+      orthographyGroupStartedAtRef.current = Date.now();
+      setOrthographySession({
+        folderId: null,
+        mode: session.mode,
+        groupIds,
+        results: null,
+        groupNumber: Math.floor(session.history.length / 4) + 1,
+        responses: session.history.length,
+        correctResponses: session.history.filter((r) => r.rating !== "again")
+          .length,
+        scopeLabel: "Ortografía",
+      });
+      return;
+    }
+    const item = session.items.find((i) => i.id === next.id)!;
+    setReviewQueue((q) => [
+      ...q,
+      {
+        cardId: next.id,
+        reinforcement: item.attempts > 0,
+        reason:
+          item.lastRating === "again"
+            ? "again"
+            : item.attempts
+              ? "hard"
+              : "scheduled",
+        completed: false,
+      },
+    ]);
+    cardShownAtRef.current = Date.now();
+  }
+
+  function resumeCardSession() {
+    const current = stateRef.current;
+    const session = current?.settings.activeCardSession;
+    if (!current || !validSession(session)) return;
+    closeOrthographySession();
+    setStudyFlow(null);
+    presentationKeyRef.current = "";
+    setReviewQueue([]);
+    setReviewIndex(0);
+    setStudyMode(session.mode);
+    setSessionDone(session.history.length);
+    setSessionClock(Date.now());
+    setSessionOpen(true);
+    showSessionNext(session, current.cards);
+  }
+
+  async function startReview(
     folderId?: string,
     mode: StudyMode = "recommended",
     explicitCardIds?: string[],
+    studyTaskId?: string,
+    sourceNodeId?: string,
   ) {
-    if (!state) return;
-    const explicitIds = explicitCardIds?.length
-      ? new Set(explicitCardIds)
-      : null;
-    const fullScope = explicitIds
-      ? state.cards.filter(
-          (card) => explicitIds.has(card.id) && isStudyableCard(card),
-        )
-      : cardsInFolderScope(state, folderId);
-
-    if (!fullScope.length) {
-      return notify(
-        explicitIds
-          ? "La selección no contiene tarjetas disponibles para estudiar"
-          : "Aún no hay tarjetas para estudiar",
-      );
-    }
-
-    const orthographyScope = fullScope.filter(isOrthographyCard);
-    if (
-      orthographyScope.length &&
-      orthographyScope.length === fullScope.length
-    ) {
-      startOrthographySession(folderId, mode, orthographyScope);
+    const current = stateRef.current;
+    if (!current || reviewBusyRef.current) return;
+    const ids = explicitCardIds?.length ? new Set(explicitCardIds) : null;
+    const fullScope = ids
+      ? current.cards.filter((c) => ids.has(c.id) && isStudyableCard(c))
+      : cardsInFolderScope(current, folderId);
+    if (!fullScope.length) return notify("Aún no hay tarjetas para estudiar");
+    const ortho = fullScope.filter(isOrthographyCard);
+    if (ortho.length === fullScope.length) {
+      setSessionOpen(false);
+      startOrthographySession(folderId, mode, ortho);
       return;
     }
-    if (explicitIds && orthographyScope.length > 0) {
-      return notify(
-        "No se puede mezclar Ortografía con otros tipos en una misma selección de estudio",
-      );
-    }
-
-    let scope = fullScope.filter((card) => !isOrthographyCard(card));
+    if (ids && ortho.length)
+      return notify("Selecciona Ortografía por separado de los otros tipos");
+    let scope = fullScope.filter((c) => !isOrthographyCard(c));
     const now = new Date();
-    let selectedPool: Card[] = [];
-
-    closeOrthographySession();
-    learnStatsRef.current = new Map();
-
-    if (mode === "weakest") {
-      scope = weakestStudyCards(scope, state.reviews, personalModel);
-      if (!scope.length) {
-        return notify(
-          folderId
-            ? "Aún no hay elementos fallados en este tema o subtema"
-            : "Aún no hay elementos fallados para repasar",
-        );
-      }
-    }
-
-    studyScopeRef.current = scope.map((card) => card.id);
-
-    if (isContinuousStudyMode(mode)) {
-      const first = chooseLearnCard(
-        scope,
-        state.reviews,
-        personalModel,
-        learnStatsRef.current,
-        0,
-      );
-      if (!first)
-        return notify(
-          folderId
-            ? "Aún no hay tarjetas en este tema o subtema"
-            : "Aún no hay tarjetas para estudiar",
-        );
-      selectedPool = [first];
-    } else if (mode === "random") {
-      selectedPool = shuffled(scope);
-    } else if (mode === "all") {
-      selectedPool = scope;
-    } else {
+    if (mode === "weakest")
+      scope = weakestStudyCards(scope, current.reviews, personalModel);
+    let pool = mode === "random" ? shuffled(scope) : scope;
+    if (mode === "recommended") {
       const due = scope
-        .filter(
-          (card) =>
-            card.reviewCount > 0 &&
-            new Date(card.dueAt).getTime() <= now.getTime(),
-        )
+        .filter((c) => c.reviewCount > 0 && Date.parse(c.dueAt) <= +now)
         .sort(
           (a, b) =>
-            predictPersonalRecall(a, state.reviews, personalModel, now)
+            predictPersonalRecall(a, current.reviews, personalModel, now)
               .probability -
-            predictPersonalRecall(b, state.reviews, personalModel, now)
+            predictPersonalRecall(b, current.reviews, personalModel, now)
               .probability,
         );
-      const dueSelected = due.slice(0, state.settings.dailyReviewGoal);
-      const remaining = Math.max(
-        0,
-        state.settings.dailyReviewGoal - dueSelected.length,
-      );
-      const newCards = shuffled(
-        scope.filter((card) => card.reviewCount === 0),
-      ).slice(0, Math.min(state.settings.dailyNewLimit, remaining));
-      selectedPool = [...dueSelected, ...newCards];
+      const learning = due.filter(isLearning);
+      const ordinary = due
+        .filter((c) => !isLearning(c))
+        .slice(
+          0,
+          Math.max(0, current.settings.dailyReviewGoal - learning.length),
+        );
+      const fresh = scope
+        .filter((c) => !c.reviewCount)
+        .slice(
+          0,
+          Math.min(
+            current.settings.dailyNewLimit,
+            Math.max(
+              0,
+              current.settings.dailyReviewGoal -
+                learning.length -
+                ordinary.length,
+            ),
+          ),
+        );
+      pool = [...learning, ...ordinary, ...fresh];
     }
-
-    if (!selectedPool.length) {
+    if (!pool.length)
       return notify(
-        mode === "recommended"
-          ? "No hay tarjetas programadas ahora. Usa Aprender o Aleatorias si quieres seguir."
-          : mode === "weakest"
-            ? "Aún no hay elementos fallados para repasar"
-            : folderId
-              ? "Aún no hay tarjetas en este tema o subtema"
-              : "Aún no hay tarjetas para estudiar",
+        mode === "weakest"
+          ? "No hay tarjetas falladas"
+          : "Todo al día. Puedes iniciar un repaso libre.",
       );
-    }
-
+    const session = {
+      ...createCardSession(pool, mode, uid(), +now),
+      studyTaskId,
+      sourceNodeId,
+    };
+    reviewBusyRef.current = true;
+    setReviewSaving(true);
+    const saved = await updateState((c) => ({
+      ...c,
+      settings: { ...c.settings, activeCardSession: session },
+    }));
+    reviewBusyRef.current = false;
+    setReviewSaving(false);
+    if (!saved) return;
+    closeOrthographySession();
+    setStudyFlow(null);
+    presentationKeyRef.current = "";
     setStudyMode(mode);
-    reinforcementCountsRef.current = new Map();
-    setReviewQueue(
-      selectedPool.map((card) => ({
-        cardId: card.id,
-        reinforcement: false,
-        reason: "scheduled",
-        completed: false,
-      })),
-    );
+    setReviewQueue([]);
     setReviewIndex(0);
     setSessionDone(0);
-    setRevealed(false);
-    setViewingStudyImage(false);
-    setSelectedOption(null);
-    setSelectedOptions([]);
-    setWrittenAnswer("");
-    setWrittenResult(null);
-    cardShownAtRef.current = Date.now();
+    setSessionClock(+now);
+    setSessionOpen(true);
+    showSessionNext(session, pool);
   }
 
   function currentSelectionIsCorrect(card: Card) {
@@ -1326,49 +1422,39 @@ export default function OpoApp() {
   }
 
   function goToPreviousCard() {
-    if (reviewIndex <= 0) return;
-    setReviewIndex((value) => Math.max(0, value - 1));
+    if (!reviewBusyRef.current && reviewIndex > 0) setReviewIndex((i) => i - 1);
   }
 
-  function goToNextCard() {
-    if (!state || !currentCard) return;
-    const nextQueue = [...reviewQueue];
-
-    if (
-      isContinuousStudyMode(studyMode) &&
-      reviewIndex >= nextQueue.length - 1
-    ) {
-      const scope = state.cards.filter(
-        (card) =>
-          studyScopeRef.current.includes(card.id) && isStudyableCard(card),
-      );
-      const next = chooseLearnCard(
-        scope,
-        state.reviews,
-        personalModel,
-        learnStatsRef.current,
-        Math.max(sessionDone, nextQueue.length),
-        currentCard.id,
-      );
-      if (next) {
-        const nextSeen = learnStatsRef.current.get(next.id)?.seen ?? 0;
-        nextQueue.push({
-          cardId: next.id,
-          reinforcement: nextSeen > 0,
-          reason: nextSeen > 0 ? "hard" : "scheduled",
-          completed: false,
-        });
-      }
+  async function goToNextCard() {
+    if (reviewBusyRef.current) return;
+    if (currentQueueItem?.completed && reviewIndex < reviewQueue.length - 1) {
+      setReviewIndex((i) => i + 1);
+      return;
     }
-
-    setReviewQueue(nextQueue);
-    if (reviewIndex + 1 < nextQueue.length) {
-      setReviewIndex((value) => value + 1);
-    } else if (!isContinuousStudyMode(studyMode)) {
-      setReviewIndex(nextQueue.length);
-    } else {
-      notify("No hay otra tarjeta disponible en este ámbito");
+    const current = stateRef.current,
+      session = current?.settings.activeCardSession;
+    if (!current || !validSession(session)) return;
+    let next = session;
+    if (currentCard && !currentQueueItem?.completed) {
+      next = skipSessionCard(session, currentCard.id, Date.now());
+      reviewBusyRef.current = true;
+      setReviewSaving(true);
+      const saved = await updateState((c) => ({
+        ...c,
+        settings: { ...c.settings, activeCardSession: next },
+      }));
+      reviewBusyRef.current = false;
+      setReviewSaving(false);
+      if (!saved) return;
+      setReviewQueue((q) =>
+        q.map((item, i) =>
+          i === reviewIndex ? { ...item, completed: true } : item,
+        ),
+      );
     }
+    setReviewIndex(reviewQueue.length);
+    setSessionClock(Date.now());
+    showSessionNext(next, current.cards);
   }
 
   function markCurrentUnknown() {
@@ -1386,149 +1472,108 @@ export default function OpoApp() {
     recordCurrentReview(rating, writtenEvaluation, true, "rated");
   }
 
-  function recordCurrentReview(
+  async function recordCurrentReview(
     rating: Rating,
     writtenEvaluation: WrittenAnswerResult | null | undefined,
     advance: boolean,
     outcome: ReviewQueueOutcome,
   ) {
+    const current = stateRef.current,
+      session = current?.settings.activeCardSession;
     if (
-      !state ||
+      !current ||
       !currentCard ||
       !currentQueueItem ||
-      currentQueueItem.completed
+      currentQueueItem.completed ||
+      !validSession(session) ||
+      reviewBusyRef.current
     )
       return;
+    const card = current.cards.find((c) => c.id === currentCard.id);
+    const item = session.items.find((i) => i.id === card?.id);
+    if (!card || !item || !["new", "reinforce"].includes(item.status)) return;
+    reviewBusyRef.current = true;
+    setReviewSaving(true);
     const now = new Date();
-    const choiceWasWrong =
-      isMultipleChoiceCard(currentCard) &&
-      !currentSelectionIsCorrect(currentCard);
-    const effectiveRating: Rating = choiceWasWrong ? "again" : rating;
-    const correct = effectiveRating !== "again";
-    const responseMs = Math.max(0, Date.now() - cardShownAtRef.current);
-    const recall = predictPersonalRecall(
-      currentCard,
-      state.reviews,
-      personalModel,
-      now,
-    );
-
-    const learnStat = learnStatsRef.current.get(currentCard.id) ?? {
-      seen: 0,
-      again: 0,
-      hard: 0,
-      good: 0,
-      easy: 0,
-      cooldownUntil: 0,
-    };
-    const firstLearnEncounter = learnStat.seen === 0;
-    const continuousMode = isContinuousStudyMode(studyMode);
-    const shouldUpdateLongTerm = !continuousMode || firstLearnEncounter;
-    const scheduled = shouldUpdateLongTerm
-      ? scheduleCard(currentCard, effectiveRating)
-      : currentCard;
+    const effective: Rating =
+      isMultipleChoiceCard(card) && !currentSelectionIsCorrect(card)
+        ? "again"
+        : rating;
+    const reinforcement = item.attempts > 0;
+    const scheduled = applyFsrsReview(card, effective, now, reinforcement);
     const updated =
-      writtenEvaluation && isWrittenCard(currentCard)
+      writtenEvaluation && isWrittenCard(card)
         ? applyWrittenStats(scheduled, writtenEvaluation)
         : scheduled;
-
     const review: Review = {
       id: uid(),
-      cardId: currentCard.id,
-      rating: effectiveRating,
-      correct,
+      cardId: card.id,
+      rating: effective,
+      correct: effective !== "again",
       accuracy: outcome === "unknown" ? 0 : writtenEvaluation?.accuracy,
       reviewedAt: now.toISOString(),
-      responseMs,
-      sessionMode: studyMode,
-      reinforcement: continuousMode
-        ? !firstLearnEncounter
-        : currentQueueItem.reinforcement,
-      predictedRecall: recall.probability,
-      fsrsRetrievability: fsrsCurrentRetrievability(currentCard, now),
+      responseMs: Math.max(0, +now - cardShownAtRef.current),
+      sessionMode: session.mode,
+      reinforcement,
+      predictedRecall: predictPersonalRecall(
+        card,
+        current.reviews,
+        personalModel,
+        now,
+      ).probability,
+      fsrsRetrievability: fsrsCurrentRetrievability(card, now),
+      schedulerVersion: "ts-fsrs-5.4.2",
+      fsrsBefore: fsrsSnapshot(card),
+      fsrsAfter: fsrsSnapshot(updated),
     };
-    updateState((current) => ({
-      ...current,
-      cards: current.cards.map((card) =>
-        card.id === updated.id ? updated : card,
-      ),
-      reviews: [...current.reviews, review],
-    }));
-
-    const nextQueue = reviewQueue.map((item, index) =>
-      index === reviewIndex ? { ...item, completed: true, outcome } : item,
+    const nextSession = answerSession(
+      session,
+      updated,
+      effective,
+      review.id,
+      +now,
     );
-
-    if (continuousMode) {
-      const nextTurn = sessionDone + 1;
-      const gap =
-        effectiveRating === "again"
-          ? 2
-          : effectiveRating === "hard"
-            ? 4
-            : effectiveRating === "good"
-              ? 7
-              : 14;
-      const nextStat: LearnStat = {
-        ...learnStat,
-        seen: learnStat.seen + 1,
-        again: learnStat.again + (effectiveRating === "again" ? 1 : 0),
-        hard: learnStat.hard + (effectiveRating === "hard" ? 1 : 0),
-        good: learnStat.good + (effectiveRating === "good" ? 1 : 0),
-        easy: learnStat.easy + (effectiveRating === "easy" ? 1 : 0),
-        cooldownUntil: nextTurn + gap,
-      };
-      learnStatsRef.current.set(currentCard.id, nextStat);
-      const scope = state.cards
-        .map((card) => (card.id === updated.id ? updated : card))
-        .filter(
-          (card) =>
-            studyScopeRef.current.includes(card.id) && isStudyableCard(card),
-        );
-      if (reviewIndex >= nextQueue.length - 1) {
-        const next = chooseLearnCard(
-          scope,
-          [...state.reviews, review],
-          personalModel,
-          learnStatsRef.current,
-          nextTurn,
-          currentCard.id,
-        );
-        if (next) {
-          const nextSeen = learnStatsRef.current.get(next.id)?.seen ?? 0;
-          nextQueue.push({
-            cardId: next.id,
-            reinforcement: nextSeen > 0,
-            reason: nextSeen > 0 ? "hard" : "scheduled",
-            completed: false,
-          });
-        }
-      }
-    } else {
-      const counts = reinforcementCountsRef.current;
-      const previousCount = counts.get(currentCard.id) ?? 0;
-      const shouldReinforceAgain =
-        effectiveRating === "again" && previousCount < 3;
-      const shouldReinforceHard =
-        effectiveRating === "hard" && previousCount < 1;
-      if (shouldReinforceAgain || shouldReinforceHard) {
-        const gap = shouldReinforceAgain ? 2 : 4;
-        const reason = shouldReinforceAgain ? "again" : "hard";
-        const insertAt = Math.min(nextQueue.length, reviewIndex + 1 + gap);
-        nextQueue.splice(insertAt, 0, {
-          cardId: currentCard.id,
-          reinforcement: true,
-          reason,
-          completed: false,
-        });
-        counts.set(currentCard.id, previousCount + 1);
-      }
-    }
-
-    setReviewQueue(nextQueue);
-    setSessionDone((value) => value + 1);
+    const cards = current.cards.map((c) => (c.id === updated.id ? updated : c));
+    const summary = sessionSummary(nextSession);
+    const completed =
+      nextSessionCard(nextSession, cards, +now).kind === "complete" &&
+      summary.remembered === summary.total;
+    const stamp = now.toISOString(),
+      eventId = "session-" + uid();
+    const saved = await updateState((c) => ({
+      ...c,
+      cards: c.cards.map((v) => (v.id === updated.id ? updated : v)),
+      reviews: [...c.reviews, review],
+      settings: { ...c.settings, activeCardSession: nextSession },
+      studyTasks:
+        completed && session.studyTaskId
+          ? c.studyTasks.map((t) =>
+              t.id === session.studyTaskId && t.status === "pending"
+                ? {
+                    ...t,
+                    status: "done",
+                    assessment: "bien",
+                    completedAt: stamp,
+                    completionNote: t.completionNote || "",
+                    _completionEventId: eventId,
+                  }
+                : t,
+            )
+          : c.studyTasks,
+    }));
+    reviewBusyRef.current = false;
+    setReviewSaving(false);
+    if (!saved) return;
+    setReviewQueue((q) =>
+      q.map((v, i) =>
+        i === reviewIndex ? { ...v, completed: true, outcome } : v,
+      ),
+    );
+    setSessionDone(nextSession.history.length);
+    setSessionClock(+now);
     if (advance) {
-      setReviewIndex((value) => Math.min(value + 1, nextQueue.length));
+      setReviewIndex(reviewQueue.length);
+      showSessionNext(nextSession, cards);
     } else {
       setWrittenAnswer("");
       setWrittenResult(null);
@@ -1739,9 +1784,7 @@ export default function OpoApp() {
       : "Biblioteca";
     updateState((current) => ({
       ...current,
-      folders: current.folders.map((item) =>
-        item.id === folderId ? { ...item, parentId: targetParentId } : item,
-      ),
+      folders: moveBranch(current.folders, folderId, targetParentId),
     }));
     setMovingFolderId(null);
     notify(
@@ -1873,14 +1916,7 @@ export default function OpoApp() {
         a.queueOrder - b.queueOrder ||
         a.createdAt.localeCompare(b.createdAt),
     );
-  const studyDue = studyPending
-    .filter((task) => task.plannedFor <= localDateKey())
-    .sort(
-      (a, b) =>
-        a.queueOrder - b.queueOrder ||
-        a.plannedFor.localeCompare(b.plannedFor) ||
-        a.createdAt.localeCompare(b.createdAt),
-    );
+  const studyDue = dueStudyTasks(studyPending);
   const studyUpcoming = studyPending
     .filter((task) => task.plannedFor > localDateKey())
     .slice(0, 8);
@@ -1940,7 +1976,9 @@ export default function OpoApp() {
         ? (studyFlowNode as any).reference
         : undefined;
   function startTodayReview() {
-    if (dueCards.length) startReview();
+    if (savedCardSession && sessionNext?.kind !== "complete")
+      resumeCardSession();
+    else if (dueCards.length) startReview();
     else if (orthographyDue)
       startOrthographySession(undefined, "recommended", orthographyCards);
     else if (reviewTreeDue.length) startStudySession(undefined, reviewTreeDue);
@@ -1998,7 +2036,7 @@ export default function OpoApp() {
 
   return (
     <div
-      className={`app-shell app-v11 ${reviewQueue.length || orthographySession || studyFlow ? "session-active" : ""}`}
+      className={`app-shell app-v11 app-v12 ${sessionOpen || orthographySession || studyFlow ? "session-active" : ""}`}
     >
       <AppNavigation tab={tab} onNavigate={navigate} status={saveStatus} />
       <main className="ux-main">
@@ -2066,7 +2104,7 @@ export default function OpoApp() {
               "Mi oposición · a tu ritmo"
             }
             onReview={startTodayReview}
-            onStudy={() => startStudySession(undefined, plannedStudyDue)}
+            onStudy={() => startStudyWithContent(undefined, plannedStudyDue)}
             onPlanning={() => {
               navigate("organize");
               setStudyView("today");
@@ -2077,8 +2115,27 @@ export default function OpoApp() {
           <StudyStartPage
             nodes={state.studyNodes}
             tasks={plannedStudyDue}
-            onContinue={() => startStudySession(undefined, plannedStudyDue)}
-            onNode={(id) => startStudySession(id)}
+            onContinue={() => startStudyWithContent(undefined, plannedStudyDue)}
+            onNode={(id) => startStudyWithContent(id)}
+            newCards={
+              state.cards.filter((c) => !c.reviewCount && !isOrthographyCard(c))
+                .length
+            }
+            onCards={() =>
+              startReview(
+                undefined,
+                "learn",
+                state.cards
+                  .filter((c) => !c.reviewCount && !isOrthographyCard(c))
+                  .slice(0, state.settings.dailyNewLimit)
+                  .map((c) => c.id),
+              )
+            }
+            onResume={
+              savedCardSession && sessionNext?.kind !== "complete"
+                ? resumeCardSession
+                : undefined
+            }
             onOrganize={() => {
               navigate("organize");
               setStudyView("tree");
@@ -2105,7 +2162,7 @@ export default function OpoApp() {
           <MorePage
             onNavigate={(next) => {
               navigate(next);
-              if (next === "organize") setStudyView("tree");
+              if (next === "organize") setStudyView("today");
             }}
             onAccount={() =>
               window.dispatchEvent(new CustomEvent("opogc:account"))
@@ -2214,62 +2271,60 @@ export default function OpoApp() {
                   </span>
                 </div>
                 <div className="folder-grid">
-                  {state.folders
-                    .filter((folder) => !folder.parentId)
-                    .map((folder) => {
-                      const cards = cardsInFolderScope(state, folder.id);
-                      const reviewed = cards.filter(
-                        (card) => card.reviewCount > 0,
-                      ).length;
-                      const pct = cards.length
-                        ? Math.round((reviewed / cards.length) * 100)
-                        : 0;
-                      const children = state.folders.filter(
-                        (item) => item.parentId === folder.id,
-                      ).length;
-                      return (
-                        <button
-                          className="folder-card"
-                          key={folder.id}
-                          onClick={() => setSelectedFolder(folder.id)}
+                  {orderedChildren(state.folders, null).map((folder) => {
+                    const cards = cardsInFolderScope(state, folder.id);
+                    const reviewed = cards.filter(
+                      (card) => card.reviewCount > 0,
+                    ).length;
+                    const pct = cards.length
+                      ? Math.round((reviewed / cards.length) * 100)
+                      : 0;
+                    const children = state.folders.filter(
+                      (item) => item.parentId === folder.id,
+                    ).length;
+                    return (
+                      <button
+                        className="folder-card"
+                        key={folder.id}
+                        onClick={() => setSelectedFolder(folder.id)}
+                      >
+                        <span
+                          className="folder-icon"
+                          style={{
+                            background: `${folder.color}18`,
+                            color: folder.color,
+                          }}
                         >
+                          ▰
+                        </span>
+                        <span
+                          className="folder-menu folder-menu-action"
+                          title="Opciones de carpeta"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedFolder(folder.id);
+                            setLibraryActionsOpen(true);
+                          }}
+                        >
+                          •••
+                        </span>
+                        <strong>{folder.name}</strong>
+                        <small>
+                          {cards.length} tarjetas · {children}{" "}
+                          {children === 1 ? "apartado" : "apartados"}
+                        </small>
+                        <span className="progress-track">
                           <span
-                            className="folder-icon"
                             style={{
-                              background: `${folder.color}18`,
-                              color: folder.color,
+                              width: `${pct}%`,
+                              background: folder.color,
                             }}
-                          >
-                            ▰
-                          </span>
-                          <span
-                            className="folder-menu folder-menu-action"
-                            title="Opciones de carpeta"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelectedFolder(folder.id);
-                              setLibraryActionsOpen(true);
-                            }}
-                          >
-                            •••
-                          </span>
-                          <strong>{folder.name}</strong>
-                          <small>
-                            {cards.length} tarjetas · {children}{" "}
-                            {children === 1 ? "apartado" : "apartados"}
-                          </small>
-                          <span className="progress-track">
-                            <span
-                              style={{
-                                width: `${pct}%`,
-                                background: folder.color,
-                              }}
-                            />
-                          </span>
-                          <span className="folder-progress">{pct}% visto</span>
-                        </button>
-                      );
-                    })}
+                          />
+                        </span>
+                        <span className="folder-progress">{pct}% visto</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             ) : (
@@ -2279,13 +2334,16 @@ export default function OpoApp() {
                       (folder) => folder.id === activeFolder.parentId,
                     ) ?? null)
                   : null;
-                const children = state.folders.filter(
-                  (folder) => folder.parentId === activeFolder.id,
+                const children = orderedChildren(
+                  state.folders,
+                  activeFolder.id,
                 );
                 const scopeCards = cardsInFolderScope(state, activeFolder.id);
                 const writtenScopeCards = scopeCards.filter(isWrittenCard);
-                const directCards = state.cards.filter(
-                  (card) => card.folderId === activeFolder.id,
+                const directCards = orderedChildren(
+                  state.cards,
+                  activeFolder.id,
+                  "folderId",
                 );
                 const isTheme = !activeFolder.parentId;
                 return (
@@ -2769,6 +2827,14 @@ export default function OpoApp() {
                               <div className="card-actions">
                                 {!bulkSelectMode && (
                                   <button
+                                    aria-label="Mover o reordenar tarjeta"
+                                    onClick={() => setCardActionsId(card.id)}
+                                  >
+                                    <Icon name="more" size={19} />
+                                  </button>
+                                )}
+                                {!bulkSelectMode && (
+                                  <button
                                     aria-label="Editar tarjeta"
                                     title="Editar tarjeta"
                                     onClick={() => {
@@ -2905,149 +2971,27 @@ export default function OpoApp() {
                 </div>
               </div>
             ) : studyView === "today" ? (
-              <>
-                <div className="study-summary-grid">
-                  <article>
-                    <span>PARA HOY</span>
-                    <strong>{studyDue.length}</strong>
-                    <small>incluye atrasados</small>
-                  </article>
-                  <article>
-                    <span>PRÓXIMOS</span>
-                    <strong>
-                      {
-                        studyPending.filter(
-                          (task) => task.plannedFor > localDateKey(),
-                        ).length
-                      }
-                    </strong>
-                    <small>repasos programados</small>
-                  </article>
-                  <article>
-                    <span>A REFORZAR</span>
-                    <strong>{studyWeakCount}</strong>
-                    <small>marcados regular o mal</small>
-                  </article>
-                </div>
-
-                <section className="panel study-tasks-panel">
-                  <div className="panel-head study-queue-panel-head">
-                    <div>
-                      <span className="section-label">COLA PERSONAL</span>
-                      <h3>
-                        {studyDue.length
-                          ? "Lo que toca revisar"
-                          : "Nada obligatorio para hoy"}
-                      </h3>
-                    </div>
-                    <div className="study-panel-head-actions">
-                      {studyDue.length > 1 && (
-                        <div
-                          className="study-queue-switch"
-                          aria-label="Vista de la cola"
-                        >
-                          <button
-                            className={
-                              studyQueueMode === "grouped" ? "active" : ""
-                            }
-                            onClick={() => setStudyQueueMode("grouped")}
-                          >
-                            Agrupado
-                          </button>
-                          <button
-                            className={
-                              studyQueueMode === "list" ? "active" : ""
-                            }
-                            onClick={() => setStudyQueueMode("list")}
-                          >
-                            Lista
-                          </button>
-                        </div>
-                      )}
-                      <button
-                        className="text-button"
-                        onClick={() => openStudyQuick()}
-                      >
-                        ＋ Añadir
-                      </button>
-                    </div>
-                  </div>
-                  {studyDue.length ? (
-                    studyQueueMode === "grouped" ? (
-                      <StudyTaskGroupedList
-                        tasks={studyDue}
-                        nodes={state.studyNodes}
-                        onComplete={completeStudyTask}
-                        onPostpone={postponeStudyTask}
-                        onDelete={deleteStudyTask}
-                        onEdit={editStudyTask}
-                      />
-                    ) : (
-                      <div className="study-task-list">
-                        {studyDue.map((task, index) => (
-                          <StudyTaskCard
-                            key={task.id}
-                            task={task}
-                            node={
-                              state.studyNodes.find(
-                                (node) => node.id === task.nodeId,
-                              ) ?? null
-                            }
-                            nodes={state.studyNodes}
-                            onComplete={completeStudyTask}
-                            onPostpone={postponeStudyTask}
-                            onDelete={deleteStudyTask}
-                            onEdit={editStudyTask}
-                            onReorder={reorderStudyTask}
-                            canMoveUp={index > 0}
-                            canMoveDown={index < studyDue.length - 1}
-                          />
-                        ))}
-                      </div>
-                    )
-                  ) : (
-                    <div className="study-inline-empty">
-                      <strong>La cola está limpia.</strong>
-                      <span>
-                        Puedes añadir un repaso manual o seguir estudiando y
-                        marcar algo desde una tarjeta.
-                      </span>
-                    </div>
-                  )}
-                </section>
-
-                {studyUpcoming.length > 0 && (
-                  <section className="panel study-upcoming-panel">
-                    <div className="panel-head">
-                      <div>
-                        <span className="section-label">DESPUÉS</span>
-                        <h3>Próximos repasos</h3>
-                      </div>
-                    </div>
-                    <div className="study-upcoming-list">
-                      {studyUpcoming.map((task) => (
-                        <StudyUpcomingRow
-                          key={task.id}
-                          task={task}
-                          node={
-                            state.studyNodes.find(
-                              (item) => item.id === task.nodeId,
-                            ) ?? null
-                          }
-                          nodes={state.studyNodes}
-                          onEdit={editStudyTask}
-                          onDelete={deleteStudyTask}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                )}
-              </>
+              <StudyPlanPage
+                nodes={state.studyNodes}
+                tasks={state.studyTasks}
+                onStart={(task) =>
+                  startStudyWithContent(undefined, [
+                    task,
+                    ...plannedStudyDue.filter((t) => t.id !== task.id),
+                  ])
+                }
+                onPlan={planStudyNode}
+                onEdit={editStudyTask}
+                onReorder={reorderStudyTask}
+                onDelete={deleteStudyTask}
+                onTemario={() => setStudyView("tree")}
+                onHistory={() => setStudyView("history")}
+              />
             ) : studyView === "tree" ? (
               <TemarioBrowser
                 nodes={state.studyNodes}
                 tasks={state.studyTasks}
-                onStudy={(id) => startStudySession(id)}
+                onStudy={(id) => startStudyWithContent(id)}
                 onQuick={openStudyQuick}
                 onExport={exportStudyData}
                 onCreate={(parent) => openStudyNodeEditor(parent, null)}
@@ -3060,6 +3004,8 @@ export default function OpoApp() {
                 onImport={openStudyImport}
                 onDelete={deleteStudyNodes}
                 onReorder={reorderStudyNode}
+                onMoveOut={moveStudyOut}
+                onPlan={planStudyNode}
               />
             ) : (
               <>
@@ -3623,6 +3569,18 @@ export default function OpoApp() {
             setModal("card");
           }}
           onImport={() => setModal("import")}
+          onToStudy={() => setLibraryBridgeOpen(true)}
+          onUp={
+            activeFolder ? () => reorderFolder(activeFolder.id, -1) : undefined
+          }
+          onDown={
+            activeFolder ? () => reorderFolder(activeFolder.id, 1) : undefined
+          }
+          onOut={
+            activeFolder?.parentId
+              ? () => moveFolderOut(activeFolder.id)
+              : undefined
+          }
           onStudy={(mode) => startReview(activeFolder?.id, mode)}
           onMove={
             activeFolder ? () => setMovingFolderId(activeFolder.id) : undefined
@@ -3652,6 +3610,25 @@ export default function OpoApp() {
                   )
               : undefined
           }
+        />
+      )}
+      {libraryBridgeOpen && (
+        <LibraryToStudySheet
+          folders={state.folders}
+          cards={state.cards}
+          nodes={state.studyNodes}
+          rootId={activeFolder?.id}
+          onClose={() => setLibraryBridgeOpen(false)}
+          onConfirm={importLibraryToStudy}
+        />
+      )}
+      {cardActionsId && (
+        <CardActionsSheet
+          card={state.cards.find((c) => c.id === cardActionsId)!}
+          folders={state.folders}
+          onClose={() => setCardActionsId(null)}
+          onMove={(folder) => moveCard(cardActionsId, folder)}
+          onReorder={(direction) => reorderCard(cardActionsId, direction)}
         />
       )}
       {preferencesOpen && (
@@ -3715,6 +3692,7 @@ export default function OpoApp() {
           responses={orthographySession.responses}
           correctResponses={orthographySession.correctResponses}
           scopeLabel={orthographySession.scopeLabel}
+          busy={reviewSaving}
           onToggle={toggleOrthographyWord}
           onCorrect={correctOrthographyGroup}
           onContinue={continueOrthographySession}
@@ -3722,7 +3700,8 @@ export default function OpoApp() {
         />
       )}
 
-      {reviewQueue.length > 0 &&
+      {sessionOpen &&
+        reviewQueue.length > 0 &&
         reviewIndex < reviewQueue.length &&
         currentCard &&
         currentQueueItem && (
@@ -3732,9 +3711,14 @@ export default function OpoApp() {
               state.folders.find((folder) => folder.id === currentCard.folderId)
                 ?.name ?? "Mis tarjetas"
             }
-            position={reviewIndex + 1}
-            total={reviewQueue.length}
-            continuous={isContinuousStudyMode(studyMode)}
+            position={Math.min(
+              (cardSessionSummary?.remembered ?? 0) + 1,
+              cardSessionSummary?.total ?? 1,
+            )}
+            total={cardSessionSummary?.total ?? 1}
+            continuous={false}
+            busy={reviewSaving}
+            canGoBack={reviewIndex > 0}
             doneCount={sessionDone}
             status={saveStatus}
             revealed={revealed}
@@ -3744,7 +3728,10 @@ export default function OpoApp() {
             selectedOptions={selectedOptions}
             writtenAnswer={writtenAnswer}
             writtenResult={displayedWrittenResult}
-            onExit={() => setReviewQueue([])}
+            onExit={() => {
+              setSessionOpen(false);
+              setReviewQueue([]);
+            }}
             onReveal={() => setRevealed(true)}
             onQuestion={() => {
               setRevealed(false);
@@ -3783,34 +3770,33 @@ export default function OpoApp() {
         />
       )}
 
-      {!isContinuousStudyMode(studyMode) &&
-        reviewQueue.length > 0 &&
-        reviewIndex >= reviewQueue.length && (
-          <div className="review-overlay complete">
-            <div className="complete-card">
-              <span className="complete-icon">✓</span>
-              <span className="section-label">SESIÓN COMPLETADA</span>
-              <h2>Un paso más cerca.</h2>
-              <p>
-                Has registrado {sessionDone} revisiones. Tu progreso queda
-                guardado. Es buen momento para hacer una pausa.
-              </p>
-              <div className="complete-actions">
-                <button className="secondary-button" onClick={goToPreviousCard}>
-                  ← Anterior
-                </button>
-                <button
-                  className="primary-button"
-                  onClick={() => {
-                    setReviewQueue([]);
-                    navigate("today");
-                  }}
-                >
-                  Volver a Hoy
-                </button>
-              </div>
-            </div>
-          </div>
+      {sessionOpen &&
+        !orthographySession &&
+        savedCardSession &&
+        sessionNext &&
+        reviewIndex >= reviewQueue.length &&
+        sessionNext.kind !== "card" && (
+          <SessionStatus
+            session={savedCardSession}
+            readyAt={
+              sessionNext.kind === "waiting" ? sessionNext.readyAt : undefined
+            }
+            now={sessionClock}
+            onClose={() => {
+              setSessionOpen(false);
+              setReviewQueue([]);
+              navigate("today");
+            }}
+            onFinish={() => {
+              void updateState((c) => ({
+                ...c,
+                settings: { ...c.settings, activeCardSession: null },
+              }));
+              setSessionOpen(false);
+              setReviewQueue([]);
+              navigate("today");
+            }}
+          />
         )}
 
       {movingFolder && (

@@ -321,6 +321,23 @@ if (new URLSearchParams(location.search).has("bulk")) {
   );
   fixture.settings.dailyReviewGoal = 60;
 }
+if (new URLSearchParams(location.search).has("learning")) {
+  fixture.cards = fixture.cards
+    .slice(0, 3)
+    .map((c) => ({
+      ...c,
+      reviewCount: 0,
+      successCount: 0,
+      repetitions: 0,
+      lapses: 0,
+      streak: 0,
+      lastReviewedAt: null,
+      intervalDays: 0,
+      fsrsStability: 0,
+      fsrsDifficulty: 0,
+      dueAt: stamp,
+    }));
+}
 if (new URLSearchParams(location.search).has("empty")) {
   fixture.studyNodes = [];
   fixture.studyTasks = [];

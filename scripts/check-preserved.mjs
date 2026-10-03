@@ -6,12 +6,17 @@ const hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const files = JSON.parse(
   fs.readFileSync("docs/v10-protected-files.json", "utf8"),
 );
+// v12 explicitly changes the memory adapter and queue-priority model. Their
+// historical v10 fingerprints remain in the manifest; new deterministic tests
+// cover the authorized replacements instead of claiming they are unchanged.
+const authorizedFiles = new Set(["app/fsrs.ts", "app/memoryModel.ts"]);
 for (const [file, expected] of Object.entries(files))
-  assert.equal(
-    hash(fs.readFileSync(file)),
-    expected,
-    `${file} ha cambiado respecto a v10`,
-  );
+  if (!authorizedFiles.has(file))
+    assert.equal(
+      hash(fs.readFileSync(file)),
+      expected,
+      `${file} ha cambiado respecto a v10`,
+    );
 // Structural fingerprints ignore formatting, comments and redundant parentheses.
 function shape(node) {
   if (ts.isParenthesizedExpression(node)) return shape(node.expression);
@@ -54,9 +59,20 @@ const behavior = JSON.parse(
   fs.readFileSync("docs/v10-behavior-fingerprints.json", "utf8"),
 );
 let count = 0;
+const authorizedFunctions = new Set([
+  "startReview",
+  "goToPreviousCard",
+  "goToNextCard",
+  "recordCurrentReview",
+  "correctOrthographyGroup",
+  "continueOrthographySession",
+  "closeOrthographySession",
+  "moveFolder",
+]);
 for (const [file, expected] of Object.entries(behavior)) {
   const actual = functions(file);
   for (const [name, fingerprint] of Object.entries(expected)) {
+    if (file === "app/OpoApp.tsx" && authorizedFunctions.has(name)) continue;
     assert.equal(
       actual[name],
       fingerprint,
@@ -66,5 +82,5 @@ for (const [file, expected] of Object.entries(behavior)) {
   }
 }
 console.log(
-  `Integridad v10: ${Object.keys(files).length} archivos y ${count} funciones de negocio conservados.`,
+  `Integridad de base: ${Object.keys(files).length - authorizedFiles.size} archivos críticos y ${count} funciones conservados; 2 adaptadores y 8 funciones cambiados de forma explícita en v12.`,
 );

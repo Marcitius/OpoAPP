@@ -118,6 +118,10 @@ for (const [label, width, height] of sizes) {
       .click();
     await nav(page, width, "Más");
     await page.getByRole("button", { name: /Organizar temario/ }).click();
+    await page
+      .locator(".study-view-switch")
+      .getByRole("button", { name: "Temario", exact: true })
+      .click();
     await expect(
       page.getByRole("heading", { name: "Mi temario", exact: true }),
     ).toBeVisible();
@@ -240,6 +244,10 @@ test("Árbol: crear, editar, mover, reordenar y eliminar conservando IDs", async
   await open(page);
   await nav(page, 390, "Más");
   await page.getByRole("button", { name: /Organizar temario/ }).click();
+  await page
+    .locator(".study-view-switch")
+    .getByRole("button", { name: "Temario", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Añadir elemento", exact: true })
     .last()
@@ -513,6 +521,10 @@ test("Doce niveles, atrás y cambio de orientación sin overflow", async ({
   await open(page);
   await nav(page, 390, "Más");
   await page.getByRole("button", { name: /Organizar temario/ }).click();
+  await page
+    .locator(".study-view-switch")
+    .getByRole("button", { name: "Temario", exact: true })
+    .click();
   await page
     .getByRole("button", { name: /Derecho Constitucional/ })
     .first()

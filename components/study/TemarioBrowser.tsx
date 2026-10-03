@@ -4,6 +4,7 @@ import type { StudyNode, StudyTask } from "../../lib/study/legacy";
 import { dateLabel, studyNodePath, localDateKey } from "../../lib/study/legacy";
 import Icon from "../shared/Icon";
 import BottomSheet from "../sheets/BottomSheet";
+import type { PlanAction } from "../../lib/study/planning";
 interface Props {
   nodes: StudyNode[];
   tasks: StudyTask[];
@@ -15,6 +16,8 @@ interface Props {
   onImport: (parentId: string | null) => void;
   onDelete: (ids: string[]) => void;
   onReorder: (id: string, direction: -1 | 1) => void;
+  onMoveOut: (id: string) => void;
+  onPlan: (id: string, action: PlanAction) => void;
 }
 export default function TemarioBrowser(p: Props) {
   const [parent, setParent] = useState<string | null>(null),
@@ -168,11 +171,13 @@ export default function TemarioBrowser(p: Props) {
                     <strong>{node.name}</strong>
                     <small>
                       {next
-                        ? next.plannedFor <= localDateKey()
-                          ? next.reason === "estudio"
-                            ? "Estudio pendiente"
-                            : "Repaso pendiente"
-                          : `${next.reason === "estudio" ? "Estudio" : "Repaso"} ${dateLabel(next.plannedFor)}`
+                        ? next.planBucket === "next" || !next.plannedFor
+                          ? "Estudiar después"
+                          : next.plannedFor <= localDateKey()
+                            ? next.reason === "estudio"
+                              ? "Estudio pendiente"
+                              : "Repaso pendiente"
+                            : `${next.reason === "estudio" ? "Estudio" : "Repaso"} ${dateLabel(next.plannedFor)}`
                         : latest
                           ? `${latest.assessment ?? "Estudiado"} · ${dateLabel(latest.completedAt)}`
                           : children.length
@@ -264,6 +269,26 @@ export default function TemarioBrowser(p: Props) {
               <hr />
               <button
                 className="sheet-action"
+                onClick={() => action(() => p.onPlan(target.id, "today"))}
+              >
+                Estudiar hoy
+              </button>
+              <button
+                className="sheet-action"
+                onClick={() => action(() => p.onPlan(target.id, "next"))}
+              >
+                Estudiar después
+              </button>
+              <button
+                className="sheet-action"
+                onClick={() =>
+                  action(() => p.onPlan(target.id, "review-tomorrow"))
+                }
+              >
+                Repasar mañana
+              </button>
+              <button
+                className="sheet-action"
                 onClick={() => action(() => p.onEdit(target.id))}
               >
                 Editar o mover
@@ -280,6 +305,14 @@ export default function TemarioBrowser(p: Props) {
               >
                 Bajar en este nivel
               </button>
+              {target.parentId && (
+                <button
+                  className="sheet-action"
+                  onClick={() => action(() => p.onMoveOut(target.id))}
+                >
+                  Sacar un nivel
+                </button>
+              )}
             </>
           )}
           <button

@@ -1,136 +1,164 @@
 {
-  "version": "OpoGC v11 - Mobile UX",
-  "date": "2026-09-30",
-  "engine": "Chromium",
-  "scope": "UI fixtures with real v10 local transactions; production PWA shell without Supabase configuration; no external Auth/Realtime/Storage HTTP",
-  "passed": 25,
-  "failed": 0,
-  "duration_ms": 42807.719,
+  "version": "OpoGC v12 — Memoria y estudio",
+  "date": "2026-10-02",
+  "engine": "Chromium 153",
+  "scope": "UI fixtures using real local transactions; production unconfigured PWA; no live Supabase, physical keyboard or authenticated installed Safari",
+  "startTime": "2026-10-02T16:25:28.293Z",
+  "duration": 62668.765,
+  "expected": 30,
+  "skipped": 0,
+  "unexpected": 0,
+  "flaky": 0,
   "tests": [
     {
       "name": "iphone-pequeno: navegación, estudio, repaso, temario y capas",
-      "status": "passed",
-      "duration_ms": 2091
+      "status": "expected",
+      "duration_ms": 2453
     },
     {
       "name": "iphone-grande: navegación, estudio, repaso, temario y capas",
-      "status": "passed",
-      "duration_ms": 1869
+      "status": "expected",
+      "duration_ms": 2281
     },
     {
       "name": "android-pequeno: navegación, estudio, repaso, temario y capas",
-      "status": "passed",
-      "duration_ms": 1940
+      "status": "expected",
+      "duration_ms": 2291
     },
     {
       "name": "android-grande: navegación, estudio, repaso, temario y capas",
-      "status": "passed",
-      "duration_ms": 2048
+      "status": "expected",
+      "duration_ms": 2218
     },
     {
       "name": "ipad-vertical: navegación, estudio, repaso, temario y capas",
-      "status": "passed",
-      "duration_ms": 2104
+      "status": "expected",
+      "duration_ms": 2349
     },
     {
       "name": "ipad-horizontal: navegación, estudio, repaso, temario y capas",
-      "status": "passed",
-      "duration_ms": 2008
+      "status": "expected",
+      "duration_ms": 2379
     },
     {
       "name": "desktop: navegación, estudio, repaso, temario y capas",
-      "status": "passed",
-      "duration_ms": 2146
+      "status": "expected",
+      "duration_ms": 2552
     },
     {
       "name": "desktop-grande: navegación, estudio, repaso, temario y capas",
-      "status": "passed",
-      "duration_ms": 2396
+      "status": "expected",
+      "duration_ms": 2543
     },
     {
       "name": "Varias tarjetas consecutivas, FSRS y registros individuales",
-      "status": "passed",
-      "duration_ms": 1091
+      "status": "expected",
+      "duration_ms": 1222
     },
     {
       "name": "Bien, Regular y Mal con nota, siguiente automático y recarga IndexedDB",
-      "status": "passed",
-      "duration_ms": 1975
+      "status": "expected",
+      "duration_ms": 2236
     },
     {
       "name": "Árbol: crear, editar, mover, reordenar y eliminar conservando IDs",
-      "status": "passed",
-      "duration_ms": 2197
+      "status": "expected",
+      "duration_ms": 2329
     },
     {
       "name": "Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía",
-      "status": "passed",
-      "duration_ms": 2054
+      "status": "expected",
+      "duration_ms": 2504
     },
     {
       "name": "Tarjeta larga: scroll interior y valoración siempre accesible",
-      "status": "passed",
-      "duration_ms": 639
+      "status": "expected",
+      "duration_ms": 777
     },
     {
       "name": "Psicotécnicos, nota e intento existentes",
-      "status": "passed",
-      "duration_ms": 803
+      "status": "expected",
+      "duration_ms": 939
     },
     {
       "name": "Bottom sheet: arrastre, teclado reducido, foco y cuenta",
-      "status": "passed",
-      "duration_ms": 1373
+      "status": "expected",
+      "duration_ms": 1451
     },
     {
       "name": "Production PWA: manifest, iconos, Service Worker y recarga offline",
-      "status": "passed",
-      "duration_ms": 592
+      "status": "expected",
+      "duration_ms": 624
     },
     {
       "name": "50 tarjetas consecutivas sin reconfigurar ni perder registros",
-      "status": "passed",
-      "duration_ms": 6711
+      "status": "expected",
+      "duration_ms": 8211
     },
     {
       "name": "Doce niveles, atrás y cambio de orientación sin overflow",
-      "status": "passed",
-      "duration_ms": 1059
+      "status": "expected",
+      "duration_ms": 1307
     },
     {
       "name": "Altura visual del teclado con layout intacto",
-      "status": "passed",
-      "duration_ms": 862
+      "status": "expected",
+      "duration_ms": 1125
     },
     {
       "name": "Offline: valoración duradera y backup portable con IDs e historial",
-      "status": "passed",
-      "duration_ms": 818
+      "status": "expected",
+      "duration_ms": 973
     },
     {
       "name": "Cuenta vacía: sin reinicio ni inserción de datos de ejemplo",
-      "status": "passed",
-      "duration_ms": 375
+      "status": "expected",
+      "duration_ms": 559
     },
     {
       "name": "Editor e importación de tarjetas: pantalla completa móvil",
-      "status": "passed",
-      "duration_ms": 1305
+      "status": "expected",
+      "duration_ms": 1407
     },
     {
       "name": "Imagen y PDF sobre un formulario: capas, foco y Escape",
-      "status": "passed",
-      "duration_ms": 735
+      "status": "expected",
+      "duration_ms": 826
     },
     {
       "name": "Planificación v10: repasos existentes conservados y sin duplicar contadores",
-      "status": "passed",
-      "duration_ms": 796
+      "status": "expected",
+      "duration_ms": 935
     },
     {
       "name": "Prioridad de estudio: continúa solo los elementos planificados como estudio",
-      "status": "passed",
-      "duration_ms": 727
+      "status": "expected",
+      "duration_ms": 930
+    },
+    {
+      "name": "Aprendizaje nuevo: fallos espaciados, checkpoint tras recarga y graduación real",
+      "status": "expected",
+      "duration_ms": 2261
+    },
+    {
+      "name": "Plan rápido: mover Hoy ↔ Después conserva el ID y permite nota sin fecha",
+      "status": "expected",
+      "duration_ms": 2121
+    },
+    {
+      "name": "Biblioteca → temario: editar, cambiar jerarquía, previsualizar, enlazar y reimportar",
+      "status": "expected",
+      "duration_ms": 4928
+    },
+    {
+      "name": "Mover y reordenar tarjetas y ramas mantiene relaciones y datos después de recargar",
+      "status": "expected",
+      "duration_ms": 2040
+    },
+    {
+      "name": "Creación de tarjetas y formularios no enfocan campos al abrirse",
+      "status": "expected",
+      "duration_ms": 1530
     }
   ]
 }

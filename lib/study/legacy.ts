@@ -53,6 +53,9 @@ export type StudyAssessment = "bien" | "regular" | "mal" | null;
 
 export type StudyNode = {
   sortOrder?: number;
+  sourceKey?: string;
+  sourceFolderId?: string;
+  sourceCardIds?: string[];
   id: string;
   name: string;
   parentId: string | null;
@@ -60,6 +63,7 @@ export type StudyNode = {
 };
 
 export type StudyTask = {
+  planBucket?: "today" | "next";
   id: string;
   nodeId: string;
   plannedFor: string;
@@ -81,6 +85,7 @@ export type StudyImportNode = {
 };
 
 export type Folder = {
+  sortOrder?: number;
   id: string;
   name: string;
   color: string;
@@ -89,6 +94,10 @@ export type Folder = {
 };
 
 export type Card = {
+  sortOrder?: number;
+  fsrsState?: import("ts-fsrs").State;
+  fsrsLearningSteps?: number;
+  fsrsReps?: number;
   id: string;
   folderId: string;
   type: CardType;
@@ -118,6 +127,9 @@ export type Card = {
 };
 
 export type Review = {
+  schedulerVersion?: string;
+  fsrsBefore?: ReturnType<typeof import("../../app/fsrs").fsrsSnapshot>;
+  fsrsAfter?: ReturnType<typeof import("../../app/fsrs").fsrsSnapshot>;
   id: string;
   cardId: string;
   rating: Rating;
@@ -170,6 +182,7 @@ export type AppState = {
   studyNodes: StudyNode[];
   studyTasks: StudyTask[];
   settings: {
+    activeCardSession?: import("../memory/session").CardSession | null;
     dailyReviewGoal: number;
     dailyNewLimit: number;
     seedVersion?: number;
@@ -1415,7 +1428,13 @@ export function flattenFolderTree(folders: Folder[]) {
   const result: { folder: Folder; depth: number }[] = [];
   const seen = new Set<string>();
   const walk = (parentId: string | null, depth: number) => {
-    for (const folder of folders.filter((item) => item.parentId === parentId)) {
+    for (const folder of folders
+      .filter((item) => (item.parentId ?? null) === parentId)
+      .sort(
+        (a, b) =>
+          (a.sortOrder ?? folders.indexOf(a)) -
+          (b.sortOrder ?? folders.indexOf(b)),
+      )) {
       if (seen.has(folder.id)) continue;
       seen.add(folder.id);
       result.push({ folder, depth });

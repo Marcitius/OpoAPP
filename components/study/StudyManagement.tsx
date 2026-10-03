@@ -18,7 +18,6 @@ import {
 } from "../../lib/study/legacy";
 import BottomSheet from "../sheets/BottomSheet";
 import { ModalShell } from "../sheets/ModalShell";
-import { buildStudyTreePrompt } from "../../lib/chatgptPrompts";
 
 export function StudyTaskCard({
   task,
@@ -706,7 +705,6 @@ export function StudyQuickModal({
         <label>
           Nota <small>(opcional)</small>
           <textarea
-            autoFocus={Boolean(defaultNodeId)}
             value={note}
             onChange={(event) => setNote(event.target.value)}
             placeholder="Ej. No olvidar iniciativa de 1/4 y mayoría absoluta"
@@ -770,7 +768,6 @@ export function StudyCompletionNoteModal({
         <label>
           Comentario del repaso
           <textarea
-            autoFocus
             value={note}
             onChange={(event) => setNote(event.target.value)}
             placeholder="Ej. Ya recuerdo la iniciativa de 1/4, pero sigo confundiendo la mayoría absoluta."
@@ -812,9 +809,7 @@ export function StudyTaskEditModal({
   const [nodeId, setNodeId] = useState(
     nodes.some((node) => node.id === task.nodeId) ? task.nodeId : "",
   );
-  const [plannedFor, setPlannedFor] = useState(
-    task.plannedFor || localDateKey(),
-  );
+  const [plannedFor, setPlannedFor] = useState(task.plannedFor || "");
   const [note, setNote] = useState(task.note || "");
   const [reason, setReason] = useState(task.reason || "");
   const selected = nodes.find((node) => node.id === nodeId) ?? null;
@@ -828,8 +823,7 @@ export function StudyTaskEditModal({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (nodeId && plannedFor)
-            onSave({ id: task.id, nodeId, plannedFor, note, reason });
+          if (nodeId) onSave({ id: task.id, nodeId, plannedFor, note, reason });
         }}
       >
         <label>
@@ -913,7 +907,6 @@ export function StudyTaskEditModal({
         <label>
           Nota <small>(opcional)</small>
           <textarea
-            autoFocus
             value={note}
             onChange={(event) => setNote(event.target.value)}
             placeholder="Qué quieres recordar o revisar"
@@ -927,7 +920,7 @@ export function StudyTaskEditModal({
           >
             Eliminar
           </button>
-          <button className="primary-button" disabled={!nodeId || !plannedFor}>
+          <button className="primary-button" disabled={!nodeId}>
             Guardar cambios
           </button>
         </div>
@@ -1002,7 +995,6 @@ export function StudyNodeEditorModal({
         <label>
           Nombre
           <input
-            autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Ej. Artículo 103, Título V, Tema 2…"
@@ -1065,21 +1057,8 @@ export function StudyImportModal({
   onClose: () => void;
   onImport: (roots: StudyImportNode[], parentId: string | null) => void;
 }) {
-const [raw, setRaw] = useState("");
-const [fileName, setFileName] = useState("");
-const [promptCopied, setPromptCopied] = useState(false);
-
-const studyPrompt = buildStudyTreePrompt();
-
-async function copyStudyPrompt() {
-  try {
-    await navigator.clipboard.writeText(studyPrompt);
-    setPromptCopied(true);
-    window.setTimeout(() => setPromptCopied(false), 1800);
-  } catch {
-    setPromptCopied(false);
-  }
-}
+  const [raw, setRaw] = useState("");
+  const [fileName, setFileName] = useState("");
   const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
   const [parentId, setParentId] = useState(
     defaultParentId && nodes.some((node) => node.id === defaultParentId)
@@ -1108,31 +1087,6 @@ async function copyStudyPrompt() {
       fullScreen
       className="study-import-editor"
     >
-      <section className="import-step">
-  <div className="import-step-head">
-    <span>AI</span>
-    <div>
-      <strong>Crear temario con ChatGPT</strong>
-      <small>
-        Copia el prompt, adjunta o pega tu temario en ChatGPT y vuelve
-        con el JSON generado.
-      </small>
-    </div>
-  </div>
-
-  <button
-    type="button"
-    className="secondary-button full-width"
-    onClick={copyStudyPrompt}
-  >
-    {promptCopied ? "✓ Prompt copiado" : "Copiar prompt para ChatGPT"}
-  </button>
-
-  <details>
-    <summary>Ver prompt completo</summary>
-    <pre className="prompt-preview">{studyPrompt}</pre>
-  </details>
-</section>
       <label>
         Destino
         <select
