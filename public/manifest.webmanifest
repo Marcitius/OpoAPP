@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "OpoGC · Organización de estudio",
+  "short_name": "OpoGC",
+  "description": "Organiza, estudia y repasa tu oposición en todos tus dispositivos",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5F3ED",
+  "theme_color": "#285943",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
