@@ -1,4 +1,6 @@
 "use client";
+import HierarchyField from "../filters/HierarchyPicker";
+import { branchIds } from "../../lib/study/selection";
 import { useMemo, useState } from "react";
 import type { Card, Folder, StudyNode } from "../../lib/study/legacy";
 import { flattenStudyTree, studyNodePath } from "../../lib/study/legacy";
@@ -85,18 +87,13 @@ export default function LibraryToStudySheet({
     >
       <label>
         Destino
-        <select
-          aria-label="Destino en el temario"
+        <HierarchyField
+          label="Destino en el temario"
+          items={nodes}
           value={destination}
-          onChange={(e) => setDestination(e.target.value)}
-        >
-          <option value="">Mi temario · nivel principal</option>
-          {flattenStudyTree(nodes).map((n) => (
-            <option key={n.id} value={n.id}>
-              {studyNodePath(nodes, n.id).join(" › ")}
-            </option>
-          ))}
-        </select>
+          onChange={setDestination}
+          rootLabel="Mi temario · nivel principal"
+        />
       </label>
       {!preview ? (
         <>
@@ -227,20 +224,14 @@ export default function LibraryToStudySheet({
         >
           <label>
             Dentro de
-            <select
-              aria-label="Nuevo padre del elemento"
-              defaultValue={target.parentId ?? ""}
-              onChange={(e) => setParent(target.id, e.target.value || null)}
-            >
-              <option value="">Nivel principal de esta importación</option>
-              {draft
-                .filter((n) => n.id !== target.id)
-                .map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {n.name}
-                  </option>
-                ))}
-            </select>
+            <HierarchyField
+              label="Nuevo padre del elemento"
+              items={draft}
+              value={target.parentId ?? ""}
+              onChange={(id: string) => setParent(target.id, id || null)}
+              blocked={branchIds(draft, [target.id])}
+              rootLabel="Nivel principal de esta importación"
+            />
           </label>
           <button
             className="sheet-action"

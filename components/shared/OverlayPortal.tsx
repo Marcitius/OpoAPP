@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { nextOverlayLayer, isTopOverlay } from "./overlayLayer";
 import { createPortal } from "react-dom";
 
 // Keep document editors above sheets and outside their transformed containers.
@@ -10,6 +11,7 @@ export default function OverlayPortal({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const [layer] = useState(nextOverlayLayer);
   const ref = useRef<HTMLDivElement>(null),
     close = useRef(onClose);
   close.current = onClose;
@@ -25,10 +27,7 @@ export default function OverlayPortal({
       ).filter((el) => el.getClientRects().length);
     root.focus({ preventScroll: true });
     const key = (event: KeyboardEvent) => {
-      if (
-        Array.from(document.querySelectorAll(".overlay-portal")).at(-1) !== root
-      )
-        return;
+      if (!isTopOverlay(root)) return;
       if (event.key === "Escape") {
         event.preventDefault();
         close.current();
@@ -39,6 +38,11 @@ export default function OverlayPortal({
         last = all.at(-1);
       if (!first) {
         event.preventDefault();
+        return;
+      }
+      if (!root.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first)?.focus();
         return;
       }
       if (
@@ -68,7 +72,13 @@ export default function OverlayPortal({
   return typeof document === "undefined"
     ? null
     : createPortal(
-        <div className="overlay-portal" tabIndex={-1} ref={ref}>
+        <div
+          className="overlay-portal"
+          data-overlay-layer={layer}
+          style={{ zIndex: layer }}
+          tabIndex={-1}
+          ref={ref}
+        >
           {children}
         </div>,
         document.body,

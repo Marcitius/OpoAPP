@@ -1,12 +1,21 @@
-OpoGC v12 — Memoria y estudio
-ACTUALIZACIÓN SOBRE TU V11 FUNCIONAL
-1. Lee README.md y docs/MEMORIA-V12.md. Proyecto completo en opogc/.
-2. Sustituye código conservando .env.local, variables, dominio y el MISMO Supabase.
-3. npm ci · npm run typecheck · npm test · npm run build.
-4. Despliega out/ como antes y acepta la actualización de la PWA.
-No hay SQL nuevo, reinicios, seeds ni IDs sustituidos. No borres datos locales.
-FSRS sigue siendo el algoritmo: ahora conserva el aprendizaje corto y usa cada intento.
-Organizar: Hoy / Después / Repasos. Biblioteca → ··· → Importar al temario de estudio.
-Nuevas esperas, refuerzos y checkpoint de sesión; acciones táctiles de reordenación.
-Documentación: CHANGELOG.md, docs/ARCHIVOS-V12.md, docs/PRUEBAS.md.
-No se probó tu sesión ni sincronización PC ↔ iPhone contra tu Supabase real.
+OpoGC v13 — Repasos y organización
+
+PARA ACTUALIZAR OpoApp + CLOUDFLARE PAGES:
+1. En tu OpoGC actual, exporta una copia desde Cuenta.
+2. Descomprime el ZIP y entra en opogc.
+3. Copia el CONTENIDO de opogc a tu carpeta local OpoApp (donde está package.json). Acepta sustituir archivos. Conserva .env.local y .git.
+4. Abre una terminal en OpoApp y ejecuta:
+   npm ci
+   npm run typecheck
+   npm test
+   npm run build
+5. En GitHub Desktop: abre OpoApp, escribe un resumen, pulsa Commit y Push origin.
+6. Cloudflare Pages compilará la rama conectada. Mantén npm run build, salida out, el dominio y las variables actuales de Supabase.
+7. Cuando termine correctamente, abre OpoGC y acepta el aviso de actualización si aparece.
+
+NO hay que volver a ejecutar SQL ni crear otro Supabase. NO borres datos del navegador ni reinstales la PWA para actualizar.
+
+Repasar → Mis repasos: colecciones permanentes globales o por tema.
+Guardar para repasar desde una tarjeta no califica ni cambia su memoria.
+Biblioteca/Temario: seleccionar tarjetas y ramas, seguir navegando y mover la selección.
+README.md explica todo. docs/PRUEBAS.md diferencia pruebas locales de integraciones reales.

@@ -1,4 +1,5 @@
 "use client";
+import { HierarchyPicker } from "../filters/HierarchyPicker";
 import { useState } from "react";
 import type { StudyNode, StudyTask } from "../../lib/study/legacy";
 import { dateLabel, localDateKey, studyNodePath } from "../../lib/study/legacy";
@@ -206,56 +207,29 @@ export default function StudyPlanPage({
           }
           onClose={() => setPicker(null)}
         >
-          <div className="ux-search">
-            <Icon name="search" size={20} />
-            <input
-              aria-label="Buscar para planificar"
-              placeholder="Busca un apartado…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <div className="simple-list">
-            {nodes
-              .filter((n) =>
-                query
-                  ? studyNodePath(nodes, n.id)
-                      .join(" ")
-                      .toLocaleLowerCase("es")
-                      .includes(query.toLocaleLowerCase("es"))
-                  : !nodes.some((c) => c.parentId === n.id),
-              )
-              .slice(0, 30)
-              .map((n) => (
-                <button
-                  className="simple-row"
-                  key={n.id}
-                  onClick={() => {
-                    onPlan(n.id, picker);
-                    setPicker(null);
-                  }}
-                >
-                  <span>
-                    <strong>{n.name}</strong>
-                    <small>
-                      {studyNodePath(nodes, n.id).slice(0, -1).join(" · ")}
-                    </small>
-                  </span>
-                  <Icon name="plus" size={18} />
-                </button>
-              ))}
-            {!nodes.length && (
-              <button
-                className="primary-button full"
-                onClick={() => {
-                  setPicker(null);
-                  onTemario();
-                }}
-              >
-                Añadir o importar temario
-              </button>
-            )}
-          </div>
+          <HierarchyPicker
+            items={nodes}
+            value={[]}
+            allowRoot={false}
+            rootLabel="Mi temario"
+            onChange={(ids) => {
+              if (ids[0]) {
+                onPlan(ids[0], picker);
+                setPicker(null);
+              }
+            }}
+          />
+          {!nodes.length && (
+            <button
+              className="primary-button full"
+              onClick={() => {
+                setPicker(null);
+                onTemario();
+              }}
+            >
+              Añadir o importar temario
+            </button>
+          )}
         </BottomSheet>
       )}
       {target && (

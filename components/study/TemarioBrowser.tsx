@@ -1,4 +1,6 @@
 "use client";
+import { HierarchyPicker } from "../filters/HierarchyPicker";
+import { branchIds } from "../../lib/study/selection";
 import { useEffect, useState } from "react";
 import type { StudyNode, StudyTask } from "../../lib/study/legacy";
 import { dateLabel, studyNodePath, localDateKey } from "../../lib/study/legacy";
@@ -18,8 +20,12 @@ interface Props {
   onReorder: (id: string, direction: -1 | 1) => void;
   onMoveOut: (id: string) => void;
   onPlan: (id: string, action: PlanAction) => void;
+  onMove: (ids: string[], target: string | null) => Promise<boolean>;
 }
 export default function TemarioBrowser(p: Props) {
+  const [moving, setMoving] = useState(false),
+    [destination, setDestination] = useState<string | null>(null),
+    [busy, setBusy] = useState(false);
   const [parent, setParent] = useState<string | null>(null),
     [menu, setMenu] = useState<string | null>(null),
     [query, setQuery] = useState(""),
@@ -62,19 +68,14 @@ export default function TemarioBrowser(p: Props) {
           className="ux-link"
           onClick={() => {
             setQuery("");
-            if (select) {
-              setSelect(false);
-              setSelected([]);
-            } else setParent(current?.parentId ?? null);
+            setParent(current?.parentId ?? null);
           }}
-          disabled={!parent && !select}
+          disabled={!parent}
         >
           <Icon name="back" size={18} />
-          {select
-            ? "Cancelar selección"
-            : current?.parentId
-              ? p.nodes.find((n) => n.id === current.parentId)?.name
-              : "Mi temario"}
+          {current?.parentId
+            ? p.nodes.find((n) => n.id === current.parentId)?.name
+            : "Mi temario"}
         </button>
         <div>
           <button
@@ -114,6 +115,41 @@ export default function TemarioBrowser(p: Props) {
           {select && (
             <div className="selection-summary">
               <strong>{selected.length} seleccionados</strong>
+              <button
+                className="ux-link"
+                onClick={() => {
+                  setSelect(false);
+                  setSelected([]);
+                }}
+              >
+                Cancelar selección
+              </button>
+              <button
+                className="ux-link"
+                onClick={() =>
+                  setSelected((ids) => [
+                    ...new Set([...ids, ...shown.map((n) => n.id)]),
+                  ])
+                }
+              >
+                Seleccionar este nivel
+              </button>
+              <button
+                className="ux-link"
+                onClick={() => setSelected(p.nodes.map((n) => n.id))}
+              >
+                Seleccionar todo
+              </button>
+              <button
+                className="primary-button"
+                disabled={!selected.length}
+                onClick={() => {
+                  setDestination(null);
+                  setMoving(true);
+                }}
+              >
+                Mover a…
+              </button>
               <button
                 className="danger-button"
                 disabled={!selected.length}
@@ -187,6 +223,18 @@ export default function TemarioBrowser(p: Props) {
                   </span>
                   <Icon name="chevron" size={18} />
                 </button>
+                {select && children.length > 0 && (
+                  <button
+                    className="icon-button"
+                    aria-label={`Entrar en ${node.name}`}
+                    onClick={() => {
+                      setParent(node.id);
+                      setQuery("");
+                    }}
+                  >
+                    <Icon name="chevron" />
+                  </button>
+                )}
                 {!select && (
                   <button
                     className="icon-button"
@@ -244,6 +292,39 @@ export default function TemarioBrowser(p: Props) {
           </aside>
         )}
       </div>
+      {moving && (
+        <BottomSheet
+          title="Mover ramas del temario"
+          onClose={() => setMoving(false)}
+          dismissible={!busy}
+        >
+          <HierarchyPicker
+            items={p.nodes}
+            value={destination ? [destination] : []}
+            onChange={(ids) => setDestination(ids[0] ?? null)}
+            blocked={branchIds(p.nodes, selected)}
+            rootLabel="Mi temario · nivel principal"
+          />
+          <button
+            className="primary-button full"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                if (await p.onMove(selected, destination)) {
+                  setMoving(false);
+                  setSelected([]);
+                  setSelect(false);
+                }
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Mover selección
+          </button>
+        </BottomSheet>
+      )}
       {menu && (
         <BottomSheet
           title={target?.name ?? "Mi temario"}
@@ -292,6 +373,18 @@ export default function TemarioBrowser(p: Props) {
                 onClick={() => action(() => p.onEdit(target.id))}
               >
                 Editar o mover
+              </button>
+              <button
+                className="sheet-action"
+                onClick={() =>
+                  action(() => {
+                    setSelected([target.id]);
+                    setDestination(null);
+                    setMoving(true);
+                  })
+                }
+              >
+                Mover a…
               </button>
               <button
                 className="sheet-action"

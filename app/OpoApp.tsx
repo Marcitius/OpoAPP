@@ -149,6 +149,24 @@ import TemarioBrowser from "../components/study/TemarioBrowser";
 import TodayPage, { type PriorityItem } from "../components/today/TodayPage";
 import { orthographyStudyCard } from "../lib/study/legacy";
 
+import LibraryBrowser from "../components/library/LibraryBrowser";
+import ReviewCollections from "../components/review/ReviewCollections";
+import SaveReviewSheet from "../components/review/SaveReviewSheet";
+import HierarchyField from "../components/filters/HierarchyPicker";
+import ContentScope from "../components/filters/ContentScope";
+import {
+  assignCollection,
+  saveCollection,
+  reviewCollections,
+  inCollection,
+  type ReviewCollection,
+} from "../lib/review/collections";
+import {
+  moveLibrarySelection,
+  moveBranches,
+  scopedCards,
+  scopedProgress,
+} from "../lib/study/selection";
 export default function OpoApp() {
   useAppViewport();
   const engine = useEngine();
@@ -227,6 +245,10 @@ export default function OpoApp() {
   const [reviewSaving, setReviewSaving] = useState(false);
   const reviewBusyRef = useRef(false);
   const presentationKeyRef = useRef("");
+  const [saveReviewIds, setSaveReviewIds] = useState<string[]>([]);
+  const [librarySelectionRequest, setLibrarySelectionRequest] = useState(0);
+  const [progressFolderIds, setProgressFolderIds] = useState<string[]>([]);
+  const [progressNodeIds, setProgressNodeIds] = useState<string[]>([]);
   const [libraryBridgeOpen, setLibraryBridgeOpen] = useState(false);
   const [cardActionsId, setCardActionsId] = useState<string | null>(null);
   const [orthographySession, setOrthographySession] =
@@ -389,6 +411,52 @@ export default function OpoApp() {
     return saved;
   }
 
+  async function assignSavedReview(id: string, ids: string[], saved: boolean) {
+    return updateState((c) => assignCollection(c, id, ids, saved));
+  }
+  async function editReviewCollection(c: ReviewCollection) {
+    return updateState((s) => saveCollection(s, c));
+  }
+  async function moveLibraryItems(
+    folders: string[],
+    cards: string[],
+    destination: string | null,
+  ) {
+    try {
+      const ok = await updateState((c) =>
+        moveLibrarySelection(c, folders, cards, destination, uid(), nowIso()),
+      );
+      if (ok) notify("Selección movida");
+      return ok;
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "No se pudo mover");
+      return false;
+    }
+  }
+  async function moveStudyItems(ids: string[], destination: string | null) {
+    try {
+      const ok = await updateState((c) => ({
+        ...c,
+        studyNodes: moveBranches(c.studyNodes, ids, destination),
+      }));
+      if (ok) notify("Ramas movidas");
+      return ok;
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "No se pudo mover");
+      return false;
+    }
+  }
+  function removeLibraryCards(ids: string[]) {
+    if (
+      confirm(
+        `¿Eliminar ${ids.length} tarjetas? Esta acción no se puede deshacer.`,
+      )
+    )
+      void updateState((c) => ({
+        ...c,
+        cards: c.cards.filter((card) => !ids.includes(card.id)),
+      }));
+  }
   function reorderStudyNode(id: string, direction: -1 | 1) {
     void updateState((c) => ({
       ...c,
@@ -2036,7 +2104,7 @@ export default function OpoApp() {
 
   return (
     <div
-      className={`app-shell app-v11 app-v12 ${sessionOpen || orthographySession || studyFlow ? "session-active" : ""}`}
+      className={`app-shell app-v11 app-v12 app-v13 ${sessionOpen || orthographySession || studyFlow ? "session-active" : ""}`}
     >
       <AppNavigation tab={tab} onNavigate={navigate} status={saveStatus} />
       <main className="ux-main">
@@ -2113,6 +2181,8 @@ export default function OpoApp() {
         )}
         {tab === "study" && (
           <StudyStartPage
+            state={state}
+            onFilteredCards={(ids) => startReview(undefined, "learn", ids)}
             nodes={state.studyNodes}
             tasks={plannedStudyDue}
             onContinue={() => startStudyWithContent(undefined, plannedStudyDue)}
@@ -2147,16 +2217,26 @@ export default function OpoApp() {
           />
         )}
         {tab === "review" && (
-          <ReviewStartPage
-            cards={state.cards}
-            folders={state.folders}
-            pending={dueCards.length + orthographyDue}
-            temarioPending={reviewTreeDue.length}
-            onStart={startReview}
-            onPrimary={startTodayReview}
-            onTemario={() => startStudySession(undefined, reviewTreeDue)}
-            onLibrary={() => navigate("library")}
-          />
+          <>
+            <ReviewCollections
+              state={state}
+              onStart={(ids) => startReview(undefined, "learn", ids)}
+              onAssign={assignSavedReview}
+              onCollection={editReviewCollection}
+              onSave={setSaveReviewIds}
+            />
+            <ReviewStartPage
+              state={state}
+              cards={state.cards}
+              folders={state.folders}
+              pending={dueCards.length + orthographyDue}
+              temarioPending={reviewTreeDue.length}
+              onStart={startReview}
+              onPrimary={startTodayReview}
+              onTemario={() => startStudySession(undefined, reviewTreeDue)}
+              onLibrary={() => navigate("library")}
+            />
+          </>
         )}
         {tab === "more" && (
           <MorePage
@@ -2171,715 +2251,35 @@ export default function OpoApp() {
           />
         )}
         {tab === "library" && (
-          <section className="page">
-            <div className="library-top-actions">
-              <div className="ux-search">
-                <Icon name="search" size={20} />
-                <input
-                  placeholder="Buscar temas o tarjetas"
-                  aria-label="Buscar biblioteca"
-                  value={libraryQuery}
-                  onChange={(event) => setLibraryQuery(event.target.value)}
-                />
-              </div>
-              <div>
-                <button
-                  className="primary-button"
-                  onClick={() => {
-                    setEditingCard(null);
-                    setModal("card");
-                  }}
-                >
-                  <Icon name="plus" size={18} />
-                  Tarjeta
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label="Opciones de la biblioteca"
-                  onClick={() => setLibraryActionsOpen(true)}
-                >
-                  <Icon name="more" />
-                </button>
-              </div>
-            </div>
-            <div className="library-filter-row">
-              <label>
-                Tipo
-                <select
-                  aria-label="Filtrar tipo de tarjeta"
-                  value={libraryType}
-                  onChange={(event) => setLibraryType(event.target.value)}
-                >
-                  <option value="all">Todos los tipos</option>
-                  <option value="basic">Flashcards</option>
-                  <option value="choice">Vocabulario</option>
-                  <option value="test">Test</option>
-                  <option value="orthography">Ortografía</option>
-                  <option value="written">Respuesta escrita</option>
-                </select>
-              </label>
-            </div>
-            {libraryQuery.trim() || libraryType !== "all" ? (
-              <div className="library-results simple-list">
-                {filteredLibraryCards.map((card) => (
-                  <div className="simple-row" key={card.id}>
-                    <button
-                      className="library-result-main"
-                      onClick={() => startReview(undefined, "all", [card.id])}
-                    >
-                      <strong>{plainRichText(card.front)}</strong>
-                      <small>
-                        {cardTypeLabel(card.type)} ·{" "}
-                        {folderPathLabel(state.folders, card.folderId)}
-                      </small>
-                    </button>
-                    <button
-                      className="icon-button"
-                      aria-label="Editar tarjeta"
-                      onClick={() => {
-                        setEditingCard(card.id);
-                        setModal("card");
-                      }}
-                    >
-                      ✎
-                    </button>
-                  </div>
-                ))}
-                {!filteredLibraryCards.length && (
-                  <p className="empty-inline">
-                    No hay tarjetas con esta búsqueda. Prueba otro término o
-                    cambia el tipo.
-                  </p>
-                )}
-              </div>
-            ) : !activeFolder ? (
-              <>
-                <div className="section-heading">
-                  <div>
-                    <span className="section-label">ORGANIZACIÓN</span>
-                    <h2>Temas de estudio</h2>
-                    <p>
-                      Cada tema puede contener subtemas. Puedes estudiar un tema
-                      completo o entrar en una parte concreta.
-                    </p>
-                  </div>
-                  <span>
-                    {state.folders.filter((folder) => !folder.parentId).length}{" "}
-                    temas ·{" "}
-                    {state.folders.filter((folder) => folder.parentId).length}{" "}
-                    subtemas · {state.cards.length} tarjetas
-                  </span>
-                </div>
-                <div className="folder-grid">
-                  {orderedChildren(state.folders, null).map((folder) => {
-                    const cards = cardsInFolderScope(state, folder.id);
-                    const reviewed = cards.filter(
-                      (card) => card.reviewCount > 0,
-                    ).length;
-                    const pct = cards.length
-                      ? Math.round((reviewed / cards.length) * 100)
-                      : 0;
-                    const children = state.folders.filter(
-                      (item) => item.parentId === folder.id,
-                    ).length;
-                    return (
-                      <button
-                        className="folder-card"
-                        key={folder.id}
-                        onClick={() => setSelectedFolder(folder.id)}
-                      >
-                        <span
-                          className="folder-icon"
-                          style={{
-                            background: `${folder.color}18`,
-                            color: folder.color,
-                          }}
-                        >
-                          ▰
-                        </span>
-                        <span
-                          className="folder-menu folder-menu-action"
-                          title="Opciones de carpeta"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setSelectedFolder(folder.id);
-                            setLibraryActionsOpen(true);
-                          }}
-                        >
-                          •••
-                        </span>
-                        <strong>{folder.name}</strong>
-                        <small>
-                          {cards.length} tarjetas · {children}{" "}
-                          {children === 1 ? "apartado" : "apartados"}
-                        </small>
-                        <span className="progress-track">
-                          <span
-                            style={{
-                              width: `${pct}%`,
-                              background: folder.color,
-                            }}
-                          />
-                        </span>
-                        <span className="folder-progress">{pct}% visto</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              (() => {
-                const parent = activeFolder.parentId
-                  ? (state.folders.find(
-                      (folder) => folder.id === activeFolder.parentId,
-                    ) ?? null)
-                  : null;
-                const children = orderedChildren(
-                  state.folders,
-                  activeFolder.id,
-                );
-                const scopeCards = cardsInFolderScope(state, activeFolder.id);
-                const writtenScopeCards = scopeCards.filter(isWrittenCard);
-                const directCards = orderedChildren(
-                  state.cards,
-                  activeFolder.id,
-                  "folderId",
-                );
-                const isTheme = !activeFolder.parentId;
-                return (
-                  <div>
-                    <div className="folder-breadcrumb">
-                      <button
-                        className="back-button"
-                        onClick={() => setSelectedFolder(parent?.id ?? null)}
-                      >
-                        ← {parent ? parent.name : "Todos los temas"}
-                      </button>
-                      {parent && (
-                        <span>
-                          {parent.name} / <strong>{activeFolder.name}</strong>
-                        </span>
-                      )}
-                    </div>
-                    <div className="folder-title">
-                      <div>
-                        <span
-                          className="folder-icon large"
-                          style={{
-                            background: `${activeFolder.color}18`,
-                            color: activeFolder.color,
-                          }}
-                        >
-                          ▰
-                        </span>
-                        <div>
-                          <span className="section-label">
-                            {isTheme ? "TEMA" : "APARTADO"}
-                          </span>
-                          <h2>{activeFolder.name}</h2>
-                          <p>
-                            {scopeCards.length} tarjetas
-                            {children.length
-                              ? ` · ${children.length} ${children.length === 1 ? "apartado" : "apartados"}`
-                              : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="folder-study-actions">
-                        <button
-                          className="icon-button library-folder-menu"
-                          aria-label="Opciones de la carpeta"
-                          onClick={() => setLibraryActionsOpen(true)}
-                        >
-                          <Icon name="more" />
-                        </button>
-                        <button
-                          className="secondary-button danger"
-                          onClick={() => deleteFolder(activeFolder.id)}
-                        >
-                          Eliminar
-                        </button>
-                        <button
-                          className="secondary-button"
-                          onClick={() => setMovingFolderId(activeFolder.id)}
-                        >
-                          Mover
-                        </button>
-                        <button
-                          className="secondary-button"
-                          onClick={() => {
-                            setNewFolderParentId(activeFolder.id);
-                            setModal("folder");
-                          }}
-                        >
-                          ＋ Añadir dentro
-                        </button>
-                        {isTheme && scopeCards.length > 0 && (
-                          <button
-                            className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`}
-                            onClick={() => {
-                              setBulkSelectMode((value) => !value);
-                              setSelectedCardIds([]);
-                              setBulkTargetFolderId("");
-                            }}
-                          >
-                            {bulkSelectMode
-                              ? "Cancelar selección"
-                              : "Seleccionar"}
-                          </button>
-                        )}
-                        <button
-                          className="secondary-button"
-                          onClick={() =>
-                            startReview(activeFolder.id, "recommended")
-                          }
-                        >
-                          Repaso programado
-                        </button>
-                        <button
-                          className="secondary-button"
-                          onClick={() =>
-                            startReview(activeFolder.id, "weakest")
-                          }
-                        >
-                          🔥 Más falladas
-                        </button>
-                        <button
-                          className="secondary-button"
-                          onClick={() => startReview(activeFolder.id, "random")}
-                        >
-                          🎲 Aleatorias
-                        </button>
-                        {writtenScopeCards.length > 0 && (
-                          <button
-                            className="secondary-button"
-                            onClick={() =>
-                              startReview(
-                                activeFolder.id,
-                                "learn",
-                                writtenScopeCards.map((card) => card.id),
-                              )
-                            }
-                          >
-                            ✍ Respuesta escrita
-                          </button>
-                        )}
-                        <button
-                          className="primary-button"
-                          onClick={() => startReview(activeFolder.id, "learn")}
-                        >
-                          ◎ Aprender
-                        </button>
-                      </div>
-                    </div>
-
-                    {children.length > 0 && (
-                      <section className="subtopic-section">
-                        <div className="subtopic-heading">
-                          <span className="section-label">APARTADOS</span>
-                          <p>
-                            Puedes entrar en cualquier rama y seguir bajando por
-                            el árbol sin perder sus tarjetas.
-                          </p>
-                        </div>
-                        <div className="subtopic-grid">
-                          {children.map((child) => {
-                            const childCards = cardsInFolderScope(
-                              state,
-                              child.id,
-                            );
-                            const reviewed = childCards.filter(
-                              (card) => card.reviewCount > 0,
-                            ).length;
-                            const pct = childCards.length
-                              ? Math.round((reviewed / childCards.length) * 100)
-                              : 0;
-                            const childIds = childCards.map((card) => card.id);
-                            const childSelected =
-                              childIds.length > 0 &&
-                              childIds.every((id) =>
-                                selectedCardIds.includes(id),
-                              );
-                            return (
-                              <button
-                                key={child.id}
-                                className="subtopic-card"
-                                disabled={
-                                  bulkSelectMode && childIds.length === 0
-                                }
-                                onClick={() => {
-                                  if (!bulkSelectMode) {
-                                    setSelectedFolder(child.id);
-                                    return;
-                                  }
-                                  setSelectedCardIds((current) => {
-                                    const next = new Set(current);
-                                    const allSelected =
-                                      childIds.length > 0 &&
-                                      childIds.every((id) => next.has(id));
-                                    if (allSelected)
-                                      childIds.forEach((id) => next.delete(id));
-                                    else childIds.forEach((id) => next.add(id));
-                                    return [...next];
-                                  });
-                                }}
-                              >
-                                {bulkSelectMode ? (
-                                  <span
-                                    className="card-select-check"
-                                    style={
-                                      childSelected
-                                        ? {
-                                            borderColor: "var(--green)",
-                                            background: "var(--green)",
-                                          }
-                                        : undefined
-                                    }
-                                  >
-                                    {childSelected ? "✓" : ""}
-                                  </span>
-                                ) : (
-                                  <span
-                                    className="folder-icon"
-                                    style={{
-                                      background: `${child.color}18`,
-                                      color: child.color,
-                                    }}
-                                  >
-                                    ▰
-                                  </span>
-                                )}
-                                <div>
-                                  <strong>{child.name}</strong>
-                                  <small>
-                                    {childCards.length} tarjetas · {pct}% visto
-                                  </small>
-                                </div>
-                                {bulkSelectMode ? <span /> : <span>→</span>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {bulkSelectMode && isTheme && (
-                          <div
-                            className="bulk-card-toolbar"
-                            style={{ marginTop: 12 }}
-                          >
-                            <div className="bulk-card-summary">
-                              <strong>
-                                {selectedCardIds.length} seleccionada
-                                {selectedCardIds.length === 1 ? "" : "s"}
-                              </strong>
-                              <button
-                                type="button"
-                                className="text-button"
-                                onClick={() => {
-                                  const scopeIds = scopeCards.map(
-                                    (card) => card.id,
-                                  );
-                                  const allSelected =
-                                    scopeIds.length > 0 &&
-                                    scopeIds.every((id) =>
-                                      selectedCardIds.includes(id),
-                                    );
-                                  setSelectedCardIds(
-                                    allSelected ? [] : scopeIds,
-                                  );
-                                }}
-                              >
-                                {scopeCards.length > 0 &&
-                                scopeCards.every((card) =>
-                                  selectedCardIds.includes(card.id),
-                                )
-                                  ? "Quitar todas"
-                                  : "Seleccionar todas"}
-                              </button>
-                            </div>
-                            <div className="bulk-study-actions">
-                              <span>ESTUDIAR SELECCIÓN</span>
-                              <button
-                                className="secondary-button"
-                                disabled={!selectedCardIds.length}
-                                onClick={() =>
-                                  studySelectedCards("recommended")
-                                }
-                              >
-                                Repaso programado
-                              </button>
-                              <button
-                                className="secondary-button"
-                                disabled={!selectedCardIds.length}
-                                onClick={() => studySelectedCards("weakest")}
-                              >
-                                🔥 Más falladas
-                              </button>
-                              <button
-                                className="secondary-button"
-                                disabled={!selectedCardIds.length}
-                                onClick={() => studySelectedCards("random")}
-                              >
-                                🎲 Aleatorias
-                              </button>
-                              <button
-                                className="primary-button"
-                                disabled={!selectedCardIds.length}
-                                onClick={() => studySelectedCards("learn")}
-                              >
-                                ◎ Aprender
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </section>
-                    )}
-
-                    <div className="card-section-head">
-                      <div>
-                        <span className="section-label">
-                          {isTheme
-                            ? "TARJETAS SIN SUBTEMA"
-                            : "TARJETAS DEL SUBTEMA"}
-                        </span>
-                        <h3>
-                          {directCards.length
-                            ? `${directCards.length} tarjetas`
-                            : "Sin tarjetas directas"}
-                        </h3>
-                      </div>
-                      <div className="card-section-actions">
-                        {directCards.length > 0 && !isTheme && (
-                          <button
-                            className={`secondary-button ${bulkSelectMode ? "active-selection" : ""}`}
-                            onClick={() => {
-                              setBulkSelectMode((value) => !value);
-                              setSelectedCardIds([]);
-                              setBulkTargetFolderId("");
-                            }}
-                          >
-                            {bulkSelectMode
-                              ? "Cancelar selección"
-                              : "Seleccionar"}
-                          </button>
-                        )}
-                        <button
-                          className="secondary-button"
-                          onClick={() => {
-                            setEditingCard(null);
-                            setModal("card");
-                          }}
-                        >
-                          ＋ Tarjeta aquí
-                        </button>
-                      </div>
-                    </div>
-
-                    {bulkSelectMode && directCards.length > 0 && !isTheme && (
-                      <div className="bulk-card-toolbar">
-                        <div className="bulk-card-summary">
-                          <strong>
-                            {selectedCardIds.length} seleccionada
-                            {selectedCardIds.length === 1 ? "" : "s"}
-                          </strong>
-                          <button
-                            type="button"
-                            className="text-button"
-                            onClick={() =>
-                              setSelectedCardIds(
-                                selectedCardIds.length === directCards.length
-                                  ? []
-                                  : directCards.map((card) => card.id),
-                              )
-                            }
-                          >
-                            {selectedCardIds.length === directCards.length
-                              ? "Quitar todas"
-                              : "Seleccionar todas"}
-                          </button>
-                        </div>
-                        <div className="bulk-card-actions">
-                          <select
-                            value={bulkTargetFolderId}
-                            onChange={(event) =>
-                              setBulkTargetFolderId(event.target.value)
-                            }
-                            aria-label="Tema o subtema de destino"
-                          >
-                            <option value="">Mover a tema / subtema…</option>
-                            {flattenFolderTree(state.folders).map(
-                              ({ folder, depth }) => (
-                                <option key={folder.id} value={folder.id}>
-                                  {"↳ ".repeat(depth)}
-                                  {folder.name}
-                                </option>
-                              ),
-                            )}
-                          </select>
-                          <button
-                            className="secondary-button"
-                            disabled={
-                              !selectedCardIds.length || !bulkTargetFolderId
-                            }
-                            onClick={() =>
-                              moveSelectedCards(bulkTargetFolderId)
-                            }
-                          >
-                            Mover
-                          </button>
-                          <button
-                            className="secondary-button danger"
-                            disabled={!selectedCardIds.length}
-                            onClick={deleteSelectedCards}
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-                        <div className="bulk-study-actions">
-                          <span>ESTUDIAR SELECCIÓN</span>
-                          <button
-                            className="secondary-button"
-                            disabled={!selectedCardIds.length}
-                            onClick={() => studySelectedCards("recommended")}
-                          >
-                            Repaso programado
-                          </button>
-                          <button
-                            className="secondary-button"
-                            disabled={!selectedCardIds.length}
-                            onClick={() => studySelectedCards("weakest")}
-                          >
-                            🔥 Más falladas
-                          </button>
-                          <button
-                            className="secondary-button"
-                            disabled={!selectedCardIds.length}
-                            onClick={() => studySelectedCards("random")}
-                          >
-                            🎲 Aleatorias
-                          </button>
-                          <button
-                            className="primary-button"
-                            disabled={!selectedCardIds.length}
-                            onClick={() => studySelectedCards("learn")}
-                          >
-                            ◎ Aprender
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {directCards.length > 0 ? (
-                      <div
-                        className={`card-table ${bulkSelectMode ? "selecting" : ""}`}
-                      >
-                        {directCards.map((card) => {
-                          const selected = selectedCardIds.includes(card.id);
-                          return (
-                            <div
-                              className={`card-row ${bulkSelectMode ? "bulk-selectable" : ""} ${selected ? "selected" : ""}`}
-                              key={card.id}
-                              onClick={() => {
-                                if (bulkSelectMode)
-                                  toggleCardSelection(card.id);
-                              }}
-                            >
-                              {bulkSelectMode && (
-                                <button
-                                  type="button"
-                                  className="card-select-check"
-                                  aria-label={
-                                    selected
-                                      ? "Quitar de la selección"
-                                      : "Seleccionar tarjeta"
-                                  }
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    toggleCardSelection(card.id);
-                                  }}
-                                >
-                                  {selected ? "✓" : ""}
-                                </button>
-                              )}
-                              <span className="card-kind">
-                                {cardTypeLabel(card.type)}
-                                {isMultipleAnswerTest(card) ? " · MULTI" : ""}
-                              </span>
-                              <div>
-                                <strong>
-                                  {plainRichText(card.front) || "Sin pregunta"}
-                                  {card.attachment ? " · 🖼️" : ""}
-                                </strong>
-                                <p>
-                                  {plainRichText(card.back) ||
-                                    (isMultipleChoiceCard(card)
-                                      ? "Sin explicación añadida"
-                                      : "Sin respuesta añadida")}
-                                </p>
-                              </div>
-                              <span>
-                                {isWrittenCard(card)
-                                  ? writtenAverageAccuracy(card) === null
-                                    ? "Sin estudiar"
-                                    : `${Math.round(writtenAverageAccuracy(card) ?? 0)}% precisión`
-                                  : card.reviewCount
-                                    ? `${Math.round((card.successCount / card.reviewCount) * 100)}% aciertos`
-                                    : "Sin estudiar"}
-                              </span>
-                              <div className="card-actions">
-                                {!bulkSelectMode && (
-                                  <button
-                                    aria-label="Mover o reordenar tarjeta"
-                                    onClick={() => setCardActionsId(card.id)}
-                                  >
-                                    <Icon name="more" size={19} />
-                                  </button>
-                                )}
-                                {!bulkSelectMode && (
-                                  <button
-                                    aria-label="Editar tarjeta"
-                                    title="Editar tarjeta"
-                                    onClick={() => {
-                                      setEditingCard(card.id);
-                                      setModal("card");
-                                    }}
-                                  >
-                                    ✎
-                                  </button>
-                                )}
-                                {!bulkSelectMode && (
-                                  <button
-                                    aria-label="Eliminar tarjeta"
-                                    title="Eliminar tarjeta"
-                                    onClick={() =>
-                                      updateState((current) => ({
-                                        ...current,
-                                        cards: current.cards.filter(
-                                          (item) => item.id !== card.id,
-                                        ),
-                                      }))
-                                    }
-                                  >
-                                    ×
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="folder-empty-note">
-                        {children.length
-                          ? "Las tarjetas de este tema están organizadas dentro de sus subtemas."
-                          : "Añade tarjetas a este subtema para empezar a estudiarlo."}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()
-            )}
-          </section>
+          <LibraryBrowser
+            state={state}
+            parent={selectedFolder}
+            onParent={setSelectedFolder}
+            onOptions={() => setLibraryActionsOpen(true)}
+            selectionRequest={librarySelectionRequest}
+            onNewCard={() => {
+              setEditingCard(null);
+              setModal("card");
+            }}
+            onEditCard={(id) => {
+              setEditingCard(id);
+              setModal("card");
+            }}
+            onCardActions={setCardActionsId}
+            onDeleteCards={removeLibraryCards}
+            onMove={moveLibraryItems}
+            onSave={setSaveReviewIds}
+            onStart={startReview}
+            onRename={(id, name) =>
+              updateState((c) => ({
+                ...c,
+                folders: c.folders.map((f) =>
+                  f.id === id ? { ...f, name } : f,
+                ),
+              }))
+            }
+          />
         )}
-
         {tab === "organize" && (
           <section className="page study-organizer-page">
             <div className="study-organizer-toolbar">
@@ -3006,6 +2406,7 @@ export default function OpoApp() {
                 onReorder={reorderStudyNode}
                 onMoveOut={moveStudyOut}
                 onPlan={planStudyNode}
+                onMove={moveStudyItems}
               />
             ) : (
               <>
@@ -3014,19 +2415,13 @@ export default function OpoApp() {
                     <span className="section-label">REGISTRO</span>
                     <h2>Historial de repasos</h2>
                   </div>
-                  <select
-                    value={studyHistoryRoot}
-                    onChange={(event) =>
-                      setStudyHistoryRoot(event.target.value)
-                    }
-                  >
-                    <option value="all">Todos los temas</option>
-                    {studyRoots.map((root) => (
-                      <option key={root.id} value={root.id}>
-                        {root.name}
-                      </option>
-                    ))}
-                  </select>
+                  <HierarchyField
+                    label="Filtrar historial por tema"
+                    items={state.studyNodes}
+                    value={studyHistoryRoot === "all" ? "" : studyHistoryRoot}
+                    rootLabel="Todos los temas"
+                    onChange={(id: string) => setStudyHistoryRoot(id || "all")}
+                  />
                 </div>
                 <section className="panel study-history-panel">
                   {filteredStudyCompleted.length ? (
@@ -3354,18 +2749,17 @@ export default function OpoApp() {
                       aria-label="Buscar psicotécnicos"
                     />
                   </div>
-                  <select
-                    value={psychCategory}
-                    onChange={(event) => setPsychCategory(event.target.value)}
-                    aria-label="Filtrar categoría"
-                  >
-                    <option value="all">Todas las categorías</option>
-                    {psychCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
+                  <HierarchyField
+                    label="Filtrar categoría"
+                    items={psychCategories.map((name) => ({
+                      id: name,
+                      name,
+                      parentId: null,
+                    }))}
+                    value={psychCategory === "all" ? "" : psychCategory}
+                    rootLabel="Todas las categorías"
+                    onChange={(id: string) => setPsychCategory(id || "all")}
+                  />
                   <select
                     value={psychSort}
                     onChange={(event) =>
@@ -3541,21 +2935,54 @@ export default function OpoApp() {
         )}
 
         {tab === "progress" && (
-          <ProgressPage
-            state={state}
-            onCard={(id) => startReview(undefined, "all", [id])}
-            onOrthography={() =>
-              startOrthographySession(undefined, "weakest", orthographyCards)
-            }
-            onWeak={() => startReview(undefined, "weakest")}
-            onNode={(id) => startStudySession(id)}
-            onHistory={() => {
-              navigate("organize");
-              setStudyView("history");
-            }}
-          />
+          <>
+            <ContentScope
+              state={state}
+              folders={progressFolderIds}
+              nodes={progressNodeIds}
+              onFolders={setProgressFolderIds}
+              onNodes={setProgressNodeIds}
+            />
+            <ProgressPage
+              state={scopedProgress(state, progressFolderIds, progressNodeIds)}
+              onCard={(id) => startReview(undefined, "all", [id])}
+              onOrthography={() =>
+                startOrthographySession(
+                  undefined,
+                  "weakest",
+                  scopedCards(state, progressFolderIds, progressNodeIds).filter(
+                    isOrthographyCard,
+                  ),
+                )
+              }
+              onWeak={() => {
+                const ids = scopedCards(
+                  state,
+                  progressFolderIds,
+                  progressNodeIds,
+                )
+                  .filter((c) => !isOrthographyCard(c))
+                  .map((c) => c.id);
+                if (ids.length) startReview(undefined, "weakest", ids);
+              }}
+              onNode={(id) => startStudySession(id)}
+              onHistory={() => {
+                navigate("organize");
+                setStudyView("history");
+              }}
+            />
+          </>
         )}
       </main>
+      {saveReviewIds.length > 0 && (
+        <SaveReviewSheet
+          state={state}
+          cardIds={saveReviewIds}
+          onClose={() => setSaveReviewIds([])}
+          onAssign={assignSavedReview}
+          onCollection={editReviewCollection}
+        />
+      )}
       {libraryActionsOpen && (
         <LibraryActions
           name={activeFolder?.name}
@@ -3588,15 +3015,7 @@ export default function OpoApp() {
           onDelete={
             activeFolder ? () => deleteFolder(activeFolder.id) : undefined
           }
-          onSelect={
-            activeFolder
-              ? () => {
-                  setBulkSelectMode((value) => !value);
-                  setSelectedCardIds([]);
-                  setBulkTargetFolderId("");
-                }
-              : undefined
-          }
+          onSelect={() => setLibrarySelectionRequest((n) => n + 1)}
           onWritten={
             activeFolder &&
             cardsInFolderScope(state, activeFolder.id).some(isWrittenCard)
@@ -3627,8 +3046,12 @@ export default function OpoApp() {
           card={state.cards.find((c) => c.id === cardActionsId)!}
           folders={state.folders}
           onClose={() => setCardActionsId(null)}
-          onMove={(folder) => moveCard(cardActionsId, folder)}
+          onMove={(folder) => {
+            void moveLibraryItems([], [cardActionsId], folder || null);
+          }}
           onReorder={(direction) => reorderCard(cardActionsId, direction)}
+          onSave={() => setSaveReviewIds([cardActionsId])}
+          onDelete={() => removeLibraryCards([cardActionsId])}
         />
       )}
       {preferencesOpen && (
@@ -3753,6 +3176,12 @@ export default function OpoApp() {
             onPrevious={goToPreviousCard}
             onUnknown={markCurrentUnknown}
             onSchedule={() => openStudyQuick(null, currentCard.id)}
+            onSave={() => setSaveReviewIds([currentCard.id])}
+            savedCount={
+              reviewCollections(state.settings).filter((c) =>
+                inCollection(state.settings, c.id, currentCard.id),
+              ).length
+            }
             onImage={() => setViewingStudyImage(true)}
             correct={currentSelectionIsCorrect(currentCard)}
           />

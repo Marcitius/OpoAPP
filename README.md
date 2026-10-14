@@ -1,11 +1,13 @@
-# OpoGC v12 — Memoria y estudio
+# OpoGC v13 — Repasos y organización
 
-Aplicación real sobre OpoGC v11 Mobile UX, con el mismo Supabase y los mismos datos. Esta iteración mejora el aprendizaje, la planificación y la relación Biblioteca → Estudiar → Repasar. No es una demo; las fixtures solo pertenecen a los tests.
+Actualización del proyecto real OpoGC v12. Colecciones permanentes de repaso, filtros por niveles y movimiento de selecciones completas, conservando Supabase, datos y memoria. Las fixtures solo pertenecen a los tests.
 
-## Actualizar la rama actual
+## Actualizar OpoApp en GitHub y Cloudflare Pages
 
-1. Sustituye el código por el contenido de `opogc/` de este ZIP. Conserva tu `.env.local`, las variables del despliegue, el dominio y el mismo proyecto Supabase.
-2. Desde la carpeta con `package.json`, con Node >=22.13.0:
+1. En OpoGC actual, Cuenta → Exportar copia. Espera a que los cambios pendientes queden guardados.
+2. Descomprime el ZIP y entra en `opogc/`. Verás `package.json`, `app/`, `components/`, etc.
+3. Abre tu carpeta local del repositorio **OpoApp**, donde ya tienes `package.json`. Copia **el contenido de opogc/** encima y acepta sustituir archivos. Conserva `.env.local` y `.git`.
+4. Abre la terminal en OpoApp. Con Node >=22.13.0 (Node 24 es compatible), ejecuta:
 
 ```bash
 npm ci
@@ -14,9 +16,28 @@ npm test
 npm run build
 ```
 
-3. Despliega `out/` mediante tu procedimiento actual y acepta la actualización de la PWA. No borres el almacenamiento del sitio, IndexedDB ni la sesión.
-   **No requiere migraciones SQL ni volver a configurar Supabase.** Los SQL conservados son para instalaciones nuevas, no para volver a ejecutarlos al actualizar.
-   Reutiliza `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` actuales; sigue admitiéndose `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Nunca uses `service_role` en el cliente. El ZIP no contiene credenciales ni datos privados. Desarrollo: `npm run dev`; compilación local: `npm run start`.
+5. En GitHub Desktop: abre OpoApp, escribe un resumen, pulsa **Commit** y **Push origin**. Si usas Git por terminal, sigue tu procedimiento habitual de commit/push.
+6. Cloudflare Pages compilará la rama conectada. Mantén **Build command: npm run build** y **Build output directory: out**, el mismo dominio y las variables de Supabase que ya tienes.
+7. Espera a que el despliegue termine correctamente. Abre OpoGC y acepta el aviso de actualización si aparece.
+
+**Esta actualización no requiere migraciones ni volver a ejecutar SQL.** No crees otro proyecto Supabase ni borres datos del navegador, IndexedDB o la PWA. Reutiliza las variables actuales `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, o `NEXT_PUBLIC_SUPABASE_ANON_KEY`. El ZIP no incluye credenciales ni datos privados.
+
+Desarrollo: `npm run dev`. Compilación local: `npm run start`. Navegador de pruebas: `npx playwright install chromium` y `npm run test:ui`.
+
+## Novedades v13
+
+- **Repasar → Mis repasos:** Próximamente, Mal, Regular, Bien y colecciones propias. Crear, renombrar, eliminar, guardar y retirar.
+- **Guardar para repasar** desde la pregunta o respuesta, sin calificar ni avanzar. También desde Biblioteca y selecciones múltiples.
+- Una tarjeta puede estar en varias colecciones. Permanece guardada hasta retirarla manualmente, aunque la respondas bien o cambie de carpeta.
+- Repaso completo o filtrado por uno o varios temas/subtemas. Los padres incluyen descendientes. Ortografía se practica en su sesión específica.
+- Selectores comunes con búsqueda sin tildes, ruta, atrás y entrada por niveles. Aplicados a Estudiar, Repasar, Biblioteca, Progreso, historial, planificación, editores, importación y movimientos. Las listas pequeñas de opciones fijas siguen siendo simples.
+- **Biblioteca → Seleccionar:** tarjetas y ramas, seguir navegando sin perder selección, seleccionar nivel/resultados o todo, y **Mover a…**. Los padres llevan toda su rama; padre/hijo seleccionados no se mueven dos veces.
+- **Temario:** movimiento individual y en grupo a cualquier rama válida o raíz, conservando IDs, vínculos, notas y planificación.
+- Las tarjetas movidas a raíz van a una carpeta real reutilizable **Sin carpeta**, compatible con la relación existente de PostgreSQL.
+- Colecciones y pertenencias en filas independientes de ajustes existentes: sin duplicar tarjetas, sin cambiar FSRS y sin migraciones SQL. Se exportan/importan con los datos actuales.
+- Bottom sheets y editores comparten orden de capas y foco. Abrirlos no enfoca campos de texto ni solicita automáticamente el teclado.
+
+Detalles: `docs/CAMBIOS-V13.md`, `docs/ARCHIVOS-V13.md`, `docs/PRUEBAS.md` y CHANGELOG.
 
 ## Uso diario
 
@@ -87,9 +108,9 @@ npm run test:ui
 ```
 
 `check:preserved` conserva las huellas históricas v10 y verifica **13 archivos críticos y 21 funciones** intactos. Declara expresamente los dos adaptadores y ocho funciones autorizados a cambiar en v12, cubiertos por pruebas nuevas.
-`npm test`: 16 pruebas anteriores + 12 de memoria + 7 de planificación/jerarquías/conversión.
+`npm test`: 46 pruebas: 16 SQL/datos, 12 memoria, 7 estudio y 11 colecciones/selección/progreso.
 `npm run test:ui`: recorridos en ocho tamaños, sesiones, 50 tarjetas, offline local, overlays, foco, planificación, creación, reordenación, conversión y recuperación de la sesión con reloj controlado. Solo usa fixtures aisladas y los servicios locales reales.
 El test de caché PWA de producción usa una compilación sin variables: valida la pantalla de configuración offline, no una sesión autenticada en Safari instalado.
 El script existente `npm run test:live` requiere dos cuentas de pruebas confirmadas y `TEST_EMAIL_A`, `TEST_PASSWORD_A`, `TEST_EMAIL_B`, `TEST_PASSWORD_B`. **No se ejecutó contra tu Supabase ni tu cuenta.**
 
-Consulta `docs/MEMORIA-V12.md` (auditoría y comportamiento), `docs/PRUEBAS.md` (resultados y límites), `docs/ARCHIVOS-V12.md` y `CHANGELOG.md`. Capturas reales de navegador en `docs/capturas/`, con datos de prueba. Los documentos V10/V11 se conservan como referencia histórica, no como instrucciones de esta actualización.
+Consulta `docs/MEMORIA-V12.md` (auditoría y comportamiento), `docs/PRUEBAS.md` (resultados y límites), `docs/ARCHIVOS-V13.md` y `CHANGELOG.md`. Capturas reales de navegador en `docs/capturas/`, con datos de prueba. Los documentos V10/V11 se conservan como referencia histórica, no como instrucciones de esta actualización.

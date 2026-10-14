@@ -37,6 +37,8 @@ interface Props {
   onPrevious: () => void;
   onUnknown: () => void;
   onSchedule: () => void;
+  onSave: () => void;
+  savedCount: number;
   onImage: () => void;
   correct: boolean;
   busy?: boolean;
@@ -93,6 +95,15 @@ export default function ReviewSession(p: Props) {
             <Icon name="more" />
           </button>
         </div>
+        <button
+          className="save-review-action"
+          onClick={p.onSave}
+          disabled={p.busy}
+        >
+          {p.savedCount
+            ? `✓ Guardada en ${p.savedCount} colección${p.savedCount === 1 ? "" : "es"}`
+            : "Guardar para repasar"}
+        </button>
         <article
           className={`review-question ${p.revealed ? "answer-side" : "question-side"}`}
         >

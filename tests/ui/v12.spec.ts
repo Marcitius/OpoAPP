@@ -112,6 +112,16 @@ test("Plan rápido: mover Hoy ↔ Después conserva el ID y permite nota sin fec
   await page
     .getByRole("button", { name: "Estudiar después", exact: true })
     .click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as any).__opogcQA
+            .state()
+            .studyTasks.find((t: any) => t.id === "task164").planBucket,
+      ),
+    )
+    .toBe("next");
   const s = await page.evaluate(() => (window as any).__opogcQA.state());
   expect(s.studyTasks.find((t: any) => t.id === "task164").planBucket).toBe(
     "next",
@@ -181,8 +191,26 @@ test("Biblioteca → temario: editar, cambiar jerarquía, previsualizar, enlazar
   await page
     .getByRole("button", { name: "Jerarquía de Garantías enlazadas" })
     .click();
-  await page.getByLabel("Nuevo padre del elemento").selectOption("");
-  await page.getByLabel("Destino en el temario").selectOption("root");
+  await page
+    .getByRole("button", { name: "Nuevo padre del elemento", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .last()
+    .getByRole("button", { name: /Nivel principal de esta importación/ })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Destino en el temario", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .last()
+    .getByRole("button", {
+      name: "Seleccionar Derecho Constitucional",
+      exact: true,
+    })
+    .click();
   await page.getByRole("button", { name: /Previsualizar/ }).click();
   await expect(page.locator(".bridge-preview")).toContainText(
     "Garantías enlazadas",
@@ -212,10 +240,10 @@ test("Biblioteca → temario: editar, cambiar jerarquía, previsualizar, enlazar
     .getByRole("button", { name: "Estudiar", exact: true })
     .click();
   await page
-    .getByRole("textbox", { name: "Buscar apartado" })
+    .getByRole("textbox", { name: "Buscar tema o apartado" })
     .fill("Artículo 53");
   await page
-    .locator(".study-start-page .simple-row")
+    .locator(".study-start-page .picker-choose")
     .filter({ hasText: "Artículo 53" })
     .last()
     .click();
@@ -227,9 +255,19 @@ test("Mover y reordenar tarjetas y ramas mantiene relaciones y datos después de
 }) => {
   await open(page);
   await more(page, /Biblioteca/);
-  await page.locator(".folder-card").first().click();
-  await page.locator(".subtopic-card").first().click();
-  const rows = page.locator(".card-table .card-row");
+  await page
+    .getByRole("button", {
+      name: "Entrar en Constitución Española",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("button", {
+      name: "Entrar en Título IX · Tribunal Constitucional",
+      exact: true,
+    })
+    .click();
+  const rows = page.locator(".library-card-row");
   await rows
     .first()
     .getByRole("button", { name: "Mover o reordenar tarjeta" })
@@ -242,12 +280,22 @@ test("Mover y reordenar tarjetas y ramas mantiene relaciones y datos después de
     .getByRole("button", { name: "Mover o reordenar tarjeta" })
     .click();
   await noTextFocus(page);
-  await page.getByLabel("Carpeta de destino").selectOption("deck");
+  await page
+    .getByRole("button", { name: "Carpeta de destino", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .last()
+    .getByRole("button", {
+      name: "Seleccionar Constitución Española",
+      exact: true,
+    })
+    .click();
   await page
     .getByRole("button", { name: "Mover tarjeta", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Opciones de la carpeta", exact: true })
+    .getByRole("button", { name: "Opciones de la biblioteca", exact: true })
     .click();
   await page
     .getByRole("button", { name: "Sacar un nivel", exact: true })

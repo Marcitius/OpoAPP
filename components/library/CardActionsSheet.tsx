@@ -1,4 +1,5 @@
 "use client";
+import HierarchyField from "../filters/HierarchyPicker";
 import { useState } from "react";
 import type { Card, Folder } from "../../lib/study/legacy";
 import { flattenFolderTree, folderPathLabel } from "../../lib/study/legacy";
@@ -10,12 +11,16 @@ export default function CardActionsSheet({
   onClose,
   onMove,
   onReorder,
+  onSave,
+  onDelete,
 }: {
   card: Card;
   folders: Folder[];
   onClose: () => void;
   onMove: (folder: string) => void;
   onReorder: (direction: -1 | 1) => void;
+  onSave: () => void;
+  onDelete: () => void;
 }) {
   const [destination, setDestination] = useState(card?.folderId ?? "");
   if (!card) return null;
@@ -25,6 +30,15 @@ export default function CardActionsSheet({
       title={plainRichText(card.front) || "Tarjeta"}
       onClose={onClose}
     >
+      <button
+        className="sheet-action"
+        onClick={() => {
+          onClose();
+          onSave();
+        }}
+      >
+        Guardar para repasar
+      </button>
       <button
         className="sheet-action"
         onClick={() => {
@@ -57,17 +71,13 @@ export default function CardActionsSheet({
       <hr />
       <label>
         Mover a
-        <select
-          aria-label="Carpeta de destino"
+        <HierarchyField
+          label="Carpeta de destino"
+          items={folders}
           value={destination}
-          onChange={(e) => setDestination(e.target.value)}
-        >
-          {flattenFolderTree(folders).map(({ folder }) => (
-            <option value={folder.id} key={folder.id}>
-              {folderPathLabel(folders, folder.id)}
-            </option>
-          ))}
-        </select>
+          onChange={setDestination}
+          rootLabel="Biblioteca · nivel principal"
+        />
       </label>
       <button
         className="primary-button full"
@@ -78,6 +88,15 @@ export default function CardActionsSheet({
         }}
       >
         Mover tarjeta
+      </button>
+      <button
+        className="sheet-action danger-text"
+        onClick={() => {
+          onClose();
+          onDelete();
+        }}
+      >
+        Eliminar tarjeta
       </button>
       <p className="muted">
         La tarjeta conserva su historial y sus próximos repasos.

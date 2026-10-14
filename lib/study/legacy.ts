@@ -85,6 +85,7 @@ export type StudyImportNode = {
 };
 
 export type Folder = {
+  isUnfiled?: boolean;
   sortOrder?: number;
   id: string;
   name: string;
@@ -182,6 +183,7 @@ export type AppState = {
   studyNodes: StudyNode[];
   studyTasks: StudyTask[];
   settings: {
+    [key: string]: any;
     activeCardSession?: import("../memory/session").CardSession | null;
     dailyReviewGoal: number;
     dailyNewLimit: number;

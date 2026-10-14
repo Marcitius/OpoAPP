@@ -1,62 +1,40 @@
-# Pruebas ejecutadas — OpoGC v12
+# Pruebas ejecutadas — OpoGC v13
 
-Fecha: 2 de octubre de 2026. Proyecto base: ZIP v11 actual. Los fallos iniciales (selectors de navegación/capas en tests nuevos, tipo de fixture y error detectado en sacar un nivel) se corrigieron; resultados finales abajo.
+14 de octubre de 2026. Base: OpoGC-v12-Memoria-y-Estudio(1).zip. La copia final se reconstruyó después de una desconexión/mantenimiento del entorno y se volvió a validar. No se accedió a la cuenta real ni se publicó en Cloudflare.
 
-| Comprobación ejecutada                             | Resultado                                            |
-| -------------------------------------------------- | ---------------------------------------------------- |
-| npm run typecheck                                  | Correcto, sin errores                                |
-| npm test: PostgreSQL/PGLite + SQL/RLS/Storage      | 7/7                                                  |
-| npm test: datos, IDB/outbox, importación y cuentas | 9/9                                                  |
-| npm test: scheduler y sesiones deterministas       | 12/12                                                |
-| npm test: jerarquía, planificación y conversión    | 7/7                                                  |
-| check:preserved                                    | 13 archivos críticos y 21 funciones conservados      |
-| npm run build                                      | Compilación Next.js y exportación estática correctas |
-| Playwright Chromium                                | 30/30; sin saltados ni fallos                        |
+| Comprobación | Resultado |
+| --- | --- |
+| npm ci --no-audit --no-fund | Correcto; dependencias desde package-lock.json |
+| npm run typecheck | Correcto |
+| npm test | 46 aprobadas: 7 SQL/RLS/Storage + 9 datos/offline + 12 memoria + 7 estudio + 11 colecciones/selección/progreso |
+| npm run build | Correcto; Next 16.2.6, exportación estática out |
+| Suite completa Playwright | 43 aprobadas: 25 anteriores + 5 v12 + 13 v13 |
+| check:preserved | 13 archivos críticos y 21 funciones conservados respecto a las huellas históricas v10 |
+| Comparación directa con v12 | 20 archivos centrales idénticos; detalle en v13-base-integrity.json |
 
-## Qué se comprobó
+## Cobertura
 
-- Creación real de tarjeta en el editor, todos los tipos existentes, test simple/múltiple, vocabulario, escrita y ortografía.
-- Aprender tarjetas nuevas: Again repetido, espera, otras tarjetas, reaparición automática, Good progresivo y graduación real. Reloj del navegador controlado, sin esperar minutos de pared.
-- FSRS determinista: Again nuevo → Learning; metadatos conservados; cada refuerzo cuenta en fsrsReps; Hard antes que Good/Easy; intervalos crecen con recuerdo; lapso tras 90 días extra entra Relearning sin borrar historial/reps; adopción compatible de tarjetas antiguas.
-- Reapertura: se recarga el navegador con checkpoint pendiente; mantiene intento, cooldown y ratings. Se comprueba estado final de FSRS tras otra recarga.
-- Seis fallos no generan un bucle infinito ni éxito falso; saltar no genera ratings.
-- Transacción real IndexedDB: tarjeta + rating + checkpoint en outbox; aislamiento por cuenta; mismas proyecciones al recibir datos remotos.
-- 50 tarjetas seguidas, 50 IDs de registros únicos. Valoraciones manuales Bien/Regular/Mal con notas y siguiente automático.
-- Árbol: crear, editar, mover, subir/bajar, eliminar. Ciclos y destinos inválidos rechazados. Rama conserva hijos/IDs.
-- Biblioteca: tarjetas ordenadas, movimiento entre carpetas y sacar rama; conservación de progreso tras recarga.
-- Organización: Hoy → Después → Hoy conserva tarea/ID; nota sin fecha; prioridades y acciones rápidas.
-- Biblioteca → temario: nombres editados, reparentado, destino, preview, confirmación, sin copia de tarjetas; reimportación conserva IDs; apartado enlazado inicia tarjetas.
-- Campos sin foco al abrir; clic explícito sí enfoca. Sheets anidados: Escape solo cierra el superior. Trapping, arrastre, fondo estable y capas de imagen/PDF.
-- PWA de producción sin configuración: manifest standalone, iconos, Service Worker, recarga offline de la pantalla de configuración.
-- Backup portable local: importación/exportación de estructura, IDs, historial y comentarios mediante funciones existentes.
+- Guardar desde la pregunta, antes de responder, no modifica tarjeta ni rating. Guarda offline y permanece tras responder bien, cerrar y recargar.
+- Crear, renombrar, borrar colecciones y retirar pertenencias expresamente. Una predeterminada eliminada no reaparece al abrir.
+- Filtrar por ramas y descendientes, varias raíces, búsqueda sin tildes y apartados enlazados. Progreso respeta el ámbito.
+- Seleccionar padres/hijos/tarjetas entre niveles y mover a otra rama sin pérdida de IDs, relaciones, contenido, memoria, historial ni planificación.
+- Movimiento de varias tarjetas filtradas y movimiento a raíz mediante carpeta válida/reutilizable. Rechazo de ciclos y destinos inexistentes sin cambios parciales.
+- Persistencia de pertenencias/movimientos en IndexedDB y outbox reales; simulación de asignaciones de dispositivos distintos, aislamiento local de cuentas y backup/import.
+- FSRS: tarjetas nuevas, fallos repetidos, esperas espaciadas, intervalos, lapsos de maduras, ratings y checkpoint al cerrar.
+- Temario crear/editar/mover/reordenar/eliminar; planificación Hoy/Después/Repasos; Bien/Regular/Mal con nota y siguiente automático.
+- Todos los tipos actuales de tarjeta, edición/importación, búsqueda, ortografía, psicotécnicos e intentos.
+- Foco inicial en contenedores, input editable al tocar, sin foco automático de texto. Tab/Escape de la capa superior, paneles anidados e imagen/PDF sobre formularios.
+- 50 tarjetas consecutivas, árboles de doce niveles, tarjetas largas, orientación y viewport reducido para el espacio disponible con teclado.
+- Manifest, iconos, Service Worker y caché sobre build sin variables Supabase; recarga offline de la pantalla de configuración.
 
-## Tamaños recorridos realmente
+## Tamaños y entorno
 
-390×844; 430×932; 360×800; 412×915; iPad 768×1024 y 1024×768; desktop 1366×768 y 1920×1080. También orientación 844×390, árbol de doce niveles, contenido largo, scroll interior y viewport reducido de teclado.
-Son viewports Chromium, no ocho dispositivos físicos. No se simula un teclado del sistema abriéndose: se comprueba foco DOM y reducción de visualViewport. Las capturas son de la aplicación implementada con fixtures aisladas; no datos privados.
+Chromium 153 headless: 390×844, 430×932, 360×800, 412×915, 768×1024, 1024×768, 1366×768 y 1920×1080; orientación a 844×390. Comprobaciones de overflow, navegación, scroll, overlays y foco. Capturas reales del navegador con datos sintéticos aislados.
 
-## Límites importantes: NO ejecutado contra tu cuenta
+En este entorno se usó un Chromium externo al proyecto: `CHROMIUM_EXECUTABLE=/tmp/opogc-v13-chromium npm run test:ui`. No se añadió esa dependencia al paquete. En tu PC: `npx playwright install chromium` y `npm run test:ui`.
 
-- Login real en Supabase, cerrar/abrir PWA manteniendo sesión autenticada.
-- Cambios PC ↔ iPhone a través de Realtime del proyecto real.
-- Reconexion offline con envío/acuse real de Supabase HTTP.
-- Pruebas A/B con dos cuentas reales de tu proyecto; la RLS sí se ejecutó contra los SQL conservados dentro de PostgreSQL/PGLite.
-- Storage HTTP real ni descargas de adjuntos privados.
-- PWA instalada en Safari/iOS o Android físico, home indicator/teclado nativo.
+## Límites
 
-No se disponía de URL/claves/sesiones o dispositivos de tu proyecto. No se modificó tu cuenta ni se introdujeron credenciales nuevas. Los tests locales y hashes no sustituyen estas pruebas de integración. El script test:live existente permite ejecutar las comprobaciones autorizadas con dos cuentas de pruebas, no con usuarios privados.
+No se han ejecutado Auth/persistencia contra tu Supabase, Realtime PC↔iPhone, envío/descarga real de cola offline, Storage remoto ni dos cuentas reales. RLS y Storage se verifican con las migraciones reales en PGLite y roles simulados, no en tu servidor.
 
-## Reproducir
-
-```bash
-npm ci
-npm run check:preserved
-npm run typecheck
-npm test
-npm run build
-npx playwright install chromium
-npm run test:ui
-```
-
-Se usó Chromium 153 externo al repo por disponibilidad del entorno; la suite admite CHROMIUM_EXECUTABLE. No se añade esa dependencia a la app. El build de las pruebas PWA se realizó sin variables Supabase. En un build configurado debe adaptarse la expectativa de “Configura OpoGC”, no sustituir Auth por una fixture.
-Resultados máquina de navegador: ui-results.json. Las pruebas vuelven a generar test-results/ui-report.json, excluido del ZIP.
+Safari/iOS/Android físicos, teclado real e instalación standalone deben comprobarse tras desplegar. El test PWA local sin variables no equivale a una sesión autenticada instalada. El motor y archivos críticos se conservan; no se afirma que las simulaciones sean esas integraciones reales. test:live sigue disponible para dos cuentas de pruebas confirmadas.

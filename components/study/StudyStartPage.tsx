@@ -1,9 +1,16 @@
 "use client";
+import ContentScope from "../filters/ContentScope";
+import { HierarchyPicker } from "../filters/HierarchyPicker";
+import { scopedCards } from "../../lib/study/selection";
+import type { AppState } from "../../lib/study/legacy";
+import { isOrthographyCard } from "../../lib/study/legacy";
 import { useState } from "react";
 import type { StudyNode, StudyTask } from "../../lib/study/legacy";
 import { studyNodePath, dateLabel } from "../../lib/study/legacy";
 import Icon from "../shared/Icon";
 export default function StudyStartPage({
+  state,
+  onFilteredCards,
   nodes,
   tasks,
   onContinue,
@@ -14,6 +21,8 @@ export default function StudyStartPage({
   onCards,
   onResume,
 }: {
+  state: AppState;
+  onFilteredCards: (ids: string[]) => void;
   nodes: StudyNode[];
   tasks: StudyTask[];
   onContinue: () => void;
@@ -24,6 +33,11 @@ export default function StudyStartPage({
   onCards?: () => void;
   onResume?: () => void;
 }) {
+  const [fs, setFs] = useState<string[]>([]),
+    [ns, setNs] = useState<string[]>([]);
+  const filteredCards = scopedCards(state, fs, ns).filter(
+    (c) => !isOrthographyCard(c),
+  );
   const [query, setQuery] = useState("");
   const leaves = nodes.filter(
     (n) => !nodes.some((child) => child.parentId === n.id),
@@ -59,6 +73,20 @@ export default function StudyStartPage({
           <Icon name="arrow" />
         </button>
       )}
+      <ContentScope
+        state={state}
+        folders={fs}
+        nodes={ns}
+        onFolders={setFs}
+        onNodes={setNs}
+      />
+      <button
+        className="secondary-button full"
+        disabled={!filteredCards.length}
+        onClick={() => onFilteredCards(filteredCards.map((c) => c.id))}
+      >
+        Estudiar tarjetas de esta selección · {filteredCards.length}
+      </button>
       {tasks.length > 0 && (
         <button className="today-start review-start" onClick={onContinue}>
           <span className="action-symbol">
@@ -81,46 +109,24 @@ export default function StudyStartPage({
           Temario <Icon name="chevron" size={16} />
         </button>
       </div>
-      <div className="ux-search">
-        <Icon name="search" size={20} />
-        <input
-          aria-label="Buscar apartado"
-          placeholder="Buscar tema, artículo, apartado…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </div>
-      <div className="simple-list">
-        {matches.map((n) => (
-          <button
-            key={n.id}
-            className="simple-row"
-            onClick={() => onNode(n.id)}
-          >
-            <span>
-              <strong>{n.name}</strong>
-              <small>
-                {studyNodePath(nodes, n.id).slice(0, -1).join(" · ") ||
-                  "Mi temario"}
-              </small>
-            </span>
-            <Icon name="arrow" size={20} />
+      <HierarchyPicker
+        items={nodes}
+        value={[]}
+        allowRoot={false}
+        rootLabel="Mi temario"
+        onChange={(ids) => {
+          if (ids[0]) onNode(ids[0]);
+        }}
+      />
+      {!nodes.length && (
+        <div className="ux-empty">
+          <h2>Tu preparación empieza aquí</h2>
+          <p>Importa el temario que ya tienes o crea el primero.</p>
+          <button className="primary-button" onClick={onOrganize}>
+            Añadir temario
           </button>
-        ))}
-        {!nodes.length && (
-          <div className="ux-empty">
-            <Icon name="study" size={32} />
-            <h2>Tu preparación empieza aquí</h2>
-            <p>Importa el temario que ya tienes o crea tu primer tema.</p>
-            <button className="primary-button" onClick={onOrganize}>
-              Añadir temario
-            </button>
-          </div>
-        )}
-        {nodes.length > 0 && !matches.length && (
-          <p className="empty-inline">No hay apartados con ese nombre.</p>
-        )}
-      </div>
+        </div>
+      )}
       {tasks.length > 0 && (
         <button className="ux-link" onClick={onPlan}>
           Ver todas las fechas <Icon name="arrow" size={16} />

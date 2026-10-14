@@ -1,7 +1,12 @@
+import { useState } from "react";
+import type { AppState } from "../../lib/study/legacy";
+import ContentScope from "../filters/ContentScope";
+import { scopedCards } from "../../lib/study/selection";
 import type { Card, Folder, StudyMode } from "../../lib/study/legacy";
 import { isOrthographyCard } from "../../lib/study/legacy";
 import Icon from "../shared/Icon";
 export default function ReviewStartPage({
+  state,
   cards,
   folders,
   pending,
@@ -11,6 +16,7 @@ export default function ReviewStartPage({
   onTemario,
   onLibrary,
 }: {
+  state: AppState;
   cards: Card[];
   folders: Folder[];
   pending: number;
@@ -20,10 +26,27 @@ export default function ReviewStartPage({
   onTemario: () => void;
   onLibrary: () => void;
 }) {
+  const [fs, setFs] = useState<string[]>([]),
+    [ns, setNs] = useState<string[]>([]);
+  const scoped = scopedCards(state, fs, ns),
+    normal = scoped.filter((c) => !isOrthographyCard(c));
+  const start = (mode: StudyMode) => {
+    if (scoped.length)
+      onStart(
+        undefined,
+        mode,
+        (normal.length ? normal : scoped).map((c) => c.id),
+      );
+  };
   return (
     <section className="ux-page review-start-page">
       <p className="ux-intro">Recuerda hoy. Avanza mañana.</p>
-      <button className="today-start review-start" onClick={onPrimary}>
+      <button
+        className="today-start review-start"
+        onClick={() =>
+          fs.length || ns.length ? start("recommended") : onPrimary()
+        }
+      >
         <span className="action-symbol">
           <Icon name="review" size={26} />
         </span>
@@ -54,29 +77,36 @@ export default function ReviewStartPage({
       <div className="ux-section-head">
         <h2>Otra forma de practicar</h2>
       </div>
+      <ContentScope
+        state={state}
+        folders={fs}
+        nodes={ns}
+        onFolders={setFs}
+        onNodes={setNs}
+      />
       <div className="review-modes">
-        <button onClick={() => onStart(undefined, "weakest")}>
+        <button disabled={!scoped.length} onClick={() => start("weakest")}>
           <Icon name="review" />
           <strong>Más falladas</strong>
           <small>Dedica tiempo a lo que cuesta</small>
         </button>
-        <button onClick={() => onStart(undefined, "learn")}>
+        <button disabled={!scoped.length} onClick={() => start("learn")}>
           <Icon name="study" />
           <strong>Aprender</strong>
-          <small>Practica sin límite de tarjetas</small>
+          <small>Refuerza las tarjetas de tu selección</small>
         </button>
-        <button onClick={() => onStart(undefined, "random")}>
+        <button disabled={!scoped.length} onClick={() => start("random")}>
           <Icon name="more" />
           <strong>Aleatorio</strong>
           <small>Cambia el orden del repaso</small>
         </button>
-        {cards.some(isOrthographyCard) && (
+        {scoped.some(isOrthographyCard) && (
           <button
             onClick={() =>
               onStart(
                 undefined,
                 "recommended",
-                cards.filter(isOrthographyCard).map((c) => c.id),
+                scoped.filter(isOrthographyCard).map((c) => c.id),
               )
             }
           >
@@ -91,23 +121,10 @@ export default function ReviewStartPage({
           Biblioteca <Icon name="chevron" size={16} />
         </button>
       </div>
-      <div className="simple-list">
-        {folders
-          .filter((f) => !f.parentId)
-          .map((f) => (
-            <button
-              className="simple-row"
-              key={f.id}
-              onClick={() => onStart(f.id, "learn")}
-            >
-              <span>
-                <strong>{f.name}</strong>
-                <small>Empezar directamente</small>
-              </span>
-              <Icon name="arrow" size={20} />
-            </button>
-          ))}
-      </div>
+      <p className="muted">
+        Selecciona uno o varios temas arriba; cada rama incluye sus
+        subapartados.
+      </p>
       {!cards.length && (
         <p className="empty-inline">
           Puedes añadir tarjetas desde Más → Biblioteca.

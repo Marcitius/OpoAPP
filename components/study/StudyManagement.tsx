@@ -1,4 +1,5 @@
 "use client";
+import HierarchyField from "../filters/HierarchyPicker";
 import { useMemo, useState } from "react";
 import {
   StudyAssessment,
@@ -18,7 +19,6 @@ import {
 } from "../../lib/study/legacy";
 import BottomSheet from "../sheets/BottomSheet";
 import { ModalShell } from "../sheets/ModalShell";
-import { buildStudyTreePrompt } from "../../lib/chatgptPrompts";
 
 export function StudyTaskCard({
   task,
@@ -627,20 +627,14 @@ export function StudyQuickModal({
         </div>
         <label>
           Elemento del temario
-          <select
+          <HierarchyField
+            label="Elemento del temario"
+            items={nodes}
             value={nodeId}
-            onChange={(event) => setNodeId(event.target.value)}
-          >
-            <option value="" disabled>
-              Selecciona tema, apartado o artículo…
-            </option>
-            {ordered.map((node) => (
-              <option
-                key={node.id}
-                value={node.id}
-              >{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>
-            ))}
-          </select>
+            onChange={setNodeId}
+            allowRoot={false}
+            rootLabel="Seleccionar apartado"
+          />
         </label>
         {selected && (
           <p className="study-selected-path">
@@ -829,20 +823,14 @@ export function StudyTaskEditModal({
       >
         <label>
           Elemento del temario
-          <select
+          <HierarchyField
+            label="Elemento del temario"
+            items={nodes}
             value={nodeId}
-            onChange={(event) => setNodeId(event.target.value)}
-          >
-            <option value="" disabled>
-              Selecciona tema, apartado o artículo…
-            </option>
-            {ordered.map((node) => (
-              <option
-                key={node.id}
-                value={node.id}
-              >{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>
-            ))}
-          </select>
+            onChange={setNodeId}
+            allowRoot={false}
+            rootLabel="Seleccionar apartado"
+          />
         </label>
         {selected && (
           <p className="study-selected-path">
@@ -1003,21 +991,14 @@ export function StudyNodeEditorModal({
         </label>
         <label>
           Ubicación
-          <select
-            aria-label="Ubicación"
+          <HierarchyField
+            label="Ubicación"
+            items={nodes}
             value={parentId}
-            onChange={(event) => setParentId(event.target.value)}
-          >
-            <option value="">Nivel principal · crear como tema raíz</option>
-            {ordered
-              .filter((node) => !blockedParents.has(node.id))
-              .map((node) => (
-                <option
-                  key={node.id}
-                  value={node.id}
-                >{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>
-              ))}
-          </select>
+            onChange={setParentId}
+            blocked={blockedParents}
+            rootLabel="Nivel principal · temas raíz"
+          />
         </label>
         {selectedParent && (
           <p className="study-selected-path">
@@ -1060,20 +1041,6 @@ export function StudyImportModal({
 }) {
   const [raw, setRaw] = useState("");
   const [fileName, setFileName] = useState("");
-  const [promptCopied, setPromptCopied] = useState(false);
-
-  const studyPrompt = buildStudyTreePrompt();
-
-  async function copyStudyPrompt() {
-    try {
-      await navigator.clipboard.writeText(studyPrompt);
-      setPromptCopied(true);
-      window.setTimeout(() => setPromptCopied(false), 1800);
-    } catch {
-      setPromptCopied(false);
-    }
-  }
-
   const ordered = useMemo(() => flattenStudyTree(nodes), [nodes]);
   const [parentId, setParentId] = useState(
     defaultParentId && nodes.some((node) => node.id === defaultParentId)
@@ -1102,46 +1069,15 @@ export function StudyImportModal({
       fullScreen
       className="study-import-editor"
     >
-      <section className="import-step">
-        <div className="import-step-head">
-          <span>AI</span>
-          <div>
-            <strong>Crear temario con ChatGPT</strong>
-            <small>
-              Copia el prompt, adjunta o pega tu temario en ChatGPT y vuelve
-              con el JSON generado.
-            </small>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="secondary-button full-width"
-          onClick={copyStudyPrompt}
-        >
-          {promptCopied ? "✓ Prompt copiado" : "Copiar prompt para ChatGPT"}
-        </button>
-
-        <details>
-          <summary>Ver prompt completo</summary>
-          <pre className="prompt-preview">{studyPrompt}</pre>
-        </details>
-      </section>
-
       <label>
         Destino
-        <select
+        <HierarchyField
+          label="Destino"
+          items={nodes}
           value={parentId}
-          onChange={(event) => setParentId(event.target.value)}
-        >
-          <option value="">Nivel principal · temas raíz</option>
-          {ordered.map((node) => (
-            <option
-              key={node.id}
-              value={node.id}
-            >{`${"↳ ".repeat(Math.min(studyNodeDepth(nodes, node.id), 4))}${node.name}`}</option>
-          ))}
-        </select>
+          onChange={setParentId}
+          rootLabel="Nivel principal · temas raíz"
+        />
       </label>
       {selectedParent && (
         <p className="study-selected-path">

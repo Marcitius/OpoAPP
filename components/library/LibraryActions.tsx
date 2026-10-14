@@ -93,7 +93,7 @@ export default function LibraryActions({
       )}
       {onSelect && (
         <button className="sheet-action" onClick={() => action(onSelect)}>
-          Seleccionar tarjetas
+          Seleccionar tarjetas y ramas
         </button>
       )}
       {onUp && (

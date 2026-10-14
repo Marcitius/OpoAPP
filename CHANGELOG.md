@@ -1,5 +1,17 @@
 # CHANGELOG — OpoGC
 
+## 13.0.0 · 14 de octubre de 2026 — Repasos y organización
+
+- Colecciones permanentes y configurables, independientes de los ratings; guardar desde la pregunta, respuesta o selección de Biblioteca sin avanzar ni cambiar memoria.
+- Práctica global o filtrada por temas/subtemas y contenido enlazado; responder no elimina tarjetas guardadas.
+- Filtros profesionales con búsqueda, ruta y navegación progresiva en toda la app; selección múltiple de ramas.
+- Biblioteca separada en un componente: búsqueda, tipos, edición, selección mixta y movimiento entre niveles/ramas sin perder contenido.
+- Movimiento individual y en grupo de Temario. Se conservan IDs, relaciones, planificación y progreso; validación previa de ciclos.
+- Tarjetas a raíz mediante carpeta real Sin carpeta, sin nueva base de datos ni migración.
+- Capas/foco compartidos para paneles y editores; sin autoenfocar texto al abrir.
+- Conserva FSRS, Auth, RLS, Realtime, IndexedDB, Storage y motor de sincronización.
+- Proyecto completo, guía de actualización GitHub/Cloudflare, inventario, capturas y pruebas en docs.
+
 ## 12.0.0 · 2 de octubre de 2026 — Memoria y estudio
 
 - Conserva ts-fsrs 5.4.2: persiste fase, pasos y reps. Cada intento, incluido el refuerzo y ortografía, alimenta FSRS.

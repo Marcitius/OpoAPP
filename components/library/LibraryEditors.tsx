@@ -1,4 +1,5 @@
 "use client";
+import HierarchyField from "../filters/HierarchyPicker";
 import { useState, type FormEvent } from "react";
 import { AnnotatedCardImage, ImageAnnotator } from "../../app/CardImage";
 import type {
@@ -138,18 +139,14 @@ export function MoveFolderModal({
       </div>
       <label>
         Nuevo destino
-        <select
+        <HierarchyField
+          label="Nuevo destino"
+          items={folders}
           value={targetParentId}
-          onChange={(event) => setTargetParentId(event.target.value)}
-        >
-          <option value="">Biblioteca · nivel principal</option>
-          {options.map(({ folder: candidate, depth }) => (
-            <option key={candidate.id} value={candidate.id}>
-              {"↳ ".repeat(depth)}
-              {candidate.name}
-            </option>
-          ))}
-        </select>
+          onChange={setTargetParentId}
+          blocked={blocked}
+          rootLabel="Biblioteca · nivel principal"
+        />
       </label>
       <div className="folder-move-destination">
         <span>QUEDARÁ DENTRO DE</span>
@@ -597,18 +594,13 @@ export function CardModal({
         )}
         <label>
           Tema / apartado
-          <select
+          <HierarchyField
+            label="Tema / apartado"
+            items={folders}
             value={folderId}
-            onChange={(event) => setFolderId(event.target.value)}
-          >
-            <option value="">Sin carpeta</option>
-            {flattenFolderTree(folders).map(({ folder, depth }) => (
-              <option key={folder.id} value={folder.id}>
-                {"↳ ".repeat(depth)}
-                {folder.name}
-              </option>
-            ))}
-          </select>
+            onChange={setFolderId}
+            rootLabel="Sin carpeta"
+          />
         </label>
         {type === "orthography" ? (
           <div className="orthography-manual-editor">

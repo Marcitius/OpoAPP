@@ -1,5 +1,7 @@
 "use client";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { nextOverlayLayer, isTopOverlay } from "../shared/overlayLayer";
 import Icon from "../shared/Icon";
 export default function BottomSheet({
   title,
@@ -18,6 +20,7 @@ export default function BottomSheet({
   className?: string;
   dismissible?: boolean;
 }) {
+  const [layer] = useState(nextOverlayLayer);
   const ref = useRef<HTMLElement>(null),
     id = useId(),
     startY = useRef<number | null>(null),
@@ -28,9 +31,7 @@ export default function BottomSheet({
     const el = ref.current!;
     el.focus({ preventScroll: true });
     const key = (e: KeyboardEvent) => {
-      if (document.querySelector(".overlay-portal")) return;
-      if (Array.from(document.querySelectorAll(".ux-sheet")).at(-1) !== el)
-        return;
+      if (!isTopOverlay(el)) return;
       if (e.key === "Escape" && dismissible) {
         e.preventDefault();
         closeRef.current();
@@ -45,6 +46,11 @@ export default function BottomSheet({
         last = all.at(-1);
       if (!first) {
         e.preventDefault();
+        return;
+      }
+      if (!el.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first)?.focus();
         return;
       }
       if (
@@ -71,56 +77,61 @@ export default function BottomSheet({
         previous.focus({ preventScroll: true });
     };
   }, [dismissible]);
-  return (
-    <div
-      className="sheet-backdrop"
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget && dismissible) onClose();
-      }}
-    >
-      <section
-        ref={ref}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={id}
-        className={`ux-sheet ${fullScreen ? "sheet-fullscreen" : ""} ${className}`}
-      >
+  return typeof document === "undefined"
+    ? null
+    : createPortal(
         <div
-          className="sheet-drag-area"
-          aria-hidden="true"
+          className="sheet-backdrop"
+          style={{ zIndex: layer }}
           onPointerDown={(e) => {
-            startY.current = e.clientY;
-            e.currentTarget.setPointerCapture(e.pointerId);
-          }}
-          onPointerUp={(e) => {
-            if (
-              startY.current !== null &&
-              e.clientY - startY.current > 70 &&
-              dismissible
-            )
-              onClose();
-            startY.current = null;
+            if (e.target === e.currentTarget && dismissible) onClose();
           }}
         >
-          <i />
-        </div>
-        <header className="sheet-header">
-          <div>
-            <h2 id={id}>{title}</h2>
-            {subtitle && <p>{subtitle}</p>}
-          </div>
-          <button
-            className="icon-button"
-            aria-label="Cerrar"
-            disabled={!dismissible}
-            onClick={onClose}
+          <section
+            ref={ref}
+            data-overlay-layer={layer}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={id}
+            className={`ux-sheet ${fullScreen ? "sheet-fullscreen" : ""} ${className}`}
           >
-            <Icon name="close" />
-          </button>
-        </header>
-        <div className="sheet-content">{children}</div>
-      </section>
-    </div>
-  );
+            <div
+              className="sheet-drag-area"
+              aria-hidden="true"
+              onPointerDown={(e) => {
+                startY.current = e.clientY;
+                e.currentTarget.setPointerCapture(e.pointerId);
+              }}
+              onPointerUp={(e) => {
+                if (
+                  startY.current !== null &&
+                  e.clientY - startY.current > 70 &&
+                  dismissible
+                )
+                  onClose();
+                startY.current = null;
+              }}
+            >
+              <i />
+            </div>
+            <header className="sheet-header">
+              <div>
+                <h2 id={id}>{title}</h2>
+                {subtitle && <p>{subtitle}</p>}
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Cerrar"
+                disabled={!dismissible}
+                onClick={onClose}
+              >
+                <Icon name="close" />
+              </button>
+            </header>
+            <div className="sheet-content">{children}</div>
+          </section>
+        </div>,
+        document.body,
+      );
 }

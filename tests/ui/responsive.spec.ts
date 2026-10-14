@@ -295,7 +295,15 @@ test("Árbol: crear, editar, mover, reordenar y eliminar conservando IDs", async
   await page
     .getByRole("textbox", { name: "Nombre", exact: true })
     .fill("Tema renombrado");
-  await page.getByLabel("Ubicación", { exact: true }).selectOption("root");
+  await page.getByRole("button", { name: "Ubicación", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .last()
+    .getByRole("button", {
+      name: "Seleccionar Derecho Constitucional",
+      exact: true,
+    })
+    .click();
   await page
     .getByRole("button", { name: "Guardar cambios", exact: true })
     .click();
@@ -345,7 +353,7 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
   await page.getByRole("button", { name: /Biblioteca/ }).click();
   const search = page.getByRole("textbox", { name: "Buscar biblioteca" });
   await search.fill("Vocabulario:");
-  await page.locator(".library-result-main").first().click();
+  await page.locator(".library-card-row .library-row-main").first().click();
   await page.locator(".review-options button").first().click();
   await page.getByRole("button", { name: "Comprobar", exact: true }).click();
   await page.getByRole("button", { name: "Bien", exact: true }).click();
@@ -353,7 +361,7 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
   await nav(page, 390, "Más");
   await page.getByRole("button", { name: /Biblioteca/ }).click();
   await search.fill("Test múltiple:");
-  await page.locator(".library-result-main").first().click();
+  await page.locator(".library-card-row .library-row-main").first().click();
   await page.locator(".review-options button").nth(0).click();
   await page.locator(".review-options button").nth(1).click();
   await page.getByRole("button", { name: "Comprobar", exact: true }).click();
@@ -363,7 +371,7 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
   await nav(page, 390, "Más");
   await page.getByRole("button", { name: /Biblioteca/ }).click();
   await search.fill("Respuesta escrita:");
-  await page.locator(".library-result-main").first().click();
+  await page.locator(".library-card-row .library-row-main").first().click();
   await page
     .getByRole("textbox", { name: "Tu respuesta", exact: true })
     .fill("contenido esencial");
@@ -378,7 +386,7 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
   await nav(page, 390, "Más");
   await page.getByRole("button", { name: /Biblioteca/ }).click();
   await search.fill("espavilar");
-  await page.locator(".library-result-main").first().click();
+  await page.locator(".library-card-row .library-row-main").first().click();
   await page.getByRole("button", { name: "espavilar", exact: true }).click();
   await page.getByRole("button", { name: "Corregir", exact: true }).click();
   await expect(
@@ -398,7 +406,7 @@ test("Tarjeta larga: scroll interior y valoración siempre accesible", async ({
   await page
     .getByRole("textbox", { name: "Buscar biblioteca" })
     .fill("Tarjeta larga:");
-  await page.locator(".library-result-main").first().click();
+  await page.locator(".library-card-row .library-row-main").first().click();
   await page
     .getByRole("button", { name: "Mostrar respuesta", exact: true })
     .click();
@@ -625,7 +633,9 @@ test("Editor e importación de tarjetas: pantalla completa móvil", async ({
   await page.getByRole("button", { name: "Tarjeta", exact: true }).click();
   const sheet = page.getByRole("dialog");
   await expect(sheet).toHaveClass(/sheet-fullscreen/);
-  await expect(sheet.locator("select").first()).toBeVisible();
+  await expect(
+    sheet.getByRole("button", { name: "Tema / apartado", exact: true }),
+  ).toBeVisible();
   await noOverflow(page);
   await page.getByRole("button", { name: "Cerrar", exact: true }).click();
   await page
