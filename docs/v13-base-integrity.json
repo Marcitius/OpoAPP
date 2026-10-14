@@ -1,0 +1,22 @@
+{
+  "app/OrthographyStudy.tsx": true,
+  "app/fsrs.ts": true,
+  "app/memoryModel.ts": true,
+  "components/AccountApp.tsx": true,
+  "components/PwaManager.tsx": true,
+  "components/SyncContext.tsx": true,
+  "lib/auth/client.ts": true,
+  "lib/data/files.ts": true,
+  "lib/data/legacy.ts": true,
+  "lib/data/local.ts": true,
+  "lib/data/models.ts": true,
+  "lib/data/projection.ts": true,
+  "lib/memory/session.ts": true,
+  "lib/study/hierarchy.ts": true,
+  "lib/study/libraryBridge.ts": true,
+  "lib/study/planning.ts": true,
+  "lib/sync/engine.ts": true,
+  "public/manifest.webmanifest": true,
+  "supabase/migrations/202609300001_core.sql": true,
+  "supabase/migrations/202609300002_storage.sql": true
+}

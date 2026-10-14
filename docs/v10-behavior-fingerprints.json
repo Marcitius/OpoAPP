@@ -1,0 +1,35 @@
+{
+  "app/OpoApp.tsx": {
+    "startReview": "c46378cc3b511a0d07e173b8f5760bb09b7d95957ee7e968717f69e0bf062263",
+    "currentSelectionIsCorrect": "c801a55903bab4af812bb18f3c64ac8416ec3ddffe6157f8a2b6af67faf60526",
+    "submitWrittenAnswer": "e750987bd6f81316fa8b3df69c953bd9f502a21df9860f7220d02d2a5d5fe3dc",
+    "goToPreviousCard": "4747862a9f46adf6302c70f0fdc8bccbb0feef2d429a99e9fef917d997a98032",
+    "goToNextCard": "d09325510f04557a5477d39503ed831ec33b813e36e243ca37ddc546db1c3156",
+    "markCurrentUnknown": "e749ca9f8fecbd2d2339a2e9f7bd8a814d225e3ff4999d819fb8088cc57cb4a5",
+    "rateCurrent": "ba09e9a8e903693d60bffc99e11e97cdf8fa85dd90d5c270922f896e769b8c1a",
+    "recordCurrentReview": "16fef1a61bfa55cd8486ae2215efb5055dd17b797abb0ffa96b19a89e057be0f",
+    "correctOrthographyGroup": "71f8e392d1a31b34bc618ce8eaa1b746d90158139943b628731cb463857f935c",
+    "continueOrthographySession": "ca3fad21091e6d259e20a6d4c533947779c2169c6bcc3819fe1fd850108ffc74",
+    "closeOrthographySession": "adea9cf325f8bd8f6c0d07492a9ef12f17a3b6a3889e1694a9b7bf311b3d3ac3",
+    "importGeneratedCards": "02cb00b4a17335dfc382168a7bfc081bab575ed65cdd6a607632a0fb9a4ee7bb",
+    "moveFolder": "93cd3fc8dd69fb51dbd7189f72d266c7e93feefd44910a6c161ce0b86cb7e7e0",
+    "deleteFolder": "8a8c7ddf643d956557db46b2efa1ac124d1cd8ce8ad28fc59f20a34a75a82e69"
+  },
+  "lib/study/legacy.ts": {
+    "scheduleCard": "d78b97b16bc81677bb92c7feaf7c88e4bf188ff60b06fef038aec977777da992",
+    "evaluateWrittenAnswer": "e20cdb5ede9ded2db751e66aaed88f10dd946b8eb1c95fda25cfc510827360c4",
+    "applyWrittenStats": "3fbf9c0b2e92aeed62306cf4c63ef6448d4f6a88aced75e89bff526d83cdb2c8",
+    "writtenRubric": "94f2613af9c86e79c6a581fee9462fb55ce8ef2c0011ca7d7355fe18b59727f5",
+    "writtenStats": "862e2cf6cb0a1a8a951d2dd1579eeb874963ad474e0e90edabae5375ad899935",
+    "normalizeWrittenText": "ac942a77b782ce6e8b7476f8a752de096727f218a7ceae243c4c0bba0b6ecf35",
+    "tokenCoverage": "ee088c44b3d0d97943689b8d3cb30be8747d2a3bd440a1f753cba40977aa7200",
+    "weaknessScore": "13b329412fb7ac706a8d631c5d1a9985487ce39ddc70b4b6587449a6b33875e6",
+    "weakestStudyCards": "61ab6e6f028eea18094ddfedaf69fe515cfe9ef909f4cd41ef4bbbb65e9d5edd",
+    "chooseLearnCard": "b8b1185617022be9b2ede8217f15962087ec753cccb6fee2f5ab40a4ebdc312f",
+    "orthographyCardWeight": "0e7e931c1a0fdfd6c48b5ee19c96d115f8c21f5112b64ede3b83d09c76d4ffdf",
+    "chooseOrthographyGroup": "c8952418386fa5e5f0bb6bedbd684e2df02a4f66b7531c0693da9dce2eb55e95",
+    "orthographyStudyCard": "2a8484baa62174e6da56436bcb27a245d9ec95a5b32badb47861c38b8654a3b0",
+    "mergeStudyImport": "c971ea2ba38a271a6cdb52312f3f94e490599ac514244100002cdc50509154c6",
+    "inferStudyNodeForCard": "bd845df2b95f4c92ed160089932a06c2ba294c38b6c641ec3f44fe6311ad40e0"
+  }
+}

@@ -1,0 +1,91 @@
+144:const colors = ["#285943", "#B66A3C", "#6F5B8C", "#2C6E8F", "#8A784D"];
+145:const uid = () => typeof crypto !== "undefined" && "randomUUID" in crypto
+148:const nowIso = () => new Date().toISOString();
+149:const todayKey = () => new Date().toISOString().slice(0, 10);
+150:const localDateKey = (date = new Date()) => {
+156:const addDaysKey = (days: number) => {
+162:const normalizeStudyLabel = (value: string) => value
+169:function studyNodePath(nodes: StudyNode[], nodeId: string) {
+182:function studyNodeDepth(nodes: StudyNode[], nodeId: string) {
+186:function studyDescendantIds(nodes: StudyNode[], rootId: string) {
+201:function flattenStudyTree(nodes: StudyNode[]) {
+213:function studyImportRoots(value: unknown): StudyImportNode[] {
+231:function parseStudyTextTree(raw: string): StudyImportNode[] {
+266:function countStudyImportNodes(roots: StudyImportNode[]) {
+273:function mergeStudyImport(existing: StudyNode[], roots: StudyImportNode[], rootParentId: string | null = null) {
+298:function inferStudyNodeForCard(card: Card, nodes: StudyNode[], folders: Folder[]) {
+316:function studyTreeForExport(nodes: StudyNode[], rootIds?: Set<string>) {
+326:const isMultipleChoiceType = (type: CardType) => type === "choice" || type === "test";
+327:const isMultipleChoiceCard = (card: Card) => isMultipleChoiceType(card.type);
+328:const isOrthographyCard = (card: Card) => card.type === "orthography";
+329:const isWrittenCard = (card: Card) => card.type === "written";
+330:const cardCorrectOptions = (card: Card) => {
+334:const isMultipleAnswerTest = (card: Card) => card.type === "test" && cardCorrectOptions(card).length > 1;
+335:const sameNumberSet = (a: number[], b: number[]) => a.length === b.length && [...a].sort((x, y) => x - y).every((value, index) => value === [...b].sort((x, y) => x - y)[index]);
+336:const cardTypeLabel = (type: CardType) => type === "orthography" ? "ORTO" : type === "written" ? "ESCRITA" : type === "test" ? "TEST" : type === "choice" ? "VOCAB" : "FLASHCARD";
+338:function escapeHtml(value: string) {
+347:function importedBackHtml(item: ParsedImportItem) {
+356:function orthographyBackHtml(word: string, isCorrect: boolean, correctForm: string, explanation: string, source: string) {
+365:const WRITTEN_RUBRIC_PREFIX = "__OPOGC_WRITTEN_RUBRIC__:";
+366:const WRITTEN_STATS_PREFIX = "__OPOGC_WRITTEN_STATS__:";
+392:function encodeWrittenRubric(evaluation: WrittenEvaluation) {
+396:function writtenRubric(card: Card): WrittenEvaluation | null {
+404:function zeroWrittenAnswerResult(card: Card): WrittenAnswerResult | null {
+423:function writtenStats(card: Card): WrittenStats {
+439:function writtenAverageAccuracy(card: Card) {
+444:function writtenRecentAccuracy(card: Card) {
+450:function writtenAccuracyRisk(card: Card) {
+456:function normalizeWrittenText(value: string, evaluation: WrittenEvaluation) {
+465:function tokenCoverage(answer: string, candidate: string) {
+472:function evaluateWrittenAnswer(card: Card, answer: string): WrittenAnswerResult | null {
+521:function applyWrittenStats(card: Card, result: WrittenAnswerResult) {
+539:function initialState(): AppState {
+590:function scheduleCard(card: Card, rating: Rating): Card {
+594:const CONSTITUTION_FOLDER_NAME = "Tema 1: derecho constitucional";
+595:const CONSTITUTION_FOLDER_ID = "seed-tema-1-derecho-constitucional";
+599:const constitutionSeedCards: SeedCard[] = [
+631:function normalizeAndSeed(state: AppState) {
+707:function isStudyableCard(card: Card) {
+711:function scoreLabel(value: number) {
+715:function dateLabel(value: string | null | undefined) {
+722:function psychStats(test: PsychTest) {
+730:function sortPsychTests(tests: PsychTest[], sort: PsychSort) {
+759:function shuffled<T>(items: T[]) {
+770:function descendantFolderIds(folders: Folder[], folderId: string) {
+785:function flattenFolderTree(folders: Folder[]) {
+807:function folderPathLabel(folders: Folder[], folderId: string) {
+820:function cardsInFolderScope(state: AppState, folderId?: string) {
+826:const isContinuousStudyMode = (mode: StudyMode) => mode === "learn" || mode === "weakest";
+828:function failureCount(cardId: string, reviews: Review[]) {
+832:function recentFailureCount(cardId: string, reviews: Review[], take = 8) {
+839:function weaknessScore(card: Card, reviews: Review[], model: ReturnType<typeof fitPersonalMemoryModel>, now = new Date()) {
+856:function weakestStudyCards(cards: Card[], reviews: Review[], model: ReturnType<typeof fitPersonalMemoryModel>) {
+880:function chooseLearnCard(
+922:function orthographyCardWeight(
+957:function chooseOrthographyGroup(
+1003:function useStableOverlaySurfaces() {
+1108:function orthographyStudyCard(card: Card): OrthographyStudyCard {
+2740:const navItems: { id: Tab; label: string; icon: string }[] = [
+2748:function NavButton({ item, active, onClick }: { item: (typeof navItems)[number]; active: boolean; onClick: () => void }) {
+2752:function StudyTaskCard({ task, node, nodes, onComplete, onPostpone, onDelete, onEdit, onReorder, canMoveUp = false, canMoveDown = false, grouped = false }: {
+2803:function StudyTaskGroupedList({ tasks, nodes, onComplete, onPostpone, onDelete, onEdit }: {
+2820:function StudyTaskGroupBranch({ node, nodes, tasks, depth, onComplete, onPostpone, onDelete, onEdit }: {
+2854:function StudyUpcomingRow({ task, node, nodes, onEdit, onDelete }: {
+2875:function StudyTreeBranch({ node, nodes, tasks, depth, onQuick, onExport, onAddChild, onEdit, onImportInto, onDelete, selectionMode, selectedIds, onToggleSelect }: {
+2919:function StudyQuickModal({ nodes, defaultNodeId, onClose, onSave }: {
+2944:function StudyCompletionNoteModal({ assessment, task, nodes, onClose, onSave }: {
+2966:function StudyTaskEditModal({ task, nodes, onClose, onSave, onDelete }: {
+2992:function StudyNodeEditorModal({ nodes, nodeId, defaultParentId, onClose, onSave }: {
+3020:function StudyImportModal({ nodes, defaultParentId, onClose, onImport }: {
+3069:function StatCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: string }) {
+3073:function WeekStrip({ reviews }: { reviews: Review[] }) {
+3078:function Empty({ icon, title, copy, action, onAction }: { icon: string; title: string; copy: string; action: string; onAction: () => void }) {
+3082:function ModalShell({ title, subtitle, label = "NUEVO", onClose, children }: { title: string; subtitle: string; label?: string; onClose: () => void; children: React.ReactNode }) {
+3086:function FolderModal({ parentId, parentName, onClose, onCreate }: { parentId: string | null; parentName: string; onClose: () => void; onCreate: (folder: Folder) => void }) {
+3093:function MoveFolderModal({ folders, folder, onClose, onMove }: { folders: Folder[]; folder: Folder; onClose: () => void; onMove: (targetParentId: string | null) => void }) {
+3108:function CardModal({ folders, defaultFolder, initialCard, onClose, onSave }: { folders: Folder[]; defaultFolder: string | null; initialCard: Card | null; onClose: () => void; onSave: (card: Card) => void }) {
+3405:function PsychModal({ initialTest, onClose, onSave }: { initialTest: PsychTest | null; onClose: () => void; onSave: (test: PsychTest) => void }) {
+3501:function AttemptModal({ test, initialAttempt, onClose, onSave }: { test: PsychTest; initialAttempt: Attempt | null; onClose: () => void; onSave: (attempt: Attempt) => void }) {
+3514:function ActivityChart({ reviews }: { reviews: Review[] }) {
+3521:function MemoryBreakdown({ cards }: { cards: Card[] }) {
+3531:function streakDays(reviews: Review[]) {
