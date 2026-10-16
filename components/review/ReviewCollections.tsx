@@ -15,13 +15,15 @@ import Icon from "../shared/Icon";
 export default function ReviewCollections({
   state,
   onStart,
-  onAssign,
+  onRemove,
   onCollection,
   onSave,
+  onChooseMode,
 }: {
   state: AppState;
-  onStart: (ids: string[]) => void;
-  onAssign: (id: string, ids: string[], saved: boolean) => Promise<boolean>;
+  onStart: (ids: string[], collectionId: string) => void;
+  onChooseMode: (ids: string[], collectionId: string) => void;
+  onRemove: (id: string, ids: string[]) => Promise<boolean>;
   onCollection: (c: ReviewCollection) => Promise<boolean>;
   onSave: (ids: string[]) => void;
 }) {
@@ -122,18 +124,36 @@ export default function ReviewCollections({
             className="primary-button full"
             disabled={!cards.length}
             onClick={() =>
-              onStart((ordinary.length ? ordinary : cards).map((c) => c.id))
+              onStart(
+                (ordinary.length ? ordinary : cards).map((c) => c.id),
+                c.id,
+              )
             }
           >
             Empezar repaso · {cards.length}{" "}
             {cards.length === 1 ? "tarjeta" : "tarjetas"}
+          </button>
+          <button
+            className="ux-link collection-mode-action"
+            disabled={!cards.length}
+            onClick={() =>
+              onChooseMode(
+                cards.map((card) => card.id),
+                c.id,
+              )
+            }
+          >
+            Elegir modo de estudio
           </button>
           {ordinary.length > 0 && ordinary.length < cards.length && (
             <>
               <button
                 className="secondary-button full"
                 onClick={() =>
-                  onStart(cards.filter(isOrthographyCard).map((c) => c.id))
+                  onStart(
+                    cards.filter(isOrthographyCard).map((c) => c.id),
+                    c.id,
+                  )
                 }
               >
                 Repasar ortografía
@@ -163,6 +183,12 @@ export default function ReviewCollections({
                 <>
                   <button
                     className="secondary-button"
+                    onClick={() => onChooseMode(selected, c.id)}
+                  >
+                    Estudiar selección
+                  </button>
+                  <button
+                    className="secondary-button"
                     onClick={() => onSave(selected)}
                   >
                     Guardar en otra colección
@@ -173,8 +199,7 @@ export default function ReviewCollections({
                     onClick={async () => {
                       setBusy(true);
                       try {
-                        if (await onAssign(c.id, selected, false))
-                          setSelected([]);
+                        if (await onRemove(c.id, selected)) setSelected([]);
                       } finally {
                         setBusy(false);
                       }
@@ -205,12 +230,31 @@ export default function ReviewCollections({
                 </button>
                 <button
                   className="collection-card-main"
-                  onClick={() => onStart([card.id])}
+                  onClick={() => onStart([card.id], c.id)}
                 >
                   <strong>{plainRichText(card.front)}</strong>
                   <small>
                     {state.folders.find((f) => f.id === card.folderId)?.name}
                   </small>
+                </button>
+                <button
+                  className="ux-link collection-remove"
+                  disabled={busy}
+                  aria-label={`Quitar de ${c.name}: ${plainRichText(card.front)}`}
+                  onClick={async () => {
+                    if (busy) return;
+                    setBusy(true);
+                    try {
+                      if (await onRemove(c.id, [card.id]))
+                        setSelected((ids) =>
+                          ids.filter((id) => id !== card.id),
+                        );
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  Quitar de aquí
                 </button>
                 <button
                   className="icon-button"

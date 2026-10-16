@@ -30,6 +30,7 @@ export default function LibraryBrowser({
   onMove,
   onSave,
   onStart,
+  onChooseMode,
   onRename,
   selectionRequest,
 }: {
@@ -48,6 +49,7 @@ export default function LibraryBrowser({
   ) => Promise<boolean>;
   onSave: (ids: string[]) => void;
   onStart: (folder?: string, mode?: StudyMode, ids?: string[]) => void;
+  onChooseMode: (ids: string[]) => void;
   onRename: (id: string, name: string) => Promise<boolean>;
   selectionRequest: number;
 }) {
@@ -105,19 +107,6 @@ export default function LibraryBrowser({
     set((ids) =>
       ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
     );
-  const learn = () => {
-    const ordinary = state.cards.filter(
-      (c) => selected.includes(c.id) && !isOrthographyCard(c),
-    );
-    onStart(
-      undefined,
-      "learn",
-      (ordinary.length
-        ? ordinary
-        : state.cards.filter((c) => selected.includes(c.id))
-      ).map((c) => c.id),
-    );
-  };
   return (
     <section className="ux-page library-browser-v13">
       <div className="library-top-actions">
@@ -313,7 +302,7 @@ export default function LibraryBrowser({
           <button
             className="secondary-button"
             disabled={!selected.length}
-            onClick={learn}
+            onClick={() => onChooseMode(selected)}
           >
             Estudiar selección
           </button>
@@ -323,9 +312,7 @@ export default function LibraryBrowser({
             <button
               className="secondary-button"
               onClick={() =>
-                onStart(
-                  undefined,
-                  "learn",
+                onChooseMode(
                   state.cards
                     .filter(
                       (c) => selected.includes(c.id) && isOrthographyCard(c),

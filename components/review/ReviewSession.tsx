@@ -38,6 +38,9 @@ interface Props {
   onUnknown: () => void;
   onSchedule: () => void;
   onSave: () => void;
+  onEdit: () => void;
+  onRemove?: () => void;
+  collectionName?: string;
   savedCount: number;
   onImage: () => void;
   correct: boolean;
@@ -104,6 +107,15 @@ export default function ReviewSession(p: Props) {
             ? `✓ Guardada en ${p.savedCount} colección${p.savedCount === 1 ? "" : "es"}`
             : "Guardar para repasar"}
         </button>
+        {p.onRemove && (
+          <button
+            className="ux-link remove-review-action"
+            disabled={p.busy}
+            onClick={p.onRemove}
+          >
+            Quitar de «{p.collectionName}» y continuar
+          </button>
+        )}
         <article
           className={`review-question ${p.revealed ? "answer-side" : "question-side"}`}
         >
@@ -324,6 +336,23 @@ export default function ReviewSession(p: Props) {
       </footer>
       {more && (
         <BottomSheet title="En este repaso" onClose={() => setMore(false)}>
+          <button
+            className="sheet-action"
+            disabled={p.busy}
+            onClick={() => action(p.onEdit)}
+          >
+            Editar tarjeta
+          </button>
+          {p.onRemove && (
+            <button
+              className="sheet-action"
+              disabled={p.busy}
+              onClick={() => action(p.onRemove!)}
+            >
+              Quitar de «{p.collectionName}» y continuar
+            </button>
+          )}
+
           <button
             className="sheet-action"
             disabled={p.busy || !p.canGoBack}

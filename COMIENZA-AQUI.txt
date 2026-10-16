@@ -1,21 +1,37 @@
-OpoGC v13 — Repasos y organización
+OpoGC v13.1 - ACTUALIZACION DESDE v13
 
-PARA ACTUALIZAR OpoApp + CLOUDFLARE PAGES:
-1. En tu OpoGC actual, exporta una copia desde Cuenta.
-2. Descomprime el ZIP y entra en opogc.
-3. Copia el CONTENIDO de opogc a tu carpeta local OpoApp (donde está package.json). Acepta sustituir archivos. Conserva .env.local y .git.
-4. Abre una terminal en OpoApp y ejecuta:
-   npm ci
-   npm run typecheck
-   npm test
-   npm run build
-5. En GitHub Desktop: abre OpoApp, escribe un resumen, pulsa Commit y Push origin.
-6. Cloudflare Pages compilará la rama conectada. Mantén npm run build, salida out, el dominio y las variables actuales de Supabase.
-7. Cuando termine correctamente, abre OpoGC y acepta el aviso de actualización si aparece.
+1. Descomprime el ZIP y abre actualizar.
+2. Sube TODO EL CONTENIDO de actualizar a la raiz de OpoAPP, aceptando
+   sustituir archivos. Conserva las rutas de app, components, lib, tests, docs.
+   package.json debe quedar junto al package.json anterior.
+   No subas una carpeta nueva llamada actualizar.
+3. Cloudflare Pages: Settings > Builds & deployments > Build configuration.
+   Build command: npm run build
+   Build output directory: out
+   Root directory: donde este package.json (vacio si esta en la raiz).
+4. Conserva tus variables actuales de Supabase. Vuelve a desplegar.
+5. No necesitas ejecutar SQL ni volver a configurar Supabase.
 
-NO hay que volver a ejecutar SQL ni crear otro Supabase. NO borres datos del navegador ni reinstales la PWA para actualizar.
+USO
+- Tarjeta abierta > menu de tres puntos > Editar tarjeta.
+- Coleccion > Empezar repaso > Quitar de nombre y continuar.
+- Coleccion > Quitar de aqui, en la fila de la tarjeta.
+- Biblioteca > Seleccionar > Estudiar seleccion > elige modo.
+- Estudiar > Estudiar tarjetas de esta seleccion > elige modo.
 
-Repasar → Mis repasos: colecciones permanentes globales o por tema.
-Guardar para repasar desde una tarjeta no califica ni cambia su memoria.
-Biblioteca/Temario: seleccionar tarjetas y ramas, seguir navegando y mover la selección.
-README.md explica todo. docs/PRUEBAS.md diferencia pruebas locales de integraciones reales.
+El parche requiere la v13 entregada, no es un proyecto independiente.
+No borra archivos automaticamente; no elimina datos ni reinicia el estado.
+No hay eliminaciones entre v13 y v13.1.
+
+Si aun aparecen errores de @/db en Cloudflare:
+Los registros anteriores mostraban archivos que no estaban en v13:
+ app/api/annotations/route.ts
+ app/api/files/route.ts
+ app/api/files/multipart/route.ts
+ app/api/state/route.ts
+ app/api/storage-status/route.ts
+ wrangler.json
+Este parche no soluciona por si solo esa mezcla de versiones. Guarda una copia
+del repositorio y compara esas rutas con la entrega completa v13 antes de
+retirarlas. Mantener codigo antiguo que no esta en la entrega puede impedir
+compilar aunque los archivos nuevos esten actualizados.

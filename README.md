@@ -1,6 +1,18 @@
-# OpoGC v13 — Repasos y organización
+# OpoGC v13.1 — Sesiones y modos de estudio
 
 Actualización del proyecto real OpoGC v12. Colecciones permanentes de repaso, filtros por niveles y movimiento de selecciones completas, conservando Supabase, datos y memoria. Las fixtures solo pertenecen a los tests.
+
+## Actualización incremental v13 → v13.1
+
+El ZIP de esta iteración contiene solo archivos nuevos o modificados sobre **OpoGC v13 — Repasos y organización**. Copia el contenido de `actualizar/` a la raíz de OpoAPP, donde ya están `package.json`, `app/`, `components/` y `lib/`. Sustituye los archivos y sube los cambios conservando sus rutas. No subas la carpeta `actualizar` como una carpeta adicional. No hay archivos que eliminar entre v13 y v13.1.
+
+- Durante una tarjeta: **··· → Editar tarjeta**. Guarda y vuelve a la misma tarjeta; pregunta, respuesta, opciones e imágenes usan el editor existente. El teclado se abre al tocar un campo. El cambio de tipo se hace fuera de la sesión.
+- En una sesión iniciada desde una colección: **Quitar de «nombre» y continuar**. Retira esa pertenencia y sus futuras apariciones en esa sesión, sin borrar la tarjeta, otras colecciones ni historial. También hay **Quitar de aquí** en cada fila de la colección.
+- Al pulsar **Estudiar selección**: elige Aprender, Aleatorio, En orden, Más falladas o Repasos pendientes. Se aplica solo a lo seleccionado. Disponible en Biblioteca, Estudiar y colecciones; las selecciones mixtas permiten elegir tarjetas u ortografía.
+
+Cloudflare Pages: **Build command `npm run build`**, salida **`out`**, raíz donde esté `package.json`. Mantén las variables actuales de Supabase. Los archivos antiguos ajenos a v13 que aparecían en los registros de despliegue no se borran al aplicar este parche; ver `COMIENZA-AQUI.txt`.
+
+Detalle, compatibilidad e inventario: `docs/ACTUALIZACION-V13.1.md`. Pruebas de esta iteración: `docs/PRUEBAS-V13.1.md`. El apartado siguiente conserva la guía de instalación del proyecto completo v13.
 
 ## Actualizar OpoApp en GitHub y Cloudflare Pages
 

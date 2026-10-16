@@ -1,0 +1,295 @@
+{
+  "fecha": "2026-10-16",
+  "version": "13.1.0",
+  "navegador": "Chromium 138.0.7204.0 headless",
+  "estadisticas": {
+    "startTime": "2026-10-16T14:56:30.389Z",
+    "duration": 92318.226,
+    "expected": 56,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "pruebas": [
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "iphone-pequeno: navegación, estudio, repaso, temario y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "iphone-grande: navegación, estudio, repaso, temario y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "android-pequeno: navegación, estudio, repaso, temario y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "android-grande: navegación, estudio, repaso, temario y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "ipad-vertical: navegación, estudio, repaso, temario y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "ipad-horizontal: navegación, estudio, repaso, temario y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "desktop: navegación, estudio, repaso, temario y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "desktop-grande: navegación, estudio, repaso, temario y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Varias tarjetas consecutivas, FSRS y registros individuales",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Bien, Regular y Mal con nota, siguiente automático y recarga IndexedDB",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Árbol: crear, editar, mover, reordenar y eliminar conservando IDs",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Tarjeta larga: scroll interior y valoración siempre accesible",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Psicotécnicos, nota e intento existentes",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Bottom sheet: arrastre, teclado reducido, foco y cuenta",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Production PWA: manifest, iconos, Service Worker y recarga offline",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "50 tarjetas consecutivas sin reconfigurar ni perder registros",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Doce niveles, atrás y cambio de orientación sin overflow",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Altura visual del teclado con layout intacto",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Offline: valoración duradera y backup portable con IDs e historial",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Cuenta vacía: sin reinicio ni inserción de datos de ejemplo",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Editor e importación de tarjetas: pantalla completa móvil",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Imagen y PDF sobre un formulario: capas, foco y Escape",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Planificación v10: repasos existentes conservados y sin duplicar contadores",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "responsive.spec.ts",
+      "prueba": "Prioridad de estudio: continúa solo los elementos planificados como estudio",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v12.spec.ts",
+      "prueba": "Aprendizaje nuevo: fallos espaciados, checkpoint tras recarga y graduación real",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v12.spec.ts",
+      "prueba": "Plan rápido: mover Hoy ↔ Después conserva el ID y permite nota sin fecha",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v12.spec.ts",
+      "prueba": "Biblioteca → temario: editar, cambiar jerarquía, previsualizar, enlazar y reimportar",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v12.spec.ts",
+      "prueba": "Mover y reordenar tarjetas y ramas mantiene relaciones y datos después de recargar",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v12.spec.ts",
+      "prueba": "Creación de tarjetas y formularios no enfocan campos al abrirse",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Guardar antes de responder, valorar, cerrar y retirar conservando memoria",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Crear colección durante una tarjeta no abre el teclado ni avanza",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Biblioteca: padre e hijo y tarjeta seleccionados se mueven entre ramas sin perder datos",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Mover tarjeta a raíz mantiene pertenencia y el filtro por subtema responde al cambio",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Temario: selección entre niveles mueve la rama conservando planificación e IDs",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Filtros y colecciones 360x800: niveles, búsqueda, foco y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Filtros y colecciones 430x932: niveles, búsqueda, foco y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Filtros y colecciones 768x1024: niveles, búsqueda, foco y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Filtros y colecciones 1024x768: niveles, búsqueda, foco y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Filtros y colecciones 1366x768: niveles, búsqueda, foco y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Filtros y colecciones 1920x1080: niveles, búsqueda, foco y capas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Renombrar y eliminar colección persiste después de volver a abrir",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v13.spec.ts",
+      "prueba": "Varias tarjetas filtradas se mueven juntas sin modificar FSRS",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Editar en directo sin valorar ni avanzar, persistir y continuar 390",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Editar en directo sin valorar ni avanzar, persistir y continuar 1366",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Cancelar edicion conserva la tarjeta y permite seguir valorando",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Quitar en sesion elimina solo la pertenencia y finaliza, incluso offline",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Coleccion de origen sigue disponible al reabrir y quitar en la lista",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Biblioteca multiseleccion permite modo Aprender",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Biblioteca multiseleccion permite modo Aleatorio",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Biblioteca multiseleccion permite modo En orden",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Biblioteca multiseleccion permite modo Más falladas",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Biblioteca multiseleccion permite modo Repasos pendientes",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Selector desde Estudiar, cancelar, y modo en coleccion conserva contexto",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Retirar una tarjeta fallada avanza a la siguiente de la coleccion sin borrar su intento",
+      "resultado": "expected"
+    },
+    {
+      "archivo": "v131.spec.ts",
+      "prueba": "Seleccion mixta permite elegir ortografia sin mezclar tarjetas",
+      "resultado": "expected"
+    }
+  ]
+}

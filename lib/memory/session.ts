@@ -25,6 +25,7 @@ export interface CardSession {
   history: { cardId: string; rating: Rating; reviewId: string }[];
   studyTaskId?: string;
   sourceNodeId?: string;
+  sourceCollectionId?: string;
   format?: "orthography";
 }
 export function createCardSession(

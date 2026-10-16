@@ -174,13 +174,17 @@ export function CardModal({
   initialCard,
   onClose,
   onSave,
+  lockType = false,
 }: {
   folders: Folder[];
   defaultFolder: string | null;
   initialCard: Card | null;
   onClose: () => void;
-  onSave: (card: Card) => void;
+  onSave: (card: Card) => Promise<boolean>;
+  lockType?: boolean;
 }) {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [type, setType] = useState<CardType>(initialCard?.type ?? "basic");
   const [folderId, setFolderId] = useState(
     initialCard?.folderId ?? defaultFolder ?? folders[0]?.id ?? "",
@@ -384,8 +388,9 @@ export function CardModal({
     }
   }
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     const base: Card = initialCard ?? {
       id: uid(),
       folderId: "",
@@ -479,704 +484,749 @@ export function CardModal({
             encodeWrittenRubric(writtenEvaluation),
           ]
         : (initialCard?.options ?? []);
-    onSave({
-      ...base,
-      folderId,
-      type,
-      front:
-        type === "orthography"
-          ? sanitizeRichHtml(`<p>${escapeHtml(orthographyWord.trim())}</p>`)
-          : sanitizeRichHtml(front),
-      back:
-        type === "orthography"
-          ? orthographyBackHtml(
-              orthographyWord.trim(),
-              orthographyIsCorrect,
-              finalOrthographyForm,
-              orthographyExplanation.trim(),
-              orthographySource.trim(),
-            )
-          : sanitizeRichHtml(back),
-      options:
-        type === "written"
-          ? writtenOptions
-          : isMultipleChoiceType(type)
-            ? options.slice(0, 4).map((option) => option.trim())
-            : [],
-      correctOption: isMultipleChoiceType(type)
-        ? ((type === "test" && multipleAnswers
-            ? [...new Set(correctOptions)].sort((a, b) => a - b)[0]
-            : correctOption) ?? 0)
-        : 0,
-      correctOptions: isMultipleChoiceType(type)
-        ? type === "test" && multipleAnswers
-          ? [...new Set(correctOptions)].sort((a, b) => a - b).length
-            ? [...new Set(correctOptions)].sort((a, b) => a - b)
-            : [0]
-          : [Math.min(correctOption, 3)]
-        : [],
-      attachment: type === "orthography" ? null : attachment,
-      orthographyIsCorrect:
-        type === "orthography" ? orthographyIsCorrect : null,
-      orthographyCorrectForm:
-        type === "orthography" ? finalOrthographyForm : "",
-      orthographyExplanation:
-        type === "orthography" ? orthographyExplanation.trim() : "",
-      orthographySource: type === "orthography" ? orthographySource.trim() : "",
-      orthographyStage:
-        type === "orthography" ? Math.max(1, base.orthographyStage || 1) : 1,
-    });
+    setSaving(true);
+    setSaveError("");
+    try {
+      const saved = await onSave({
+        ...base,
+        folderId,
+        type,
+        front:
+          type === "orthography"
+            ? sanitizeRichHtml(`<p>${escapeHtml(orthographyWord.trim())}</p>`)
+            : sanitizeRichHtml(front),
+        back:
+          type === "orthography"
+            ? orthographyBackHtml(
+                orthographyWord.trim(),
+                orthographyIsCorrect,
+                finalOrthographyForm,
+                orthographyExplanation.trim(),
+                orthographySource.trim(),
+              )
+            : sanitizeRichHtml(back),
+        options:
+          type === "written"
+            ? writtenOptions
+            : isMultipleChoiceType(type)
+              ? options.slice(0, 4).map((option) => option.trim())
+              : [],
+        correctOption: isMultipleChoiceType(type)
+          ? ((type === "test" && multipleAnswers
+              ? [...new Set(correctOptions)].sort((a, b) => a - b)[0]
+              : correctOption) ?? 0)
+          : 0,
+        correctOptions: isMultipleChoiceType(type)
+          ? type === "test" && multipleAnswers
+            ? [...new Set(correctOptions)].sort((a, b) => a - b).length
+              ? [...new Set(correctOptions)].sort((a, b) => a - b)
+              : [0]
+            : [Math.min(correctOption, 3)]
+          : [],
+        attachment: type === "orthography" ? null : attachment,
+        orthographyIsCorrect:
+          type === "orthography" ? orthographyIsCorrect : null,
+        orthographyCorrectForm:
+          type === "orthography" ? finalOrthographyForm : "",
+        orthographyExplanation:
+          type === "orthography" ? orthographyExplanation.trim() : "",
+        orthographySource:
+          type === "orthography" ? orthographySource.trim() : "",
+        orthographyStage:
+          type === "orthography" ? Math.max(1, base.orthographyStage || 1) : 1,
+      });
+      if (!saved)
+        setSaveError(
+          "No se han podido guardar los cambios. Puedes volver a intentarlo.",
+        );
+    } catch {
+      setSaveError(
+        "No se han podido guardar los cambios. Puedes volver a intentarlo.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <ModalShell
       title={initialCard ? "Editar tarjeta" : "Crear tarjeta"}
-      subtitle="Crea flashcards, vocabulario, tests u ortografía. Las respuestas escritas con rúbrica se crean desde ChatGPT / JSON y después pueden editarse aquí."
+      subtitle={
+        lockType
+          ? "Corrige la tarjeta y continúa donde estabas."
+          : "Crea flashcards, vocabulario, tests u ortografía. Las respuestas escritas con rúbrica se crean desde ChatGPT / JSON y después pueden editarse aquí."
+      }
       label={initialCard ? "EDITAR" : "NUEVO"}
+      dismissible={!saving}
       onClose={onClose}
     >
       <form onSubmit={submit}>
-        <div className="segmented five-types">
-          <button
-            type="button"
-            className={type === "basic" ? "active" : ""}
-            onClick={() => setType("basic")}
-          >
-            Flashcard
-          </button>
-          <button
-            type="button"
-            className={type === "choice" ? "active" : ""}
-            onClick={() => setType("choice")}
-          >
-            Vocabulario
-          </button>
-          <button
-            type="button"
-            className={type === "test" ? "active" : ""}
-            onClick={() => setType("test")}
-          >
-            Tipo test
-          </button>
-          <button
-            type="button"
-            className={type === "orthography" ? "active" : ""}
-            onClick={() => setType("orthography")}
-          >
-            Ortografía
-          </button>
-          <button
-            type="button"
-            className={type === "written" ? "active" : ""}
-            disabled={!initialCard || initialCard.type !== "written"}
-            title={
-              !initialCard
-                ? "Las respuestas escritas se crean desde ChatGPT / JSON"
-                : initialCard.type !== "written"
-                  ? "No se convierte una tarjeta existente a respuesta escrita"
-                  : "Editar respuesta escrita"
-            }
-            onClick={() =>
-              initialCard?.type === "written" && setType("written")
-            }
-          >
-            Respuesta escrita
-          </button>
-        </div>
-        {type === "written" && (
-          <div className="written-import-note">
-            <strong>Respuesta escrita</strong>
-            <span>
-              Edita aquí la rúbrica importada. OpoGC seguirá usando estos
-              criterios para calcular la precisión.
-            </span>
-          </div>
-        )}
-        <label>
-          Tema / apartado
-          <HierarchyField
-            label="Tema / apartado"
-            items={folders}
-            value={folderId}
-            onChange={setFolderId}
-            rootLabel="Sin carpeta"
-          />
-        </label>
-        {type === "orthography" ? (
-          <div className="orthography-manual-editor">
-            <span className="flashcard-side-label">
-              PALABRA · UNIDAD INDIVIDUAL DE ESTUDIO
-            </span>
-            <label>
-              Palabra
-              <input
-                value={orthographyWord}
-                onChange={(event) => setOrthographyWord(event.target.value)}
-                placeholder="Ej. haciago"
-              />
-            </label>
-            <div className="answer-mode-toggle orthography-correctness-toggle">
+        <fieldset className="editor-fields" disabled={saving}>
+          {!lockType && (
+            <div className="segmented five-types">
               <button
                 type="button"
-                className={orthographyIsCorrect ? "active" : ""}
-                onClick={() => {
-                  setOrthographyIsCorrect(true);
-                  if (!orthographyCorrectForm.trim())
-                    setOrthographyCorrectForm(orthographyWord);
-                }}
+                className={type === "basic" ? "active" : ""}
+                disabled={lockType}
+                onClick={() => setType("basic")}
               >
-                Está bien escrita
+                Flashcard
               </button>
               <button
                 type="button"
-                className={!orthographyIsCorrect ? "active" : ""}
-                onClick={() => setOrthographyIsCorrect(false)}
+                className={type === "choice" ? "active" : ""}
+                disabled={lockType}
+                onClick={() => setType("choice")}
               >
-                Está mal escrita
+                Vocabulario
+              </button>
+              <button
+                type="button"
+                className={type === "test" ? "active" : ""}
+                disabled={lockType}
+                onClick={() => setType("test")}
+              >
+                Tipo test
+              </button>
+              <button
+                type="button"
+                className={type === "orthography" ? "active" : ""}
+                disabled={lockType}
+                onClick={() => setType("orthography")}
+              >
+                Ortografía
+              </button>
+              <button
+                type="button"
+                className={type === "written" ? "active" : ""}
+                disabled={
+                  lockType || !initialCard || initialCard.type !== "written"
+                }
+                title={
+                  !initialCard
+                    ? "Las respuestas escritas se crean desde ChatGPT / JSON"
+                    : initialCard.type !== "written"
+                      ? "No se convierte una tarjeta existente a respuesta escrita"
+                      : "Editar respuesta escrita"
+                }
+                onClick={() =>
+                  initialCard?.type === "written" && setType("written")
+                }
+              >
+                Respuesta escrita
               </button>
             </div>
-            <label>
-              Forma correcta
-              {!orthographyIsCorrect
-                ? " · obligatoria"
-                : " · puede coincidir con la palabra"}
-              <input
-                value={orthographyCorrectForm}
-                onChange={(event) =>
-                  setOrthographyCorrectForm(event.target.value)
-                }
-                placeholder={
-                  orthographyIsCorrect
-                    ? orthographyWord || "Forma correcta"
-                    : "Ej. aciago"
-                }
-              />
-            </label>
-            <label>
-              Explicación <small>(opcional)</small>
-              <textarea
-                value={orthographyExplanation}
-                onChange={(event) =>
-                  setOrthographyExplanation(event.target.value)
-                }
-                placeholder="La forma correcta es…"
-              />
-            </label>
-            <label>
-              Fuente <small>(opcional)</small>
-              <input
-                value={orthographySource}
-                onChange={(event) => setOrthographySource(event.target.value)}
-                placeholder="Ejercicio 1, p. 13"
-              />
-            </label>
-            <p className="field-help">
-              OpoGC no guardará esta palabra como un test fijo. La mezclará
-              dinámicamente con otras tres y mantendrá su progreso SRS por
-              separado.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="flashcard-side-editor question-editor">
-              <span className="flashcard-side-label">ANVERSO · PREGUNTA</span>
-              <label>Pregunta</label>
-              <RichTextEditor
-                value={front}
-                onChange={setFront}
-                placeholder="Escribe la pregunta"
-              />
-              {isMultipleChoiceType(type) && (
-                <fieldset>
-                  <legend>
-                    {type === "test"
-                      ? "Opciones del test"
-                      : "Opciones de vocabulario"}
-                  </legend>
-                  {type === "test" && (
-                    <div className="answer-mode-toggle">
-                      <button
-                        type="button"
-                        className={!multipleAnswers ? "active" : ""}
-                        onClick={() => {
-                          setMultipleAnswers(false);
-                          setCorrectOption(correctOptions[0] ?? correctOption);
-                        }}
-                      >
-                        Respuesta única
-                      </button>
-                      <button
-                        type="button"
-                        className={multipleAnswers ? "active" : ""}
-                        onClick={() => {
-                          setMultipleAnswers(true);
-                          setCorrectOptions((current) =>
-                            current.length ? current : [correctOption],
-                          );
-                        }}
-                      >
-                        Respuesta múltiple
-                      </button>
-                    </div>
-                  )}
-                  {type === "test" && multipleAnswers && (
-                    <p className="field-help">
-                      Marca todas las opciones correctas. Al estudiar, habrá que
-                      seleccionar exactamente ese conjunto.
-                    </p>
-                  )}
-                  {options.map((option, index) => {
-                    const checked =
-                      type === "test" && multipleAnswers
-                        ? correctOptions.includes(index)
-                        : correctOption === index;
-                    return (
-                      <label className="option-input" key={index}>
-                        <input
-                          type={
-                            type === "test" && multipleAnswers
-                              ? "checkbox"
-                              : "radio"
-                          }
-                          name={
-                            type === "test" && multipleAnswers
-                              ? undefined
-                              : "correct"
-                          }
-                          checked={checked}
-                          onChange={() => {
-                            if (type === "test" && multipleAnswers)
-                              setCorrectOptions((current) =>
-                                current.includes(index)
-                                  ? current.filter((value) => value !== index)
-                                  : [...current, index],
-                              );
-                            else {
-                              setCorrectOption(index);
-                              setCorrectOptions([index]);
-                            }
-                          }}
-                        />
-                        <span>{String.fromCharCode(65 + index)}</span>
-                        <input
-                          value={option}
-                          onChange={(event) =>
-                            setOptions((current) =>
-                              current.map((item, itemIndex) =>
-                                itemIndex === index ? event.target.value : item,
-                              ),
-                            )
-                          }
-                          placeholder={`Opción ${index + 1}`}
-                        />
-                      </label>
-                    );
-                  })}
-                </fieldset>
-              )}
+          )}
+          {type === "written" && (
+            <div className="written-import-note">
+              <strong>Respuesta escrita</strong>
+              <span>
+                Edita aquí la rúbrica importada. OpoGC seguirá usando estos
+                criterios para calcular la precisión.
+              </span>
             </div>
-            <div className="flashcard-side-editor answer-editor">
-              <span className="flashcard-side-label">REVERSO · RESPUESTA</span>
+          )}
+          <label>
+            Tema / apartado
+            <HierarchyField
+              label="Tema / apartado"
+              items={folders}
+              value={folderId}
+              onChange={setFolderId}
+              rootLabel="Sin carpeta"
+            />
+          </label>
+          {type === "orthography" ? (
+            <div className="orthography-manual-editor">
+              <span className="flashcard-side-label">
+                PALABRA · UNIDAD INDIVIDUAL DE ESTUDIO
+              </span>
               <label>
-                Texto de la respuesta <small>(opcional)</small>
+                Palabra
+                <input
+                  value={orthographyWord}
+                  onChange={(event) => setOrthographyWord(event.target.value)}
+                  placeholder="Ej. haciago"
+                />
               </label>
-              <RichTextEditor
-                value={back}
-                onChange={setBack}
-                placeholder="Puedes escribir una respuesta, añadir una imagen, escribir a mano o combinarlo"
-              />
-              <div className="card-media-field answer-media-field">
-                <span className="card-media-label">
-                  Respuesta visual <small>(opcional)</small>
-                </span>
-                {!attachment ? (
-                  <div className="answer-media-actions">
-                    <label className="file-drop compact answer-upload">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (file) void uploadImage(file);
-                        }}
-                      />
-                      <span>🖼</span>
-                      <strong>
-                        {uploadingImage
-                          ? "Subiendo…"
-                          : "Usar una imagen como respuesta"}
-                      </strong>
-                      <small>
-                        Página de libro, esquema, captura, fotografía…
-                      </small>
-                    </label>
-                    <button
-                      type="button"
-                      className="blank-answer-button"
-                      disabled={uploadingImage}
-                      onClick={() => void createHandwrittenAnswer()}
-                    >
-                      <span>✎</span>
-                      <strong>Crear respuesta manuscrita</strong>
-                      <small>
-                        Abre un lienzo en blanco para Apple Pencil o dedo.
-                      </small>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="card-media-preview answer-media-preview">
-                    <AnnotatedCardImage
-                      attachment={attachment}
-                      onOpen={() => setEditingImage(true)}
-                    />
-                    <div>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => setEditingImage(true)}
-                      >
-                        ✎ Abrir / escribir
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-button danger"
-                        onClick={() => setAttachment(null)}
-                      >
-                        Quitar respuesta visual
-                      </button>
-                    </div>
-                    <small>
-                      Esta imagen no se mostrará con la pregunta. Aparecerá
-                      únicamente al mostrar la respuesta.
-                    </small>
-                  </div>
-                )}
-                {imageError && <p className="form-error">{imageError}</p>}
+              <div className="answer-mode-toggle orthography-correctness-toggle">
+                <button
+                  type="button"
+                  className={orthographyIsCorrect ? "active" : ""}
+                  onClick={() => {
+                    setOrthographyIsCorrect(true);
+                    if (!orthographyCorrectForm.trim())
+                      setOrthographyCorrectForm(orthographyWord);
+                  }}
+                >
+                  Está bien escrita
+                </button>
+                <button
+                  type="button"
+                  className={!orthographyIsCorrect ? "active" : ""}
+                  onClick={() => setOrthographyIsCorrect(false)}
+                >
+                  Está mal escrita
+                </button>
               </div>
+              <label>
+                Forma correcta
+                {!orthographyIsCorrect
+                  ? " · obligatoria"
+                  : " · puede coincidir con la palabra"}
+                <input
+                  value={orthographyCorrectForm}
+                  onChange={(event) =>
+                    setOrthographyCorrectForm(event.target.value)
+                  }
+                  placeholder={
+                    orthographyIsCorrect
+                      ? orthographyWord || "Forma correcta"
+                      : "Ej. aciago"
+                  }
+                />
+              </label>
+              <label>
+                Explicación <small>(opcional)</small>
+                <textarea
+                  value={orthographyExplanation}
+                  onChange={(event) =>
+                    setOrthographyExplanation(event.target.value)
+                  }
+                  placeholder="La forma correcta es…"
+                />
+              </label>
+              <label>
+                Fuente <small>(opcional)</small>
+                <input
+                  value={orthographySource}
+                  onChange={(event) => setOrthographySource(event.target.value)}
+                  placeholder="Ejercicio 1, p. 13"
+                />
+              </label>
+              <p className="field-help">
+                OpoGC no guardará esta palabra como un test fijo. La mezclará
+                dinámicamente con otras tres y mantendrá su progreso SRS por
+                separado.
+              </p>
             </div>
-
-            {type === "written" && writtenEvaluation && (
-              <div className="written-rubric-editor">
-                <div className="written-rubric-head">
-                  <div>
-                    <span className="flashcard-side-label">
-                      RÚBRICA DE CORRECCIÓN
-                    </span>
-                    <strong>
-                      {writtenEvaluation.criterios.length} criterios
-                    </strong>
-                  </div>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={addWrittenCriterion}
-                  >
-                    ＋ Criterio
-                  </button>
-                </div>
-                <p className="field-help">
-                  Puedes aflojar o endurecer cada criterio. Si el orden exacto
-                  no importa, desactiva «Literal» y ajusta la similitud mínima.
-                </p>
-                <div className="written-normalization-grid">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={
-                        writtenEvaluation.normalizacion.ignorarMayusculas
-                      }
-                      onChange={(event) =>
-                        setWrittenEvaluation({
-                          ...writtenEvaluation,
-                          normalizacion: {
-                            ...writtenEvaluation.normalizacion,
-                            ignorarMayusculas: event.target.checked,
-                          },
-                        })
-                      }
-                    />{" "}
-                    Ignorar mayúsculas
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={
-                        writtenEvaluation.normalizacion.ignorarPuntuacion
-                      }
-                      onChange={(event) =>
-                        setWrittenEvaluation({
-                          ...writtenEvaluation,
-                          normalizacion: {
-                            ...writtenEvaluation.normalizacion,
-                            ignorarPuntuacion: event.target.checked,
-                          },
-                        })
-                      }
-                    />{" "}
-                    Ignorar puntuación
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={writtenEvaluation.normalizacion.ignorarAcentos}
-                      onChange={(event) =>
-                        setWrittenEvaluation({
-                          ...writtenEvaluation,
-                          normalizacion: {
-                            ...writtenEvaluation.normalizacion,
-                            ignorarAcentos: event.target.checked,
-                          },
-                        })
-                      }
-                    />{" "}
-                    Ignorar acentos
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={
-                        writtenEvaluation.normalizacion.ignorarEspaciosExtra
-                      }
-                      onChange={(event) =>
-                        setWrittenEvaluation({
-                          ...writtenEvaluation,
-                          normalizacion: {
-                            ...writtenEvaluation.normalizacion,
-                            ignorarEspaciosExtra: event.target.checked,
-                          },
-                        })
-                      }
-                    />{" "}
-                    Ignorar espacios extra
-                  </label>
-                </div>
-
-                <div className="written-rubric-criteria">
-                  {writtenEvaluation.criterios.map((criterion, index) => (
-                    <section
-                      className="written-rubric-criterion"
-                      key={`${criterion.id}-${index}`}
-                    >
-                      <div className="written-rubric-criterion-head">
-                        <strong>Criterio {index + 1}</strong>
+          ) : (
+            <>
+              <div className="flashcard-side-editor question-editor">
+                <span className="flashcard-side-label">ANVERSO · PREGUNTA</span>
+                <label>Pregunta</label>
+                <RichTextEditor
+                  value={front}
+                  onChange={setFront}
+                  placeholder="Escribe la pregunta"
+                />
+                {isMultipleChoiceType(type) && (
+                  <fieldset>
+                    <legend>
+                      {type === "test"
+                        ? "Opciones del test"
+                        : "Opciones de vocabulario"}
+                    </legend>
+                    {type === "test" && (
+                      <div className="answer-mode-toggle">
                         <button
                           type="button"
-                          className="text-button danger-text"
-                          disabled={writtenEvaluation.criterios.length <= 1}
-                          onClick={() => removeWrittenCriterion(index)}
+                          className={!multipleAnswers ? "active" : ""}
+                          onClick={() => {
+                            setMultipleAnswers(false);
+                            setCorrectOption(
+                              correctOptions[0] ?? correctOption,
+                            );
+                          }}
                         >
-                          Eliminar
+                          Respuesta única
+                        </button>
+                        <button
+                          type="button"
+                          className={multipleAnswers ? "active" : ""}
+                          onClick={() => {
+                            setMultipleAnswers(true);
+                            setCorrectOptions((current) =>
+                              current.length ? current : [correctOption],
+                            );
+                          }}
+                        >
+                          Respuesta múltiple
                         </button>
                       </div>
-                      <div className="form-grid">
-                        <label>
-                          ID
+                    )}
+                    {type === "test" && multipleAnswers && (
+                      <p className="field-help">
+                        Marca todas las opciones correctas. Al estudiar, habrá
+                        que seleccionar exactamente ese conjunto.
+                      </p>
+                    )}
+                    {options.map((option, index) => {
+                      const checked =
+                        type === "test" && multipleAnswers
+                          ? correctOptions.includes(index)
+                          : correctOption === index;
+                      return (
+                        <label className="option-input" key={index}>
                           <input
-                            value={criterion.id}
-                            onChange={(event) =>
-                              updateWrittenCriterion(index, (current) => ({
-                                ...current,
-                                id: event.target.value,
-                              }))
+                            type={
+                              type === "test" && multipleAnswers
+                                ? "checkbox"
+                                : "radio"
                             }
+                            name={
+                              type === "test" && multipleAnswers
+                                ? undefined
+                                : "correct"
+                            }
+                            checked={checked}
+                            onChange={() => {
+                              if (type === "test" && multipleAnswers)
+                                setCorrectOptions((current) =>
+                                  current.includes(index)
+                                    ? current.filter((value) => value !== index)
+                                    : [...current, index],
+                                );
+                              else {
+                                setCorrectOption(index);
+                                setCorrectOptions([index]);
+                              }
+                            }}
+                          />
+                          <span>{String.fromCharCode(65 + index)}</span>
+                          <input
+                            value={option}
+                            onChange={(event) =>
+                              setOptions((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? event.target.value
+                                    : item,
+                                ),
+                              )
+                            }
+                            placeholder={`Opción ${index + 1}`}
                           />
                         </label>
-                        <label>
-                          Puntos
-                          <input
-                            type="number"
-                            min="0.1"
-                            step="0.1"
-                            value={criterion.puntos}
-                            onChange={(event) =>
-                              updateWrittenCriterion(index, (current) => ({
-                                ...current,
-                                puntos: Number(event.target.value),
-                              }))
-                            }
-                          />
-                        </label>
-                      </div>
-                      <label>
-                        Texto esperado
-                        <textarea
-                          value={criterion.esperado}
-                          onChange={(event) =>
-                            updateWrittenCriterion(index, (current) => ({
-                              ...current,
-                              esperado: event.target.value,
-                            }))
-                          }
-                        />
-                      </label>
-                      <label>
-                        Alternativas aceptadas <small>(una por línea)</small>
-                        <textarea
-                          value={criterion.alternativas.join("\n")}
-                          onChange={(event) =>
-                            updateWrittenCriterion(index, (current) => ({
-                              ...current,
-                              alternativas: event.target.value
-                                .split(/\n/)
-                                .map((value) => value.trim())
-                                .filter(Boolean),
-                            }))
-                          }
-                        />
-                      </label>
-                      <div className="written-rubric-flags">
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={criterion.literal}
-                            onChange={(event) =>
-                              updateWrittenCriterion(index, (current) => ({
-                                ...current,
-                                literal: event.target.checked,
-                              }))
-                            }
-                          />{" "}
-                          Literal
-                        </label>
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={criterion.critico}
-                            onChange={(event) =>
-                              updateWrittenCriterion(index, (current) => ({
-                                ...current,
-                                critico: event.target.checked,
-                              }))
-                            }
-                          />{" "}
-                          Crítico
-                        </label>
-                      </div>
-                      <div className="form-grid">
-                        <label>
-                          Similitud mínima
-                          <input
-                            type="number"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={criterion.minimoSimilitud}
-                            onChange={(event) =>
-                              updateWrittenCriterion(index, (current) => ({
-                                ...current,
-                                minimoSimilitud: Number(event.target.value),
-                              }))
-                            }
-                          />
-                        </label>
-                        <label>
-                          Máximo si falla <small>(vacío = sin límite)</small>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="1"
-                            value={criterion.maximoSiFalla ?? ""}
-                            onChange={(event) =>
-                              updateWrittenCriterion(index, (current) => ({
-                                ...current,
-                                maximoSiFalla:
-                                  event.target.value === ""
-                                    ? null
-                                    : Number(event.target.value),
-                              }))
-                            }
-                          />
-                        </label>
-                      </div>
-                    </section>
-                  ))}
-                </div>
-
-                <div className="written-thresholds">
-                  <span className="flashcard-side-label">
-                    UMBRALES AUTOMÁTICOS
-                  </span>
-                  <div className="form-grid three">
-                    <label>
-                      Otra vez hasta
-                      <input
-                        type="number"
-                        min="0"
-                        max="99"
-                        value={writtenEvaluation.umbrales.otraVezHasta}
-                        onChange={(event) =>
-                          setWrittenEvaluation({
-                            ...writtenEvaluation,
-                            umbrales: {
-                              ...writtenEvaluation.umbrales,
-                              otraVezHasta: Number(event.target.value),
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Difícil hasta
-                      <input
-                        type="number"
-                        min="1"
-                        max="99"
-                        value={writtenEvaluation.umbrales.dificilHasta}
-                        onChange={(event) =>
-                          setWrittenEvaluation({
-                            ...writtenEvaluation,
-                            umbrales: {
-                              ...writtenEvaluation.umbrales,
-                              dificilHasta: Number(event.target.value),
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Bien hasta
-                      <input
-                        type="number"
-                        min="2"
-                        max="99"
-                        value={writtenEvaluation.umbrales.bienHasta}
-                        onChange={(event) =>
-                          setWrittenEvaluation({
-                            ...writtenEvaluation,
-                            umbrales: {
-                              ...writtenEvaluation.umbrales,
-                              bienHasta: Number(event.target.value),
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                  </div>
-                </div>
-                {writtenEditorError && (
-                  <p className="form-error">{writtenEditorError}</p>
+                      );
+                    })}
+                  </fieldset>
                 )}
               </div>
-            )}
-          </>
-        )}
-        <button
-          className="primary-button full"
-          disabled={
-            uploadingImage ||
-            (type === "orthography" &&
-              (!orthographyWord.trim() ||
-                (!orthographyIsCorrect && !orthographyCorrectForm.trim()))) ||
-            (type === "written" && !writtenEvaluation)
-          }
-        >
-          {initialCard
-            ? "Guardar cambios"
-            : type === "orthography"
-              ? "Guardar palabra"
-              : "Guardar tarjeta"}
-        </button>
+              <div className="flashcard-side-editor answer-editor">
+                <span className="flashcard-side-label">
+                  REVERSO · RESPUESTA
+                </span>
+                <label>
+                  Texto de la respuesta <small>(opcional)</small>
+                </label>
+                <RichTextEditor
+                  value={back}
+                  onChange={setBack}
+                  placeholder="Puedes escribir una respuesta, añadir una imagen, escribir a mano o combinarlo"
+                />
+                <div className="card-media-field answer-media-field">
+                  <span className="card-media-label">
+                    Respuesta visual <small>(opcional)</small>
+                  </span>
+                  {!attachment ? (
+                    <div className="answer-media-actions">
+                      <label className="file-drop compact answer-upload">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void uploadImage(file);
+                          }}
+                        />
+                        <span>🖼</span>
+                        <strong>
+                          {uploadingImage
+                            ? "Subiendo…"
+                            : "Usar una imagen como respuesta"}
+                        </strong>
+                        <small>
+                          Página de libro, esquema, captura, fotografía…
+                        </small>
+                      </label>
+                      <button
+                        type="button"
+                        className="blank-answer-button"
+                        disabled={uploadingImage}
+                        onClick={() => void createHandwrittenAnswer()}
+                      >
+                        <span>✎</span>
+                        <strong>Crear respuesta manuscrita</strong>
+                        <small>
+                          Abre un lienzo en blanco para Apple Pencil o dedo.
+                        </small>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="card-media-preview answer-media-preview">
+                      <AnnotatedCardImage
+                        attachment={attachment}
+                        onOpen={() => setEditingImage(true)}
+                      />
+                      <div>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => setEditingImage(true)}
+                        >
+                          ✎ Abrir / escribir
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button danger"
+                          onClick={() => setAttachment(null)}
+                        >
+                          Quitar respuesta visual
+                        </button>
+                      </div>
+                      <small>
+                        Esta imagen no se mostrará con la pregunta. Aparecerá
+                        únicamente al mostrar la respuesta.
+                      </small>
+                    </div>
+                  )}
+                  {imageError && <p className="form-error">{imageError}</p>}
+                </div>
+              </div>
+
+              {type === "written" && writtenEvaluation && (
+                <div className="written-rubric-editor">
+                  <div className="written-rubric-head">
+                    <div>
+                      <span className="flashcard-side-label">
+                        RÚBRICA DE CORRECCIÓN
+                      </span>
+                      <strong>
+                        {writtenEvaluation.criterios.length} criterios
+                      </strong>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={addWrittenCriterion}
+                    >
+                      ＋ Criterio
+                    </button>
+                  </div>
+                  <p className="field-help">
+                    Puedes aflojar o endurecer cada criterio. Si el orden exacto
+                    no importa, desactiva «Literal» y ajusta la similitud
+                    mínima.
+                  </p>
+                  <div className="written-normalization-grid">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          writtenEvaluation.normalizacion.ignorarMayusculas
+                        }
+                        onChange={(event) =>
+                          setWrittenEvaluation({
+                            ...writtenEvaluation,
+                            normalizacion: {
+                              ...writtenEvaluation.normalizacion,
+                              ignorarMayusculas: event.target.checked,
+                            },
+                          })
+                        }
+                      />{" "}
+                      Ignorar mayúsculas
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          writtenEvaluation.normalizacion.ignorarPuntuacion
+                        }
+                        onChange={(event) =>
+                          setWrittenEvaluation({
+                            ...writtenEvaluation,
+                            normalizacion: {
+                              ...writtenEvaluation.normalizacion,
+                              ignorarPuntuacion: event.target.checked,
+                            },
+                          })
+                        }
+                      />{" "}
+                      Ignorar puntuación
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={writtenEvaluation.normalizacion.ignorarAcentos}
+                        onChange={(event) =>
+                          setWrittenEvaluation({
+                            ...writtenEvaluation,
+                            normalizacion: {
+                              ...writtenEvaluation.normalizacion,
+                              ignorarAcentos: event.target.checked,
+                            },
+                          })
+                        }
+                      />{" "}
+                      Ignorar acentos
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          writtenEvaluation.normalizacion.ignorarEspaciosExtra
+                        }
+                        onChange={(event) =>
+                          setWrittenEvaluation({
+                            ...writtenEvaluation,
+                            normalizacion: {
+                              ...writtenEvaluation.normalizacion,
+                              ignorarEspaciosExtra: event.target.checked,
+                            },
+                          })
+                        }
+                      />{" "}
+                      Ignorar espacios extra
+                    </label>
+                  </div>
+
+                  <div className="written-rubric-criteria">
+                    {writtenEvaluation.criterios.map((criterion, index) => (
+                      <section
+                        className="written-rubric-criterion"
+                        key={`${criterion.id}-${index}`}
+                      >
+                        <div className="written-rubric-criterion-head">
+                          <strong>Criterio {index + 1}</strong>
+                          <button
+                            type="button"
+                            className="text-button danger-text"
+                            disabled={writtenEvaluation.criterios.length <= 1}
+                            onClick={() => removeWrittenCriterion(index)}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                        <div className="form-grid">
+                          <label>
+                            ID
+                            <input
+                              value={criterion.id}
+                              onChange={(event) =>
+                                updateWrittenCriterion(index, (current) => ({
+                                  ...current,
+                                  id: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <label>
+                            Puntos
+                            <input
+                              type="number"
+                              min="0.1"
+                              step="0.1"
+                              value={criterion.puntos}
+                              onChange={(event) =>
+                                updateWrittenCriterion(index, (current) => ({
+                                  ...current,
+                                  puntos: Number(event.target.value),
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <label>
+                          Texto esperado
+                          <textarea
+                            value={criterion.esperado}
+                            onChange={(event) =>
+                              updateWrittenCriterion(index, (current) => ({
+                                ...current,
+                                esperado: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          Alternativas aceptadas <small>(una por línea)</small>
+                          <textarea
+                            value={criterion.alternativas.join("\n")}
+                            onChange={(event) =>
+                              updateWrittenCriterion(index, (current) => ({
+                                ...current,
+                                alternativas: event.target.value
+                                  .split(/\n/)
+                                  .map((value) => value.trim())
+                                  .filter(Boolean),
+                              }))
+                            }
+                          />
+                        </label>
+                        <div className="written-rubric-flags">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={criterion.literal}
+                              onChange={(event) =>
+                                updateWrittenCriterion(index, (current) => ({
+                                  ...current,
+                                  literal: event.target.checked,
+                                }))
+                              }
+                            />{" "}
+                            Literal
+                          </label>
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={criterion.critico}
+                              onChange={(event) =>
+                                updateWrittenCriterion(index, (current) => ({
+                                  ...current,
+                                  critico: event.target.checked,
+                                }))
+                              }
+                            />{" "}
+                            Crítico
+                          </label>
+                        </div>
+                        <div className="form-grid">
+                          <label>
+                            Similitud mínima
+                            <input
+                              type="number"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={criterion.minimoSimilitud}
+                              onChange={(event) =>
+                                updateWrittenCriterion(index, (current) => ({
+                                  ...current,
+                                  minimoSimilitud: Number(event.target.value),
+                                }))
+                              }
+                            />
+                          </label>
+                          <label>
+                            Máximo si falla <small>(vacío = sin límite)</small>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value={criterion.maximoSiFalla ?? ""}
+                              onChange={(event) =>
+                                updateWrittenCriterion(index, (current) => ({
+                                  ...current,
+                                  maximoSiFalla:
+                                    event.target.value === ""
+                                      ? null
+                                      : Number(event.target.value),
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+
+                  <div className="written-thresholds">
+                    <span className="flashcard-side-label">
+                      UMBRALES AUTOMÁTICOS
+                    </span>
+                    <div className="form-grid three">
+                      <label>
+                        Otra vez hasta
+                        <input
+                          type="number"
+                          min="0"
+                          max="99"
+                          value={writtenEvaluation.umbrales.otraVezHasta}
+                          onChange={(event) =>
+                            setWrittenEvaluation({
+                              ...writtenEvaluation,
+                              umbrales: {
+                                ...writtenEvaluation.umbrales,
+                                otraVezHasta: Number(event.target.value),
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Difícil hasta
+                        <input
+                          type="number"
+                          min="1"
+                          max="99"
+                          value={writtenEvaluation.umbrales.dificilHasta}
+                          onChange={(event) =>
+                            setWrittenEvaluation({
+                              ...writtenEvaluation,
+                              umbrales: {
+                                ...writtenEvaluation.umbrales,
+                                dificilHasta: Number(event.target.value),
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Bien hasta
+                        <input
+                          type="number"
+                          min="2"
+                          max="99"
+                          value={writtenEvaluation.umbrales.bienHasta}
+                          onChange={(event) =>
+                            setWrittenEvaluation({
+                              ...writtenEvaluation,
+                              umbrales: {
+                                ...writtenEvaluation.umbrales,
+                                bienHasta: Number(event.target.value),
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  {writtenEditorError && (
+                    <p className="form-error">{writtenEditorError}</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+          <button
+            className="primary-button full"
+            disabled={
+              saving ||
+              uploadingImage ||
+              (type === "orthography" &&
+                (!orthographyWord.trim() ||
+                  (!orthographyIsCorrect && !orthographyCorrectForm.trim()))) ||
+              (type === "written" && !writtenEvaluation)
+            }
+          >
+            {saving
+              ? "Guardando…"
+              : initialCard
+                ? "Guardar cambios"
+                : type === "orthography"
+                  ? "Guardar palabra"
+                  : "Guardar tarjeta"}
+          </button>
+          {saveError && (
+            <p role="alert" className="form-error">
+              {saveError}
+            </p>
+          )}
+        </fieldset>
       </form>
       {editingImage && attachment && (
         <ImageAnnotator

@@ -167,6 +167,11 @@ import {
   scopedCards,
   scopedProgress,
 } from "../lib/study/selection";
+import StudyModeSheet from "../components/review/StudyModeSheet";
+import {
+  mergeCardContent,
+  withdrawCollectionCard,
+} from "../lib/review/sessionActions";
 export default function OpoApp() {
   useAppViewport();
   const engine = useEngine();
@@ -246,6 +251,12 @@ export default function OpoApp() {
   const reviewBusyRef = useRef(false);
   const presentationKeyRef = useRef("");
   const [saveReviewIds, setSaveReviewIds] = useState<string[]>([]);
+  const [modeSelection, setModeSelection] = useState<{
+    ids: string[];
+    sourceCollectionId?: string;
+  } | null>(null);
+  const chooseStudyMode = (ids: string[], sourceCollectionId?: string) =>
+    setModeSelection({ ids: [...new Set(ids)], sourceCollectionId });
   const [librarySelectionRequest, setLibrarySelectionRequest] = useState(0);
   const [progressFolderIds, setProgressFolderIds] = useState<string[]>([]);
   const [progressNodeIds, setProgressNodeIds] = useState<string[]>([]);
@@ -1166,6 +1177,7 @@ export default function OpoApp() {
     folderId: string | undefined,
     mode: StudyMode,
     scope: Card[],
+    sourceCollectionId?: string,
   ) {
     const current = stateRef.current;
     if (!current || reviewBusyRef.current) return;
@@ -1182,6 +1194,7 @@ export default function OpoApp() {
     const session: CardSession = {
       ...createCardSession(words, mode, uid(), Date.now()),
       format: "orthography",
+      ...(sourceCollectionId ? { sourceCollectionId } : {}),
     };
     reviewBusyRef.current = true;
     setReviewSaving(true);
@@ -1380,6 +1393,7 @@ export default function OpoApp() {
     explicitCardIds?: string[],
     studyTaskId?: string,
     sourceNodeId?: string,
+    sourceCollectionId?: string,
   ) {
     const current = stateRef.current;
     if (!current || reviewBusyRef.current) return;
@@ -1391,7 +1405,7 @@ export default function OpoApp() {
     const ortho = fullScope.filter(isOrthographyCard);
     if (ortho.length === fullScope.length) {
       setSessionOpen(false);
-      startOrthographySession(folderId, mode, ortho);
+      startOrthographySession(folderId, mode, ortho, sourceCollectionId);
       return;
     }
     if (ids && ortho.length)
@@ -1444,6 +1458,7 @@ export default function OpoApp() {
       ...createCardSession(pool, mode, uid(), +now),
       studyTaskId,
       sourceNodeId,
+      ...(sourceCollectionId ? { sourceCollectionId } : {}),
     };
     reviewBusyRef.current = true;
     setReviewSaving(true);
@@ -1464,6 +1479,40 @@ export default function OpoApp() {
     setSessionClock(+now);
     setSessionOpen(true);
     showSessionNext(session, pool);
+  }
+
+  async function removeCurrentFromCollection() {
+    const current = stateRef.current;
+    const session = current?.settings.activeCardSession;
+    const id = currentCard?.id;
+    if (
+      !current ||
+      !id ||
+      !validSession(session) ||
+      !session.sourceCollectionId ||
+      reviewBusyRef.current
+    )
+      return;
+    const collectionId = session.sourceCollectionId;
+    if (!reviewCollections(current.settings).some((c) => c.id === collectionId))
+      return;
+    reviewBusyRef.current = true;
+    setReviewSaving(true);
+    const saved = await updateState((s) =>
+      withdrawCollectionCard(s, collectionId, id, Date.now()),
+    );
+    reviewBusyRef.current = false;
+    setReviewSaving(false);
+    if (!saved) return;
+    const next = stateRef.current?.settings.activeCardSession;
+    if (!validSession(next)) return;
+    const remaining = reviewQueue.filter((item) => item.cardId !== id);
+    setReviewQueue(remaining);
+    setReviewIndex(remaining.length);
+    presentationKeyRef.current = "";
+    setSessionClock(Date.now());
+    showSessionNext(next, stateRef.current!.cards);
+    notify("Retirada de la colección. Tu historial se conserva.");
   }
 
   function currentSelectionIsCorrect(card: Card) {
@@ -2182,7 +2231,7 @@ export default function OpoApp() {
         {tab === "study" && (
           <StudyStartPage
             state={state}
-            onFilteredCards={(ids) => startReview(undefined, "learn", ids)}
+            onFilteredCards={chooseStudyMode}
             nodes={state.studyNodes}
             tasks={plannedStudyDue}
             onContinue={() => startStudyWithContent(undefined, plannedStudyDue)}
@@ -2220,8 +2269,31 @@ export default function OpoApp() {
           <>
             <ReviewCollections
               state={state}
-              onStart={(ids) => startReview(undefined, "learn", ids)}
-              onAssign={assignSavedReview}
+              onStart={(ids, source) =>
+                startReview(
+                  undefined,
+                  "learn",
+                  ids,
+                  undefined,
+                  undefined,
+                  source,
+                )
+              }
+              onChooseMode={chooseStudyMode}
+              onRemove={async (id, ids) => {
+                try {
+                  return await updateState((s) =>
+                    ids.reduce(
+                      (next, cardId) =>
+                        withdrawCollectionCard(next, id, cardId, Date.now()),
+                      s,
+                    ),
+                  );
+                } catch {
+                  notify("No se pudo retirar la selección de esta colección.");
+                  return false;
+                }
+              }}
               onCollection={editReviewCollection}
               onSave={setSaveReviewIds}
             />
@@ -2270,6 +2342,7 @@ export default function OpoApp() {
             onMove={moveLibraryItems}
             onSave={setSaveReviewIds}
             onStart={startReview}
+            onChooseMode={chooseStudyMode}
             onRename={(id, name) =>
               updateState((c) => ({
                 ...c,
@@ -3176,6 +3249,28 @@ export default function OpoApp() {
             onPrevious={goToPreviousCard}
             onUnknown={markCurrentUnknown}
             onSchedule={() => openStudyQuick(null, currentCard.id)}
+            onEdit={() => {
+              setEditingCard(currentCard.id);
+              setModal("card");
+            }}
+            collectionName={
+              reviewCollections(state.settings).find(
+                (c) => c.id === savedCardSession?.sourceCollectionId,
+              )?.name
+            }
+            onRemove={
+              savedCardSession?.sourceCollectionId &&
+              reviewCollections(state.settings).some(
+                (c) => c.id === savedCardSession.sourceCollectionId,
+              ) &&
+              inCollection(
+                state.settings,
+                savedCardSession.sourceCollectionId,
+                currentCard.id,
+              )
+                ? removeCurrentFromCollection
+                : undefined
+            }
             onSave={() => setSaveReviewIds([currentCard.id])}
             savedCount={
               reviewCollections(state.settings).filter((c) =>
@@ -3262,27 +3357,59 @@ export default function OpoApp() {
           }}
         />
       )}
+      {modeSelection && (
+        <StudyModeSheet
+          cards={state.cards.filter((c) => modeSelection.ids.includes(c.id))}
+          onClose={() => setModeSelection(null)}
+          onStart={(mode, ids) => {
+            const source = modeSelection.sourceCollectionId;
+            setModeSelection(null);
+            void startReview(
+              undefined,
+              mode,
+              ids,
+              undefined,
+              undefined,
+              source,
+            );
+          }}
+        />
+      )}
       {modal === "card" && (
         <CardModal
           folders={state.folders}
           defaultFolder={selectedFolder}
+          key={openCard?.id ?? "new"}
+          lockType={sessionOpen && !!openCard}
           initialCard={openCard}
           onClose={() => {
             setModal(null);
             setEditingCard(null);
           }}
-          onSave={(card) => {
-            updateState((current) => ({
+          onSave={async (card) => {
+            const editing = !!openCard;
+            const saved = await updateState((current) => ({
               ...current,
-              cards: openCard
+              cards: editing
                 ? current.cards.map((item) =>
-                    item.id === card.id ? card : item,
+                    item.id === card.id ? mergeCardContent(item, card) : item,
                   )
                 : [...current.cards, card],
             }));
+            if (!saved) return false;
+            if (sessionOpen && currentCard?.id === card.id) {
+              // Answers to an old prompt/rubric must not grade the edited one.
+              setSelectedOption(null);
+              setSelectedOptions([]);
+              setWrittenAnswer("");
+              setWrittenResult(null);
+              setRevealed(Boolean(currentQueueItem?.completed));
+              cardShownAtRef.current = Date.now();
+            }
             setModal(null);
             setEditingCard(null);
-            notify(openCard ? "Tarjeta actualizada" : "Tarjeta guardada");
+            notify(editing ? "Tarjeta actualizada" : "Tarjeta guardada");
+            return true;
           }}
         />
       )}

@@ -7,16 +7,19 @@ export function ModalShell({
   label = "NUEVO",
   onClose,
   children,
+  dismissible = true,
 }: {
   title: string;
   subtitle: string;
   label?: string;
   onClose: () => void;
   children: ReactNode;
+  dismissible?: boolean;
 }) {
   const fullScreen = /tarjeta|importar|psicotécnico/i.test(title);
   return (
     <BottomSheet
+      dismissible={dismissible}
       title={title}
       subtitle={subtitle}
       onClose={onClose}
