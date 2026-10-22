@@ -15,6 +15,11 @@ async function noOverflow(page: Page) {
   ).toBe(true);
 }
 async function nav(page: Page, width: number, label: string) {
+  if (label === "Estudiar") {
+    await nav(page, width, "Más");
+    await page.getByRole("button", { name: /Temario y planificación/ }).click();
+    return;
+  }
   await page
     .locator(width >= 1000 ? ".ux-sidebar" : ".ux-bottom-nav")
     .getByRole("button", { name: label, exact: true })
@@ -349,17 +354,17 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
-  await nav(page, 390, "Más");
-  await page.getByRole("button", { name: /Biblioteca/ }).click();
+  await nav(page, 390, "Biblioteca");
   const search = page.getByRole("textbox", { name: "Buscar biblioteca" });
   await search.fill("Vocabulario:");
   await page.locator(".library-card-row .library-row-main").first().click();
   await page.locator(".review-options button").first().click();
   await page.getByRole("button", { name: "Comprobar", exact: true }).click();
   await page.getByRole("button", { name: "Bien", exact: true }).click();
-  await page.getByRole("button", { name: "Volver a Hoy", exact: true }).click();
-  await nav(page, 390, "Más");
-  await page.getByRole("button", { name: /Biblioteca/ }).click();
+  await page
+    .getByRole("button", { name: "Finalizar sesión", exact: true })
+    .click();
+  await nav(page, 390, "Biblioteca");
   await search.fill("Test múltiple:");
   await page.locator(".library-card-row .library-row-main").first().click();
   await page.locator(".review-options button").nth(0).click();
@@ -367,9 +372,10 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
   await page.getByRole("button", { name: "Comprobar", exact: true }).click();
   await expect(page.getByText("✓ Correcto", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Bien", exact: true }).click();
-  await page.getByRole("button", { name: "Volver a Hoy", exact: true }).click();
-  await nav(page, 390, "Más");
-  await page.getByRole("button", { name: /Biblioteca/ }).click();
+  await page
+    .getByRole("button", { name: "Finalizar sesión", exact: true })
+    .click();
+  await nav(page, 390, "Biblioteca");
   await search.fill("Respuesta escrita:");
   await page.locator(".library-card-row .library-row-main").first().click();
   await page
@@ -382,9 +388,10 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
   await page
     .getByRole("button", { name: "Guardar y continuar", exact: true })
     .click();
-  await page.getByRole("button", { name: "Volver a Hoy", exact: true }).click();
-  await nav(page, 390, "Más");
-  await page.getByRole("button", { name: /Biblioteca/ }).click();
+  await page
+    .getByRole("button", { name: "Finalizar sesión", exact: true })
+    .click();
+  await nav(page, 390, "Biblioteca");
   await search.fill("espavilar");
   await page.locator(".library-card-row .library-row-main").first().click();
   await page.getByRole("button", { name: "espavilar", exact: true }).click();
@@ -401,8 +408,7 @@ test("Tarjeta larga: scroll interior y valoración siempre accesible", async ({
 }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await open(page);
-  await nav(page, 360, "Más");
-  await page.getByRole("button", { name: /Biblioteca/ }).click();
+  await nav(page, 360, "Biblioteca");
   await page
     .getByRole("textbox", { name: "Buscar biblioteca" })
     .fill("Tarjeta larga:");
@@ -628,8 +634,7 @@ test("Editor e importación de tarjetas: pantalla completa móvil", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
-  await nav(page, 390, "Más");
-  await page.getByRole("button", { name: /Biblioteca/ }).click();
+  await nav(page, 390, "Biblioteca");
   await page.getByRole("button", { name: "Tarjeta", exact: true }).click();
   const sheet = page.getByRole("dialog");
   await expect(sheet).toHaveClass(/sheet-fullscreen/);

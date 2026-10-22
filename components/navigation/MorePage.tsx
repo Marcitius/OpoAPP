@@ -14,10 +14,10 @@ export default function MorePage({
       label: "TU MATERIAL",
       items: [
         {
-          icon: "folder",
-          title: "Biblioteca",
-          copy: "Tarjetas, carpetas e importaciones",
-          action: () => onNavigate("library"),
+          icon: "study",
+          title: "Temario y planificación",
+          copy: "Continuar el estudio y elegir un apartado",
+          action: () => onNavigate("study"),
         },
         {
           icon: "psych",
@@ -76,7 +76,7 @@ export default function MorePage({
         </section>
       ))}
       <p className="ux-footnote">
-        OpoGC v11 · Mobile UX
+        OpoGC v13.2 · Sesiones a tu ritmo
         <br />
         Organiza menos. Estudia más.
       </p>

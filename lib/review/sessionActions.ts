@@ -43,6 +43,21 @@ export function withdrawCollectionCard(
         ...session,
         updatedAt: new Date(now).toISOString(),
         items: session.items.filter((item) => item.id !== cardId),
+        ...(session.presentation
+          ? {
+              presentation: {
+                ...session.presentation,
+                queue: session.presentation.queue.filter(
+                  (q) => q.cardId !== cardId,
+                ),
+                index: Math.min(
+                  session.presentation.index,
+                  session.presentation.queue.filter((q) => q.cardId !== cardId)
+                    .length,
+                ),
+              },
+            }
+          : {}),
       },
     },
   };

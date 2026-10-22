@@ -1,37 +1,33 @@
-OpoGC v13.1 - ACTUALIZACION DESDE v13
+OpoGC v13.2 - ACTUALIZACION DESDE v13.1
 
-1. Descomprime el ZIP y abre actualizar.
-2. Sube TODO EL CONTENIDO de actualizar a la raiz de OpoAPP, aceptando
-   sustituir archivos. Conserva las rutas de app, components, lib, tests, docs.
-   package.json debe quedar junto al package.json anterior.
-   No subas una carpeta nueva llamada actualizar.
-3. Cloudflare Pages: Settings > Builds & deployments > Build configuration.
+Este ZIP NO es el proyecto completo. Contiene solo archivos nuevos/modificados.
+Necesitas tener aplicada v13.1, que incluye editar en directo y elegir modo.
+
+1. Descomprime y abre la carpeta actualizar.
+2. Copia TODO SU CONTENIDO a la raiz de tu proyecto OpoAPP, donde YA esta
+   package.json. Acepta sustituir. Conserva rutas de app, components, lib, etc.
+   No subas una carpeta nueva llamada actualizar. No hay archivos que borrar.
+3. En esa raiz: npm ci, npm run typecheck, npm test, npm run build.
+4. Sube los cambios a la rama conectada a Cloudflare Pages.
    Build command: npm run build
    Build output directory: out
    Root directory: donde este package.json (vacio si esta en la raiz).
-4. Conserva tus variables actuales de Supabase. Vuelve a desplegar.
-5. No necesitas ejecutar SQL ni volver a configurar Supabase.
+5. Conserva las variables actuales de Supabase. No ejecutes SQL.
+6. Tras el despliegue, acepta la actualizacion de OpoGC en TODOS los dispositivos.
+   No borres datos del navegador, ni reinstales la PWA para aplicar este parche.
 
 USO
-- Tarjeta abierta > menu de tres puntos > Editar tarjeta.
-- Coleccion > Empezar repaso > Quitar de nombre y continuar.
-- Coleccion > Quitar de aqui, en la fila de la tarjeta.
-- Biblioteca > Seleccionar > Estudiar seleccion > elige modo.
-- Estudiar > Estudiar tarjetas de esta seleccion > elige modo.
+- Barra principal: Hoy / Biblioteca / Repasar / Progreso / Mas.
+- Salir: guarda la sesion para continuarla despues.
+- Hoy, Biblioteca o Mas > Temario y planificacion > Continuar sesion.
+- Dentro de una tarjeta: menu de tres puntos > Finalizar sesion.
+- La vuelta completada conserva su resumen hasta que pulses Finalizar sesion.
+- Intentar empezar otra seleccion permite continuar o finalizar la anterior.
+- Cambiar de dispositivo requiere que el estado haya llegado por la
+  sincronizacion habitual; sin conexion, se envia al volver a conectarte.
 
-El parche requiere la v13 entregada, no es un proyecto independiente.
-No borra archivos automaticamente; no elimina datos ni reinicia el estado.
-No hay eliminaciones entre v13 y v13.1.
+Incluye documentacion de funcionamiento, compatibilidad y pruebas reales:
+actualizar/docs/ACTUALIZACION-V13.2.md
+actualizar/docs/PRUEBAS-V13.2.md
 
-Si aun aparecen errores de @/db en Cloudflare:
-Los registros anteriores mostraban archivos que no estaban en v13:
- app/api/annotations/route.ts
- app/api/files/route.ts
- app/api/files/multipart/route.ts
- app/api/state/route.ts
- app/api/storage-status/route.ts
- wrangler.json
-Este parche no soluciona por si solo esa mezcla de versiones. Guarda una copia
-del repositorio y compara esas rutas con la entrega completa v13 antes de
-retirarlas. Mantener codigo antiguo que no esta en la entrega puede impedir
-compilar aunque los archivos nuevos esten actualizados.
+No se modifica el servidor ni la rama remota automaticamente.

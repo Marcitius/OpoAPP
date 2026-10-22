@@ -10,6 +10,7 @@ import {
   project,
   differences,
   applyLocal,
+  mergeRemote,
 } from "../../lib/data/projection";
 import { preparePortableBackup } from "../../lib/data/files";
 import { parseLegacy, validateState } from "../../lib/data/legacy";
@@ -311,32 +312,32 @@ if (new URLSearchParams(location.search).has("mixed-plan"))
 if (new URLSearchParams(location.search).has("legacy-plan"))
   fixture.studyTasks.forEach((t) => (t.reason = "literalidad"));
 if (new URLSearchParams(location.search).has("bulk")) {
-  fixture.cards = Array.from({ length: 50 }, (_, i) =>
-    card(
-      `bulk-${i}`,
-      "basic",
-      `Repaso consecutivo ${i + 1}`,
-      `Respuesta ${i + 1}`,
-    ),
+  fixture.cards = Array.from(
+    { length: new URLSearchParams(location.search).has("session69") ? 69 : 50 },
+    (_, i) =>
+      card(
+        `bulk-${i}`,
+        "basic",
+        `Repaso consecutivo ${i + 1}`,
+        `Respuesta ${i + 1}`,
+      ),
   );
-  fixture.settings.dailyReviewGoal = 60;
+  fixture.settings.dailyReviewGoal = 80;
 }
 if (new URLSearchParams(location.search).has("learning")) {
-  fixture.cards = fixture.cards
-    .slice(0, 3)
-    .map((c) => ({
-      ...c,
-      reviewCount: 0,
-      successCount: 0,
-      repetitions: 0,
-      lapses: 0,
-      streak: 0,
-      lastReviewedAt: null,
-      intervalDays: 0,
-      fsrsStability: 0,
-      fsrsDifficulty: 0,
-      dueAt: stamp,
-    }));
+  fixture.cards = fixture.cards.slice(0, 3).map((c) => ({
+    ...c,
+    reviewCount: 0,
+    successCount: 0,
+    repetitions: 0,
+    lapses: 0,
+    streak: 0,
+    lastReviewedAt: null,
+    intervalDays: 0,
+    fsrsStability: 0,
+    fsrsDifficulty: 0,
+    dueAt: stamp,
+  }));
 }
 if (new URLSearchParams(location.search).has("empty")) {
   fixture.studyNodes = [];
@@ -386,6 +387,25 @@ window.addEventListener("online", () => {
 });
 (window as any).__opogcQA = {
   state: () => engine.state,
+  // Test-only sequential device handoff through the real projection, without a Supabase account.
+  receive: async (snapshot: any) => {
+    account = await transact(user, (a) => {
+      a.queue = [];
+      const revision = a.cursor + 1;
+      mergeRemote(
+        a,
+        Object.values(flatten(snapshot)).map((r) => ({
+          ...r,
+          revision,
+          deleted: false,
+        })),
+        revision,
+      );
+    });
+    engine.state = project(account.rows);
+    engine.status.pending = 0;
+    listeners.forEach((fn) => fn());
+  },
   account: () => readAccount(user),
   backup: () => preparePortableBackup(engine as any),
   roundtrip: (value: any) => {

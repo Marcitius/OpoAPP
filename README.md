@@ -1,24 +1,26 @@
-# OpoGC v13.1 — Sesiones y modos de estudio
+# OpoGC v13.2 — Sesiones a tu ritmo
 
-Actualización del proyecto real OpoGC v12. Colecciones permanentes de repaso, filtros por niveles y movimiento de selecciones completas, conservando Supabase, datos y memoria. Las fixtures solo pertenecen a los tests.
+Actualización del proyecto real **v13.1**. Se limita a la cola de tarjetas, la continuidad de la sesión y el acceso directo a Biblioteca. Conserva FSRS, datos, backend y sincronización existentes.
 
-## Actualización incremental v13 → v13.1
+## Actualización incremental v13.1 → v13.2
 
-El ZIP de esta iteración contiene solo archivos nuevos o modificados sobre **OpoGC v13 — Repasos y organización**. Copia el contenido de `actualizar/` a la raíz de OpoAPP, donde ya están `package.json`, `app/`, `components/` y `lib/`. Sustituye los archivos y sube los cambios conservando sus rutas. No subas la carpeta `actualizar` como una carpeta adicional. No hay archivos que eliminar entre v13 y v13.1.
+El ZIP contiene **solo archivos nuevos o modificados sobre v13.1**. Copia todo el contenido de `actualizar/` a la raíz de OpoAPP, donde ya están `package.json`, `app/`, `components/` y `lib/`. Acepta sustituir y conserva las rutas. No subas una carpeta adicional llamada `actualizar`. No hay archivos que eliminar ni dependencias nuevas.
 
-- Durante una tarjeta: **··· → Editar tarjeta**. Guarda y vuelve a la misma tarjeta; pregunta, respuesta, opciones e imágenes usan el editor existente. El teclado se abre al tocar un campo. El cambio de tipo se hace fuera de la sesión.
-- En una sesión iniciada desde una colección: **Quitar de «nombre» y continuar**. Retira esa pertenencia y sus futuras apariciones en esa sesión, sin borrar la tarjeta, otras colecciones ni historial. También hay **Quitar de aquí** en cada fila de la colección.
-- Al pulsar **Estudiar selección**: elige Aprender, Aleatorio, En orden, Más falladas o Repasos pendientes. Se aplica solo a lo seleccionado. Disponible en Biblioteca, Estudiar y colecciones; las selecciones mixtas permiten elegir tarjetas u ortografía.
+- **Bien / Fácil:** terminan esa tarjeta en la sesión actual; su próximo repaso sigue calculándolo FSRS.
+- **Difícil / Otra vez:** refuerzo separado por otras tarjetas, con prioridad para avanzar por las que faltan y un límite de intentos. Una pausa larga no adelanta las repeticiones.
+- **Salir:** guarda y pausa. **Continuar sesión** aparece en Hoy, Biblioteca y Temario y planificación. Conserva tarjeta, cara, respuestas, selección y cola.
+- **Finalizar sesión:** cierra el recorrido cuando tú lo decidas, conservando valoraciones e historial. Empezar otra selección exige elegir entre continuar o finalizar la guardada.
+- Navegación: **Hoy · Biblioteca · Repasar · Progreso · Más**. El temario sigue en Hoy y en Más → Temario y planificación / Organizar temario.
 
-Cloudflare Pages: **Build command `npm run build`**, salida **`out`**, raíz donde esté `package.json`. Mantén las variables actuales de Supabase. Los archivos antiguos ajenos a v13 que aparecían en los registros de despliegue no se borran al aplicar este parche; ver `COMIENZA-AQUI.txt`.
+Cloudflare Pages: **Build command `npm run build`**, salida **`out`**, misma raíz y variables actuales de Supabase. No ejecutes SQL. Actualiza la app en todos tus dispositivos.
 
-Detalle, compatibilidad e inventario: `docs/ACTUALIZACION-V13.1.md`. Pruebas de esta iteración: `docs/PRUEBAS-V13.1.md`. El apartado siguiente conserva la guía de instalación del proyecto completo v13.
+Detalles: `docs/ACTUALIZACION-V13.2.md`. Pruebas ejecutadas y límites: `docs/PRUEBAS-V13.2.md`. Inventario exacto: `ARCHIVOS-DEL-PARCHE.json` en la raíz del ZIP.
 
 ## Actualizar OpoApp en GitHub y Cloudflare Pages
 
 1. En OpoGC actual, Cuenta → Exportar copia. Espera a que los cambios pendientes queden guardados.
-2. Descomprime el ZIP y entra en `opogc/`. Verás `package.json`, `app/`, `components/`, etc.
-3. Abre tu carpeta local del repositorio **OpoApp**, donde ya tienes `package.json`. Copia **el contenido de opogc/** encima y acepta sustituir archivos. Conserva `.env.local` y `.git`.
+2. Descomprime este ZIP y entra en `actualizar/`. Verás `package.json`, `app/`, `components/`, etc.
+3. Abre tu carpeta local del repositorio **OpoApp**, donde ya tienes `package.json`. Copia **el contenido de actualizar/** encima y acepta sustituir archivos. Conserva `.env.local` y `.git`.
 4. Abre la terminal en OpoApp. Con Node >=22.13.0 (Node 24 es compatible), ejecuta:
 
 ```bash
@@ -56,27 +58,27 @@ Detalles: `docs/CAMBIOS-V13.md`, `docs/ARCHIVOS-V13.md`, `docs/PRUEBAS.md` y CHA
 | Entrada  | Qué hacer                                                                                                                   |
 | -------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Hoy      | Repasar ahora, retomar la sesión guardada o continuar estudio planificado.                                                  |
-| Estudiar | Aprender tarjetas nuevas, retomar una sesión o elegir un apartado. Los apartados enlazados abren sus tarjetas directamente. |
+| Biblioteca | Acceso directo a tarjetas, carpetas, selección y modos de estudio; continuar sesión guardada. |
 | Repasar  | Programados, temario, libre, aleatorio y más falladas.                                                                      |
 | Progreso | Detectar contenido que necesita atención e historial.                                                                       |
-| Más      | Biblioteca, Organizar estudio, psicotécnicos, cuenta y preferencias.                                                        |
+| Más      | Temario y planificación, Organizar temario, psicotécnicos, cuenta y preferencias.                                                        |
 
 Se conservan barra inferior móvil, lateral en escritorio, safe areas, tablet, scroll interior y formularios a pantalla completa de v11.
 
 ## Memoria y sesiones
 
-Se mantiene **ts-fsrs 5.4.2 / FSRS-6**, sin cambiar dependencias, retención objetivo (90 %) ni parámetros predeterminados. Se corrige el adaptador para conservar estado, pasos de aprendizaje y número de intentos. **Cada intento real**, también el refuerzo, actualiza FSRS y genera un registro con ID propio.
+El adaptador **ts-fsrs 5.4.2 / FSRS-6** y `memoryModel` no cambian respecto a v13.1. Cada intento valorado conserva su registro y programación FSRS. La cola de la sesión y la fecha del siguiente repaso son decisiones distintas.
 
-- Otra vez: no recordada. Difícil: recordada con esfuerzo. Bien: recordada correctamente. Fácil: recordada sin esfuerzo. Un test incorrecto siempre se registra como fallo.
-- Las tarjetas nuevas/falladas vuelven según los pasos de aprendizaje/reaprendizaje de FSRS, con separación entre tarjetas cuando hay otras disponibles. No se repiten inmediatamente al agotarse la cola.
-- Una tarjeta madura marcada Difícil recibe una comprobación espaciada adicional; su fecha de largo plazo sigue viniendo de FSRS.
-- Cuando solo quedan tarjetas esperando, puedes salir y retomar. Si permaneces, reaparecen automáticamente al estar listas.
-- Una sesión tiene un conjunto finito. Tras seis intentos débiles de una misma tarjeta se deja explícitamente pendiente de refuerzo, sin declarar que está aprendida ni eliminar su próximo repaso.
-- Al finalizar ves estudiadas, recordadas y pendientes de refuerzo. Pasar una tarjeta no inventa una valoración.
-- La cola, intentos, esperas y avance se guardan junto al rating y la tarjeta en la transacción/outbox existente. Una sesión activa por cuenta; otra sesión elegida explícitamente sustituye su cola, nunca el historial.
-- Ortografía conserva su selección por grupos de hasta cuatro palabras y su corrección automática; ahora utiliza las mismas esperas y persistencia. La rúbrica de respuesta escrita se conserva.
+- Otra vez: no recordada. Difícil: recordada con esfuerzo. Bien: recordada correctamente. Fácil: recordada sin esfuerzo. Un test incorrecto siempre cuenta como fallo.
+- Bien y Fácil salen del recorrido actual, incluso si FSRS mantiene un paso de aprendizaje para un repaso posterior.
+- Un refuerzo exige hasta ocho tarjetas **distintas** intermedias, o todas las otras si la selección tiene menos de nueve. Tras cada refuerzo entran al menos tres sin ver mientras queden disponibles. No se sustituye esa separación por una espera de tiempo.
+- Difícil permite una comprobación posterior; Otra vez, hasta dos. Si falta contenido para separar otro intento, la tarjeta queda por reforzar para un repaso posterior, sin declararla aprendida.
+- El contador muestra tarjetas únicas vistas / seleccionadas y pendientes de refuerzo. Pasar una tarjeta no inventa un rating.
+- Salir pausa y guarda; la sesión, incluido su resumen, permanece hasta Finalizar. Antes de comenzar otra se pide continuar o finalizar la guardada.
+- El checkpoint usa settings e IndexedDB/outbox existentes. Conserva pregunta/respuesta visible, opciones y borrador escrito. Se recupera tras recargar y a través de la sincronización habitual. Para cambiar de dispositivo, sal y espera a que los cambios estén guardados; sin conexión solo pueden enviarse al recuperar conexión.
+- Ortografía conserva sus grupos, corrección y cola temporal anterior. No se ha aplicado el cambio de refuerzo de flashcards a las palabras de ortografía.
 
-Los contadores históricos de primer encuentro no se inflan con refuerzos; `fsrsReps` registra todos los intentos. Los parámetros FSRS no se entrenan automáticamente: se conserva el modelo existente, que utiliza su memoria acumulada y el historial para priorizar. La calibración personal es una prioridad de cola, no un entrenamiento de pesos.
+La calibración personal existente sigue sirviendo para priorizar los repasos recomendados; no se entrenan pesos nuevos ni se añade IA.
 
 ## Organización rápida
 

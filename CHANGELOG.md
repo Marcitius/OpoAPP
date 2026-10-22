@@ -1,5 +1,17 @@
 # CHANGELOG — OpoGC
 
+## 13.2.0 · 22 de octubre de 2026 — Sesiones a tu ritmo
+
+- Bien y Fácil terminan la tarjeta en esa sesión. El refuerzo exige otras tarjetas distintas; el paso del tiempo no provoca repeticiones consecutivas ni desplaza indefinidamente contenido sin ver.
+- Difícil: una comprobación adicional. Otra vez: hasta dos. Sin separación suficiente, queda por reforzar para más adelante, sin presentarla como aprendida.
+- Contador de tarjetas únicas vistas y pendientes de refuerzo; resumen conservado hasta finalizar expresamente.
+- Checkpoint de tarjeta, cara, selección, respuesta escrita y cola mediante settings/IndexedDB/outbox existentes. Continuar desde Hoy, Biblioteca y Temario y planificación.
+- Salir pausa; Finalizar cierra y conserva historial. Empezar otra sesión exige continuar o finalizar la guardada. Marcador de cierre y guardas contra checkpoints o ratings atrasados.
+- Biblioteca sustituye a Estudiar en la navegación principal; temario y planificación permanecen accesibles desde Hoy y Más.
+- Adaptación compatible de checkpoints v13.1, sin borrar tarjetas, ratings ni IDs; campos JSON opcionales, sin migraciones ni dependencias nuevas. FSRS, memoryModel, motor de sincronización, Auth, RLS y Service Worker se conservan.
+- Se conserva la cola específica de ortografía. Se mantienen la edición en directo, retirada de colecciones y los cinco modos de estudio.
+- Parche incremental sobre v13.1 con pruebas deterministas y de navegador.
+
 ## 13.1.0 · 16 de octubre de 2026 — Sesiones y modos
 
 - Editar tarjetas desde el menú de la sesión, volver a la misma y continuar. Reutiliza el editor real, guarda offline y conserva la programación más reciente aunque haya llegado una valoración mientras se editaba.

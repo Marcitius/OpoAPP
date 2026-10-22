@@ -106,6 +106,9 @@ import {
   skipSessionCard,
   validSession,
   type CardSession,
+  type SessionPresentation,
+  upgradeCardSession,
+  interleaveNewCards,
 } from "../lib/memory/session";
 import {
   orderedChildren,
@@ -172,6 +175,15 @@ import {
   mergeCardContent,
   withdrawCollectionCard,
 } from "../lib/review/sessionActions";
+import {
+  activeCardSession,
+  closeCardSession,
+  saveSessionPresentation,
+  restoredPresentation,
+} from "../lib/memory/checkpoint";
+import useSessionCheckpoint from "../components/review/useSessionCheckpoint";
+import ResumeSession from "../components/review/ResumeSession";
+import BottomSheet from "../components/sheets/BottomSheet";
 export default function OpoApp() {
   useAppViewport();
   const engine = useEngine();
@@ -234,6 +246,18 @@ export default function OpoApp() {
   const [psychCategory, setPsychCategory] = useState("all");
   const [psychSort, setPsychSort] = useState<PsychSort>("oldest");
   const [editingCard, setEditingCard] = useState<string | null>(null);
+  const displayedSessionRef = useRef<string | null>(null);
+  const displayedTurnRef = useRef(0);
+  const queueRef = useRef<ReviewQueueItem[]>([]);
+  const [sessionConflict, setSessionConflict] = useState<null | {
+    folderId?: string;
+    mode: StudyMode;
+    ids?: string[];
+    taskId?: string;
+    nodeId?: string;
+    source?: string;
+  }>(null);
+  const [finishPrompt, setFinishPrompt] = useState(false);
   const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [studyMode, setStudyMode] = useState<StudyMode>("recommended");
@@ -1043,9 +1067,7 @@ export default function OpoApp() {
       ) ?? [],
     [state],
   );
-  const savedCardSession = validSession(state?.settings.activeCardSession)
-    ? state!.settings.activeCardSession!
-    : null;
+  const savedCardSession = state ? activeCardSession(state.settings) : null;
   const sessionNext = savedCardSession
     ? nextSessionCard(savedCardSession, state?.cards ?? [], sessionClock)
     : null;
@@ -1062,6 +1084,8 @@ export default function OpoApp() {
       sessionOpen &&
       !orthographySession &&
       savedCardSession &&
+      displayedSessionRef.current === savedCardSession.id &&
+      displayedTurnRef.current === savedCardSession.turn &&
       reviewIndex >= reviewQueue.length &&
       sessionNext?.kind === "card"
     )
@@ -1101,15 +1125,123 @@ export default function OpoApp() {
   const movingFolder =
     state?.folders.find((folder) => folder.id === movingFolderId) ?? null;
 
+  queueRef.current = reviewQueue;
+  const view: SessionPresentation = {
+    queue: reviewQueue,
+    index: reviewIndex,
+    revealed,
+    selectedOption,
+    selectedOptions,
+    writtenAnswer,
+    writtenResult,
+    orthography: orthographySession,
+    orthographySelected,
+  };
+  const flushCheckpoint = useSessionCheckpoint({
+    id: sessionOpen ? (displayedSessionRef.current ?? undefined) : undefined,
+    turn: displayedTurnRef.current,
+    open: sessionOpen,
+    busy: reviewSaving,
+    presentation: view,
+    onSave: async (id, turn, presentation) => {
+      const current = stateRef.current;
+      if (!current) return false;
+      const next = saveSessionPresentation(
+        current,
+        id,
+        turn,
+        presentation,
+        Date.now(),
+      );
+      if (next === current) return false;
+      return updateState(() => next);
+    },
+  });
+  // A session explicitly closed/replaced elsewhere must not be revived by this UI.
   useEffect(() => {
-    if (currentCard) cardShownAtRef.current = Date.now();
-    setRevealed(Boolean(currentQueueItem?.completed));
+    if (
+      sessionOpen &&
+      !reviewSaving &&
+      displayedSessionRef.current &&
+      (savedCardSession?.id !== displayedSessionRef.current ||
+        savedCardSession.turn !== displayedTurnRef.current)
+    ) {
+      setSessionOpen(false);
+      setOrthographySession(null);
+      setReviewQueue([]);
+      displayedSessionRef.current = null;
+      notify(
+        "La sesión ha cambiado en otro dispositivo. Retómala para continuar con el último estado guardado.",
+      );
+    }
+  }, [savedCardSession?.id, savedCardSession?.turn, sessionOpen, reviewSaving]);
+
+  function displayQueue(
+    queue: ReviewQueueItem[],
+    index: number,
+    restored?: SessionPresentation,
+  ) {
+    queueRef.current = queue;
+    setReviewQueue(queue);
+    setReviewIndex(index);
+    setRevealed(restored?.revealed ?? Boolean(queue[index]?.completed));
+    setSelectedOption(restored?.selectedOption ?? null);
+    setSelectedOptions(restored?.selectedOptions ?? []);
+    setWrittenAnswer(restored?.writtenAnswer ?? "");
+    setWrittenResult(restored?.writtenResult ?? null);
     setViewingStudyImage(false);
-    setSelectedOption(null);
-    setSelectedOptions([]);
-    setWrittenAnswer("");
-    setWrittenResult(null);
-  }, [currentCard?.id, currentQueueItem?.completed, reviewIndex]);
+    cardShownAtRef.current = Date.now();
+    displayedTurnRef.current =
+      activeCardSession(
+        stateRef.current?.settings ?? ({} as AppState["settings"]),
+      )?.turn ?? 0;
+  }
+  async function pauseCardSession() {
+    if (reviewBusyRef.current) return;
+    if (!(await flushCheckpoint())) return;
+    setSessionOpen(false);
+    setOrthographySession(null);
+    setViewingStudyImage(false);
+    displayQueue([], 0);
+  }
+  async function finishCardSession() {
+    if (reviewBusyRef.current) return false;
+    const session =
+      stateRef.current && activeCardSession(stateRef.current.settings);
+    if (!session) {
+      setFinishPrompt(false);
+      return true;
+    }
+    reviewBusyRef.current = true;
+    setReviewSaving(true);
+    const saved = await updateState((s) =>
+      closeCardSession(s, session.id, Date.now()),
+    );
+    reviewBusyRef.current = false;
+    setReviewSaving(false);
+    if (!saved) return false;
+    setSessionOpen(false);
+    setOrthographySession(null);
+    displayQueue([], 0);
+    displayedSessionRef.current = null;
+    presentationKeyRef.current = "";
+    setFinishPrompt(false);
+    return true;
+  }
+  function matchesDisplayed(session: CardSession) {
+    if (
+      session.id === displayedSessionRef.current &&
+      session.turn === displayedTurnRef.current
+    )
+      return true;
+    notify(
+      "La sesión ha cambiado. Retómala para continuar con el último estado guardado.",
+    );
+    setSessionOpen(false);
+    setOrthographySession(null);
+    displayQueue([], 0);
+    return false;
+  }
 
   useEffect(() => {
     setBulkSelectMode(false);
@@ -1181,6 +1313,15 @@ export default function OpoApp() {
   ) {
     const current = stateRef.current;
     if (!current || reviewBusyRef.current) return;
+    if (activeCardSession(current.settings)) {
+      setSessionConflict({
+        folderId,
+        mode,
+        ids: scope.map((c) => c.id),
+        source: sourceCollectionId,
+      });
+      return;
+    }
     let words = scope.filter(isOrthographyCard);
     if (mode === "weakest")
       words = weakestStudyCards(words, current.reviews, personalModel);
@@ -1194,6 +1335,9 @@ export default function OpoApp() {
     const session: CardSession = {
       ...createCardSession(words, mode, uid(), Date.now()),
       format: "orthography",
+      label: folderId
+        ? current.folders.find((f) => f.id === folderId)?.name
+        : "Ortografía",
       ...(sourceCollectionId ? { sourceCollectionId } : {}),
     };
     reviewBusyRef.current = true;
@@ -1209,6 +1353,9 @@ export default function OpoApp() {
     setReviewQueue([]);
     setReviewIndex(0);
     presentationKeyRef.current = "";
+    displayedSessionRef.current = session.id;
+    displayedTurnRef.current = session.turn;
+    displayQueue([], 0);
     setSessionOpen(true);
     setSessionClock(Date.now());
     showSessionNext(session, current.cards);
@@ -1221,7 +1368,7 @@ export default function OpoApp() {
   }
   async function correctOrthographyGroup() {
     const current = stateRef.current,
-      session = current?.settings.activeCardSession;
+      session = current ? activeCardSession(current.settings) : null;
     if (
       !current ||
       !orthographySession ||
@@ -1230,6 +1377,7 @@ export default function OpoApp() {
       reviewBusyRef.current
     )
       return;
+    if (!matchesDisplayed(session)) return;
     reviewBusyRef.current = true;
     setReviewSaving(true);
     const selected = new Set(orthographySelected),
@@ -1285,6 +1433,17 @@ export default function OpoApp() {
       );
       results.push({ cardId: id, userMarked, shouldBeMarked, correct });
     }
+    const resultGroup = {
+      ...orthographySession,
+      results,
+      responses: nextSession.history.length,
+      correctResponses: nextSession.history.filter((r) => r.rating !== "again")
+        .length,
+    };
+    nextSession = {
+      ...nextSession,
+      presentation: { ...view, orthography: resultGroup },
+    };
     const saved = await updateState((c) => ({
       ...c,
       cards: c.cards.map((card) => updates.get(card.id) ?? card),
@@ -1294,6 +1453,7 @@ export default function OpoApp() {
     reviewBusyRef.current = false;
     setReviewSaving(false);
     if (!saved) return;
+    displayedTurnRef.current = nextSession.turn;
     setOrthographySession((s) =>
       s
         ? {
@@ -1311,8 +1471,9 @@ export default function OpoApp() {
   function continueOrthographySession() {
     if (reviewBusyRef.current) return;
     const current = stateRef.current,
-      session = current?.settings.activeCardSession;
+      session = current ? activeCardSession(current.settings) : null;
     if (!current || !validSession(session)) return;
+    if (!matchesDisplayed(session)) return;
     setOrthographySession(null);
     setSessionClock(Date.now());
     showSessionNext(session, current.cards);
@@ -1326,6 +1487,7 @@ export default function OpoApp() {
   function showSessionNext(session: CardSession, cards: Card[]) {
     const next = nextSessionCard(session, cards, Date.now());
     if (next.kind !== "card") return;
+    displayedTurnRef.current = session.turn;
     const key = session.id + ":" + session.turn + ":" + next.id;
     if (presentationKeyRef.current === key) return;
     presentationKeyRef.current = key;
@@ -1354,36 +1516,48 @@ export default function OpoApp() {
       return;
     }
     const item = session.items.find((i) => i.id === next.id)!;
-    setReviewQueue((q) => [
-      ...q,
-      {
-        cardId: next.id,
-        reinforcement: item.attempts > 0,
-        reason:
-          item.lastRating === "again"
-            ? "again"
-            : item.attempts
-              ? "hard"
-              : "scheduled",
-        completed: false,
-      },
-    ]);
+    const queue = queueRef.current;
+    displayQueue(
+      [
+        ...queue,
+        {
+          cardId: next.id,
+          reinforcement: item.attempts > 0,
+          reason:
+            item.lastRating === "again"
+              ? "again"
+              : item.attempts
+                ? "hard"
+                : "scheduled",
+          completed: false,
+        },
+      ],
+      queue.length,
+    );
     cardShownAtRef.current = Date.now();
   }
 
   function resumeCardSession() {
-    const current = stateRef.current;
-    const session = current?.settings.activeCardSession;
-    if (!current || !validSession(session)) return;
+    const current = stateRef.current,
+      session = current ? activeCardSession(current.settings) : null;
+    if (!current || !session) return;
     closeOrthographySession();
     setStudyFlow(null);
+    displayedSessionRef.current = session.id;
+    displayedTurnRef.current = session.turn;
     presentationKeyRef.current = "";
-    setReviewQueue([]);
-    setReviewIndex(0);
     setStudyMode(session.mode);
     setSessionDone(session.history.length);
     setSessionClock(Date.now());
     setSessionOpen(true);
+    const restored = restoredPresentation(session, current.cards);
+    if (restored) {
+      displayQueue(restored.queue, restored.index, restored);
+      setOrthographySession(restored.orthography);
+      setOrthographySelected(restored.orthographySelected ?? []);
+      if (restored.index < restored.queue.length || restored.orthography)
+        return;
+    } else displayQueue([], 0);
     showSessionNext(session, current.cards);
   }
 
@@ -1397,6 +1571,17 @@ export default function OpoApp() {
   ) {
     const current = stateRef.current;
     if (!current || reviewBusyRef.current) return;
+    if (activeCardSession(current.settings)) {
+      setSessionConflict({
+        folderId,
+        mode,
+        ids: explicitCardIds,
+        taskId: studyTaskId,
+        nodeId: sourceNodeId,
+        source: sourceCollectionId,
+      });
+      return;
+    }
     const ids = explicitCardIds?.length ? new Set(explicitCardIds) : null;
     const fullScope = ids
       ? current.cards.filter((c) => ids.has(c.id) && isStudyableCard(c))
@@ -1446,7 +1631,7 @@ export default function OpoApp() {
             ),
           ),
         );
-      pool = [...learning, ...ordinary, ...fresh];
+      pool = interleaveNewCards([...learning, ...ordinary, ...fresh]);
     }
     if (!pool.length)
       return notify(
@@ -1456,6 +1641,26 @@ export default function OpoApp() {
       );
     const session = {
       ...createCardSession(pool, mode, uid(), +now),
+      label: sourceCollectionId
+        ? reviewCollections(current.settings).find(
+            (c) => c.id === sourceCollectionId,
+          )?.name
+        : sourceNodeId
+          ? current.studyNodes.find((n) => n.id === sourceNodeId)?.name
+          : folderId
+            ? current.folders.find((f) => f.id === folderId)?.name
+            : [
+                ...new Set(
+                  pool
+                    .map(
+                      (c) =>
+                        current.folders.find((f) => f.id === c.folderId)?.name,
+                    )
+                    .filter(Boolean),
+                ),
+              ]
+                .slice(0, 3)
+                .join(" · ") || "Mis tarjetas",
       studyTaskId,
       sourceNodeId,
       ...(sourceCollectionId ? { sourceCollectionId } : {}),
@@ -1477,13 +1682,16 @@ export default function OpoApp() {
     setReviewIndex(0);
     setSessionDone(0);
     setSessionClock(+now);
+    displayedSessionRef.current = session.id;
+    displayedTurnRef.current = session.turn;
+    displayQueue([], 0);
     setSessionOpen(true);
     showSessionNext(session, pool);
   }
 
   async function removeCurrentFromCollection() {
     const current = stateRef.current;
-    const session = current?.settings.activeCardSession;
+    const session = current ? activeCardSession(current.settings) : null;
     const id = currentCard?.id;
     if (
       !current ||
@@ -1494,6 +1702,7 @@ export default function OpoApp() {
     )
       return;
     const collectionId = session.sourceCollectionId;
+    if (!matchesDisplayed(session)) return;
     if (!reviewCollections(current.settings).some((c) => c.id === collectionId))
       return;
     reviewBusyRef.current = true;
@@ -1504,11 +1713,12 @@ export default function OpoApp() {
     reviewBusyRef.current = false;
     setReviewSaving(false);
     if (!saved) return;
-    const next = stateRef.current?.settings.activeCardSession;
+    const next = stateRef.current
+      ? activeCardSession(stateRef.current.settings)
+      : null;
     if (!validSession(next)) return;
     const remaining = reviewQueue.filter((item) => item.cardId !== id);
-    setReviewQueue(remaining);
-    setReviewIndex(remaining.length);
+    displayQueue(remaining, remaining.length);
     presentationKeyRef.current = "";
     setSessionClock(Date.now());
     showSessionNext(next, stateRef.current!.cards);
@@ -1539,21 +1749,32 @@ export default function OpoApp() {
   }
 
   function goToPreviousCard() {
-    if (!reviewBusyRef.current && reviewIndex > 0) setReviewIndex((i) => i - 1);
+    if (!reviewBusyRef.current && reviewIndex > 0)
+      displayQueue(reviewQueue, reviewIndex - 1);
   }
 
   async function goToNextCard() {
     if (reviewBusyRef.current) return;
     if (currentQueueItem?.completed && reviewIndex < reviewQueue.length - 1) {
-      setReviewIndex((i) => i + 1);
+      displayQueue(reviewQueue, reviewIndex + 1);
       return;
     }
     const current = stateRef.current,
-      session = current?.settings.activeCardSession;
+      session = current ? activeCardSession(current.settings) : null;
     if (!current || !validSession(session)) return;
+    if (!matchesDisplayed(session)) return;
     let next = session;
     if (currentCard && !currentQueueItem?.completed) {
       next = skipSessionCard(session, currentCard.id, Date.now());
+      next = {
+        ...next,
+        presentation: {
+          ...view,
+          queue: reviewQueue.map((item, i) =>
+            i === reviewIndex ? { ...item, completed: true } : item,
+          ),
+        },
+      };
       reviewBusyRef.current = true;
       setReviewSaving(true);
       const saved = await updateState((c) => ({
@@ -1569,7 +1790,10 @@ export default function OpoApp() {
         ),
       );
     }
-    setReviewIndex(reviewQueue.length);
+    const queue = reviewQueue.map((item, i) =>
+      i === reviewIndex ? { ...item, completed: true } : item,
+    );
+    displayQueue(queue, queue.length);
     setSessionClock(Date.now());
     showSessionNext(next, current.cards);
   }
@@ -1596,7 +1820,7 @@ export default function OpoApp() {
     outcome: ReviewQueueOutcome,
   ) {
     const current = stateRef.current,
-      session = current?.settings.activeCardSession;
+      session = current ? activeCardSession(current.settings) : null;
     if (
       !current ||
       !currentCard ||
@@ -1606,6 +1830,7 @@ export default function OpoApp() {
       reviewBusyRef.current
     )
       return;
+    if (!matchesDisplayed(session)) return;
     const card = current.cards.find((c) => c.id === currentCard.id);
     const item = session.items.find((i) => i.id === card?.id);
     if (!card || !item || !["new", "reinforce"].includes(item.status)) return;
@@ -1643,13 +1868,20 @@ export default function OpoApp() {
       fsrsBefore: fsrsSnapshot(card),
       fsrsAfter: fsrsSnapshot(updated),
     };
-    const nextSession = answerSession(
+    let nextSession = answerSession(
       session,
       updated,
       effective,
       review.id,
       +now,
     );
+    const completedQueue = reviewQueue.map((q, i) =>
+      i === reviewIndex ? { ...q, completed: true, outcome } : q,
+    );
+    nextSession = {
+      ...nextSession,
+      presentation: { ...view, queue: completedQueue, revealed: true },
+    };
     const cards = current.cards.map((c) => (c.id === updated.id ? updated : c));
     const summary = sessionSummary(nextSession);
     const completed =
@@ -1681,20 +1913,20 @@ export default function OpoApp() {
     reviewBusyRef.current = false;
     setReviewSaving(false);
     if (!saved) return;
-    setReviewQueue((q) =>
-      q.map((v, i) =>
-        i === reviewIndex ? { ...v, completed: true, outcome } : v,
-      ),
-    );
+    displayedTurnRef.current = nextSession.turn;
     setSessionDone(nextSession.history.length);
     setSessionClock(+now);
     if (advance) {
-      setReviewIndex(reviewQueue.length);
+      displayQueue(completedQueue, completedQueue.length);
       showSessionNext(nextSession, cards);
     } else {
-      setWrittenAnswer("");
-      setWrittenResult(null);
-      setRevealed(true);
+      displayQueue(completedQueue, reviewIndex, {
+        ...view,
+        queue: completedQueue,
+        revealed: true,
+        writtenAnswer: "",
+        writtenResult: null,
+      });
     }
   }
 
@@ -2093,8 +2325,7 @@ export default function OpoApp() {
         ? (studyFlowNode as any).reference
         : undefined;
   function startTodayReview() {
-    if (savedCardSession && sessionNext?.kind !== "complete")
-      resumeCardSession();
+    if (savedCardSession) resumeCardSession();
     else if (dueCards.length) startReview();
     else if (orthographyDue)
       startOrthographySession(undefined, "recommended", orthographyCards);
@@ -2161,7 +2392,7 @@ export default function OpoApp() {
           className={`ux-topbar ${tab === "today" ? "today-topbar" : ""}`}
         >
           <div>
-            {["library", "organize", "psych"].includes(tab) && (
+            {["organize", "psych", "study"].includes(tab) && (
               <button className="ux-link" onClick={() => navigate("more")}>
                 <Icon name="back" size={17} />
                 Más
@@ -2196,6 +2427,13 @@ export default function OpoApp() {
             {saveStatus}
           </span>
         </header>
+        {savedCardSession && ["today", "library", "study"].includes(tab) && (
+          <ResumeSession
+            session={savedCardSession}
+            onResume={resumeCardSession}
+            onFinish={() => setFinishPrompt(true)}
+          />
+        )}
         {tab === "today" && (
           <TodayPage
             reviewPending={
@@ -2250,11 +2488,7 @@ export default function OpoApp() {
                   .map((c) => c.id),
               )
             }
-            onResume={
-              savedCardSession && sessionNext?.kind !== "complete"
-                ? resumeCardSession
-                : undefined
-            }
+            onResume={savedCardSession ? resumeCardSession : undefined}
             onOrganize={() => {
               navigate("organize");
               setStudyView("tree");
@@ -3192,7 +3426,7 @@ export default function OpoApp() {
           onToggle={toggleOrthographyWord}
           onCorrect={correctOrthographyGroup}
           onContinue={continueOrthographySession}
-          onClose={closeOrthographySession}
+          onClose={pauseCardSession}
         />
       )}
 
@@ -3207,10 +3441,12 @@ export default function OpoApp() {
               state.folders.find((folder) => folder.id === currentCard.folderId)
                 ?.name ?? "Mis tarjetas"
             }
-            position={Math.min(
-              (cardSessionSummary?.remembered ?? 0) + 1,
-              cardSessionSummary?.total ?? 1,
+            position={Math.max(
+              cardSessionSummary?.seen ?? 0,
+              new Set(reviewQueue.map((q) => q.cardId)).size,
             )}
+            weakCount={cardSessionSummary?.weak ?? 0}
+            onFinish={() => setFinishPrompt(true)}
             total={cardSessionSummary?.total ?? 1}
             continuous={false}
             busy={reviewSaving}
@@ -3224,10 +3460,7 @@ export default function OpoApp() {
             selectedOptions={selectedOptions}
             writtenAnswer={writtenAnswer}
             writtenResult={displayedWrittenResult}
-            onExit={() => {
-              setSessionOpen(false);
-              setReviewQueue([]);
-            }}
+            onExit={pauseCardSession}
             onReveal={() => setRevealed(true)}
             onQuestion={() => {
               setRevealed(false);
@@ -3306,19 +3539,9 @@ export default function OpoApp() {
               sessionNext.kind === "waiting" ? sessionNext.readyAt : undefined
             }
             now={sessionClock}
-            onClose={() => {
-              setSessionOpen(false);
-              setReviewQueue([]);
-              navigate("today");
-            }}
-            onFinish={() => {
-              void updateState((c) => ({
-                ...c,
-                settings: { ...c.settings, activeCardSession: null },
-              }));
-              setSessionOpen(false);
-              setReviewQueue([]);
-              navigate("today");
+            onClose={pauseCardSession}
+            onFinish={async () => {
+              if (await finishCardSession()) navigate("today");
             }}
           />
         )}
@@ -3374,6 +3597,78 @@ export default function OpoApp() {
             );
           }}
         />
+      )}
+      {sessionConflict && (
+        <BottomSheet
+          title="Tienes una sesión guardada"
+          onClose={() => setSessionConflict(null)}
+          dismissible={!reviewSaving}
+        >
+          <p>
+            Continúa donde lo dejaste o finaliza esa sesión antes de empezar
+            otra. Tus valoraciones se conservan.
+          </p>
+          <button
+            className="primary-button full"
+            disabled={reviewSaving}
+            onClick={() => {
+              setSessionConflict(null);
+              resumeCardSession();
+            }}
+          >
+            Continuar sesión guardada
+          </button>
+          <button
+            className="sheet-action"
+            disabled={reviewSaving}
+            onClick={async () => {
+              const request = sessionConflict;
+              if (!(await finishCardSession())) return;
+              setSessionConflict(null);
+              void startReview(
+                request.folderId,
+                request.mode,
+                request.ids,
+                request.taskId,
+                request.nodeId,
+                request.source,
+              );
+            }}
+          >
+            Finalizar actual y empezar otra
+          </button>
+        </BottomSheet>
+      )}
+      {finishPrompt && (
+        <BottomSheet
+          title="¿Finalizar esta sesión?"
+          onClose={() => setFinishPrompt(false)}
+          dismissible={!reviewSaving}
+        >
+          <p>
+            El historial y las valoraciones se conservan. Si quieres retomarla
+            después, elige Salir y continuar después.
+          </p>
+          <button
+            className="primary-button full"
+            disabled={reviewSaving}
+            onClick={async () => {
+              if (await finishCardSession()) navigate("today");
+            }}
+          >
+            Finalizar sesión
+          </button>
+          <button
+            className="sheet-action"
+            disabled={reviewSaving}
+            onClick={async () => {
+              if (sessionOpen) await pauseCardSession();
+              setFinishPrompt(false);
+            }}
+          >
+            Salir y continuar después
+          </button>
+        </BottomSheet>
       )}
       {modal === "card" && (
         <CardModal

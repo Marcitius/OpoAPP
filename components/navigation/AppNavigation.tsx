@@ -10,7 +10,7 @@ export type AppTab =
   | "psych";
 const items = [
   { id: "today", label: "Hoy" },
-  { id: "study", label: "Estudiar" },
+  { id: "library", label: "Biblioteca" },
   { id: "review", label: "Repasar" },
   { id: "progress", label: "Progreso" },
   { id: "more", label: "Más" },
@@ -24,7 +24,7 @@ export default function AppNavigation({
   onNavigate: (tab: AppTab) => void;
   status: string;
 }) {
-  const active = ["organize", "library", "psych"].includes(tab) ? "more" : tab;
+  const active = ["organize", "study", "psych"].includes(tab) ? "more" : tab;
   const links = items.map((item) => (
     <button
       key={item.id}
@@ -32,7 +32,7 @@ export default function AppNavigation({
       className={active === item.id ? "active" : ""}
       onClick={() => onNavigate(item.id)}
     >
-      <Icon name={item.id} />
+      <Icon name={item.id === "library" ? "folder" : item.id} />
       <span>{item.label}</span>
     </button>
   ));
@@ -50,7 +50,7 @@ export default function AppNavigation({
         <div className="ux-sidebar-foot">
           <span className="status-dot" />
           {status}
-          <small>OpoGC v11 · Mobile UX</small>
+          <small>OpoGC v13.2 · Sesiones a tu ritmo</small>
         </div>
       </aside>
       <nav className="ux-bottom-nav" aria-label="Navegación principal móvil">

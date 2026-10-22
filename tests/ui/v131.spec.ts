@@ -11,6 +11,11 @@ async function state(p: Page) {
   return p.evaluate(() => (window as any).__opogcQA.state());
 }
 async function nav(p: Page, name: string) {
+  if (name === "Estudiar") {
+    await nav(p, "Más");
+    await p.getByRole("button", { name: /Temario y planificación/ }).click();
+    return;
+  }
   await p
     .locator(
       (p.viewportSize()?.width ?? 390) >= 1000
@@ -45,7 +50,14 @@ async function saveRegular(p: Page) {
     .getByRole("dialog")
     .getByRole("button", { name: "Continuar", exact: true })
     .click();
-  await p.getByRole("button", { name: "Salir", exact: true }).click();
+  await p.getByRole("button", { name: "Opciones del repaso" }).click();
+  await p
+    .getByRole("button", { name: "Finalizar sesión", exact: true })
+    .click();
+  await p
+    .getByRole("dialog")
+    .getByRole("button", { name: "Finalizar sesión", exact: true })
+    .click();
   await nav(p, "Repasar");
   await p
     .locator(".review-collections")
@@ -98,8 +110,16 @@ for (const [w, h] of [
     );
     const after = await state(page);
     expect(after.reviews).toEqual(before.reviews);
-    expect(after.settings.activeCardSession).toEqual(
-      before.settings.activeCardSession,
+    expect(after.settings.activeCardSession.id).toBe(
+      before.settings.activeCardSession.id,
+    );
+    expect(after.settings.activeCardSession.history).toEqual(
+      before.settings.activeCardSession.history,
+    );
+    expect(
+      after.settings.activeCardSession.items.map(({ seen, ...i }: any) => i),
+    ).toEqual(
+      before.settings.activeCardSession.items.map(({ seen, ...i }: any) => i),
     );
     const old = before.cards.find((c: any) => c.id === "basic1"),
       edited = after.cards.find((c: any) => c.id === "basic1");
@@ -114,6 +134,7 @@ for (const [w, h] of [
     await expect(page.locator(".review-prompt")).toHaveText(
       "Pregunta corregida en directo",
     );
+    // Editing the prompt intentionally resets the face and draft in v13.1.
     await page
       .getByRole("button", { name: "Mostrar respuesta", exact: true })
       .click();
@@ -234,10 +255,16 @@ for (const [label, mode] of [
       await expect(
         page.getByRole("button", { name: "Continuar", exact: true }),
       ).toBeVisible();
-      await page.getByRole("button", { name: "Salir", exact: true }).click();
+      await page.getByRole("button", { name: "Opciones del repaso" }).click();
+      await page
+        .getByRole("button", { name: "Finalizar sesión", exact: true })
+        .click();
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Finalizar sesión", exact: true })
+        .click();
     }
-    await nav(page, "Más");
-    await page.getByRole("button", { name: /Biblioteca/ }).click();
+    await nav(page, "Biblioteca");
     await page
       .getByRole("button", { name: "Seleccionar", exact: true })
       .click();
@@ -310,8 +337,7 @@ test("Retirar una tarjeta fallada avanza a la siguiente de la coleccion sin borr
   page,
 }) => {
   await open(page, 768, 1024);
-  await nav(page, "Más");
-  await page.getByRole("button", { name: /Biblioteca/ }).click();
+  await nav(page, "Biblioteca");
   await page
     .getByRole("textbox", { name: "Buscar biblioteca" })
     .fill("Artículo");
@@ -366,8 +392,7 @@ test("Seleccion mixta permite elegir ortografia sin mezclar tarjetas", async ({
   page,
 }) => {
   await open(page, 430, 932);
-  await nav(page, "Más");
-  await page.getByRole("button", { name: /Biblioteca/ }).click();
+  await nav(page, "Biblioteca");
   await page.getByRole("button", { name: "Seleccionar", exact: true }).click();
   await page
     .getByRole("button", { name: "Seleccionar todo", exact: true })

@@ -16,6 +16,8 @@ interface Props {
   folder: string;
   position: number;
   total: number;
+  weakCount: number;
+  onFinish: () => void;
   continuous: boolean;
   doneCount: number;
   status: string;
@@ -69,7 +71,7 @@ export default function ReviewSession(p: Props) {
           ) : (
             <>
               {p.position}
-              <small> / {p.total}</small>
+              <small> / {p.total} vistas</small>
             </>
           )}
         </span>
@@ -80,7 +82,7 @@ export default function ReviewSession(p: Props) {
       <div className="session-progress-line">
         <i
           style={{
-            width: `${p.continuous ? 100 : Math.round(((p.position - 1) / p.total) * 100)}%`,
+            width: `${p.continuous ? 100 : Math.min(100, Math.round((p.position / Math.max(1, p.total)) * 100))}%`,
           }}
         />
       </div>
@@ -90,6 +92,7 @@ export default function ReviewSession(p: Props) {
       >
         <div className="review-context">
           <span>{p.folder}</span>
+          {p.weakCount > 0 && <small>{p.weakCount} por reforzar</small>}
           <button
             className="icon-button"
             aria-label="Opciones del repaso"
@@ -339,6 +342,13 @@ export default function ReviewSession(p: Props) {
           <button
             className="sheet-action"
             disabled={p.busy}
+            onClick={() => action(p.onFinish)}
+          >
+            Finalizar sesión
+          </button>
+          <button
+            className="sheet-action"
+            disabled={p.busy}
             onClick={() => action(p.onEdit)}
           >
             Editar tarjeta
@@ -367,7 +377,7 @@ export default function ReviewSession(p: Props) {
             Pasar esta tarjeta
           </button>
           <button className="sheet-action" onClick={() => action(p.onExit)}>
-            Terminar sesión
+            Salir y continuar después
           </button>
         </BottomSheet>
       )}
