@@ -1,0 +1,762 @@
+{
+  "version": "13.2.0",
+  "baseVersion": "13.1.0",
+  "date": "2026-10-22",
+  "typecheck": "passed",
+  "build": "passed",
+  "unit": {
+    "passed": 64,
+    "failed": 0,
+    "groups": {
+      "sqlRlsStorage": 7,
+      "dataOffline": 9,
+      "memory": 12,
+      "study": 7,
+      "collectionsSelection": 11,
+      "sessionActions": 5,
+      "sessionCheckpoint": 13
+    }
+  },
+  "browser": {
+    "stats": {
+      "startTime": "2026-10-22T16:47:58.615Z",
+      "duration": 119415.925,
+      "expected": 64,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "engine": "Chromium 138.0.7204.0 headless",
+    "tests": [
+      {
+        "file": "responsive.spec.ts",
+        "title": "iphone-pequeno: navegación, estudio, repaso, temario y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2417
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "iphone-grande: navegación, estudio, repaso, temario y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2076
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "android-pequeno: navegación, estudio, repaso, temario y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2325
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "android-grande: navegación, estudio, repaso, temario y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2062
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "ipad-vertical: navegación, estudio, repaso, temario y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2395
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "ipad-horizontal: navegación, estudio, repaso, temario y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2351
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "desktop: navegación, estudio, repaso, temario y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2414
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "desktop-grande: navegación, estudio, repaso, temario y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2225
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Varias tarjetas consecutivas, FSRS y registros individuales",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1093
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Bien, Regular y Mal con nota, siguiente automático y recarga IndexedDB",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1884
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Árbol: crear, editar, mover, reordenar y eliminar conservando IDs",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2750
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2172
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Tarjeta larga: scroll interior y valoración siempre accesible",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 640
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Psicotécnicos, nota e intento existentes",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 786
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Bottom sheet: arrastre, teclado reducido, foco y cuenta",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1382
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Production PWA: manifest, iconos, Service Worker y recarga offline",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 597
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "50 tarjetas consecutivas sin reconfigurar ni perder registros",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 6700
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Doce niveles, atrás y cambio de orientación sin overflow",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1172
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Altura visual del teclado con layout intacto",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 794
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Offline: valoración duradera y backup portable con IDs e historial",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 752
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Cuenta vacía: sin reinicio ni inserción de datos de ejemplo",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 367
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Editor e importación de tarjetas: pantalla completa móvil",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1243
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Imagen y PDF sobre un formulario: capas, foco y Escape",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 670
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Planificación v10: repasos existentes conservados y sin duplicar contadores",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 867
+          }
+        ]
+      },
+      {
+        "file": "responsive.spec.ts",
+        "title": "Prioridad de estudio: continúa solo los elementos planificados como estudio",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 813
+          }
+        ]
+      },
+      {
+        "file": "v12.spec.ts",
+        "title": "Aprendizaje nuevo: separación por tarjetas, Bien termina y checkpoint tras recarga",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1859
+          }
+        ]
+      },
+      {
+        "file": "v12.spec.ts",
+        "title": "Plan rápido: mover Hoy ↔ Después conserva el ID y permite nota sin fecha",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1942
+          }
+        ]
+      },
+      {
+        "file": "v12.spec.ts",
+        "title": "Biblioteca → temario: editar, cambiar jerarquía, previsualizar, enlazar y reimportar",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 5125
+          }
+        ]
+      },
+      {
+        "file": "v12.spec.ts",
+        "title": "Mover y reordenar tarjetas y ramas mantiene relaciones y datos después de recargar",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2468
+          }
+        ]
+      },
+      {
+        "file": "v12.spec.ts",
+        "title": "Creación de tarjetas y formularios no enfocan campos al abrirse",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1325
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Guardar antes de responder, valorar, cerrar y retirar conservando memoria",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2542
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Crear colección durante una tarjeta no abre el teclado ni avanza",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1272
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Biblioteca: padre e hijo y tarjeta seleccionados se mueven entre ramas sin perder datos",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1907
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Mover tarjeta a raíz mantiene pertenencia y el filtro por subtema responde al cambio",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 4696
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Temario: selección entre niveles mueve la rama conservando planificación e IDs",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1384
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Filtros y colecciones 360x800: niveles, búsqueda, foco y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1301
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Filtros y colecciones 430x932: niveles, búsqueda, foco y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1267
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Filtros y colecciones 768x1024: niveles, búsqueda, foco y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1283
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Filtros y colecciones 1024x768: niveles, búsqueda, foco y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1418
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Filtros y colecciones 1366x768: niveles, búsqueda, foco y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1514
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Filtros y colecciones 1920x1080: niveles, búsqueda, foco y capas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1623
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Renombrar y eliminar colección persiste después de volver a abrir",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1253
+          }
+        ]
+      },
+      {
+        "file": "v13.spec.ts",
+        "title": "Varias tarjetas filtradas se mueven juntas sin modificar FSRS",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1118
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Editar en directo sin valorar ni avanzar, persistir y continuar 390",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1850
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Editar en directo sin valorar ni avanzar, persistir y continuar 1366",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1827
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Cancelar edicion conserva la tarjeta y permite seguir valorando",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1302
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Quitar en sesion elimina solo la pertenencia y finaliza, incluso offline",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2671
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Coleccion de origen sigue disponible al reabrir y quitar en la lista",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2429
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Biblioteca multiseleccion permite modo Aprender",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 879
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Biblioteca multiseleccion permite modo Aleatorio",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1038
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Biblioteca multiseleccion permite modo En orden",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 887
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Biblioteca multiseleccion permite modo Más falladas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1880
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Biblioteca multiseleccion permite modo Repasos pendientes",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 922
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Selector desde Estudiar, cancelar, y modo en coleccion conserva contexto",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 2236
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Retirar una tarjeta fallada avanza a la siguiente de la coleccion sin borrar su intento",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1484
+          }
+        ]
+      },
+      {
+        "file": "v131.spec.ts",
+        "title": "Seleccion mixta permite elegir ortografia sin mezclar tarjetas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 775
+          }
+        ]
+      },
+      {
+        "file": "v132.spec.ts",
+        "title": "Biblioteca está a una pulsación y el temario sigue en Más",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 434
+          }
+        ]
+      },
+      {
+        "file": "v132.spec.ts",
+        "title": "69 seleccionadas: una pausa larga no devuelve Bien ni bloquea las nuevas",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 10357
+          }
+        ]
+      },
+      {
+        "file": "v132.spec.ts",
+        "title": "Salir conserva tarjeta y cara; recargar y continuar desde Biblioteca no reinicia",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 947
+          }
+        ]
+      },
+      {
+        "file": "v132.spec.ts",
+        "title": "Borrador y selección se conservan: Respuesta escrita:",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 814
+          }
+        ]
+      },
+      {
+        "file": "v132.spec.ts",
+        "title": "Borrador y selección se conservan: Test múltiple:",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1147
+          }
+        ]
+      },
+      {
+        "file": "v132.spec.ts",
+        "title": "Empezar otra selección exige continuar o finalizar la sesión guardada",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1510
+          }
+        ]
+      },
+      {
+        "file": "v132.spec.ts",
+        "title": "Una vuelta completada permanece hasta Finalizar; una débil no se presenta como aprendida",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1070
+          }
+        ]
+      },
+      {
+        "file": "v132.spec.ts",
+        "title": "Dos dispositivos simulados: traspaso exacto y cierre remoto sin duplicar la valoración",
+        "status": "expected",
+        "runs": [
+          {
+            "status": "passed",
+            "durationMs": 1909
+          }
+        ]
+      }
+    ]
+  },
+  "baselineIntegrity": {
+    "identicalCriticalFiles": 16,
+    "files": [
+      "app/fsrs.ts",
+      "app/memoryModel.ts",
+      "components/AccountApp.tsx",
+      "components/PwaManager.tsx",
+      "components/SyncContext.tsx",
+      "lib/auth/client.ts",
+      "lib/data/files.ts",
+      "lib/data/legacy.ts",
+      "lib/data/local.ts",
+      "lib/data/models.ts",
+      "lib/data/projection.ts",
+      "lib/sync/engine.ts",
+      "public/manifest.webmanifest",
+      "scripts/prepare-pwa.mjs",
+      "supabase/migrations/202609300001_core.sql",
+      "supabase/migrations/202609300002_storage.sql"
+    ]
+  },
+  "remoteSupabaseTested": false,
+  "physicalDevicesTested": false,
+  "deviceHandoff": "two isolated browser contexts; existing projection/IndexedDB; simulated remote transport",
+  "archiveValidation": "byte comparison against v13.1, CRC and baseline reconstruction"
+}

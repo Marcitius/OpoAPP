@@ -1,21 +1,33 @@
-OpoGC v13 — Repasos y organización
+OpoGC v13.2 - ACTUALIZACION DESDE v13.1
 
-PARA ACTUALIZAR OpoApp + CLOUDFLARE PAGES:
-1. En tu OpoGC actual, exporta una copia desde Cuenta.
-2. Descomprime el ZIP y entra en opogc.
-3. Copia el CONTENIDO de opogc a tu carpeta local OpoApp (donde está package.json). Acepta sustituir archivos. Conserva .env.local y .git.
-4. Abre una terminal en OpoApp y ejecuta:
-   npm ci
-   npm run typecheck
-   npm test
-   npm run build
-5. En GitHub Desktop: abre OpoApp, escribe un resumen, pulsa Commit y Push origin.
-6. Cloudflare Pages compilará la rama conectada. Mantén npm run build, salida out, el dominio y las variables actuales de Supabase.
-7. Cuando termine correctamente, abre OpoGC y acepta el aviso de actualización si aparece.
+Este ZIP NO es el proyecto completo. Contiene solo archivos nuevos/modificados.
+Necesitas tener aplicada v13.1, que incluye editar en directo y elegir modo.
 
-NO hay que volver a ejecutar SQL ni crear otro Supabase. NO borres datos del navegador ni reinstales la PWA para actualizar.
+1. Descomprime y abre la carpeta actualizar.
+2. Copia TODO SU CONTENIDO a la raiz de tu proyecto OpoAPP, donde YA esta
+   package.json. Acepta sustituir. Conserva rutas de app, components, lib, etc.
+   No subas una carpeta nueva llamada actualizar. No hay archivos que borrar.
+3. En esa raiz: npm ci, npm run typecheck, npm test, npm run build.
+4. Sube los cambios a la rama conectada a Cloudflare Pages.
+   Build command: npm run build
+   Build output directory: out
+   Root directory: donde este package.json (vacio si esta en la raiz).
+5. Conserva las variables actuales de Supabase. No ejecutes SQL.
+6. Tras el despliegue, acepta la actualizacion de OpoGC en TODOS los dispositivos.
+   No borres datos del navegador, ni reinstales la PWA para aplicar este parche.
 
-Repasar → Mis repasos: colecciones permanentes globales o por tema.
-Guardar para repasar desde una tarjeta no califica ni cambia su memoria.
-Biblioteca/Temario: seleccionar tarjetas y ramas, seguir navegando y mover la selección.
-README.md explica todo. docs/PRUEBAS.md diferencia pruebas locales de integraciones reales.
+USO
+- Barra principal: Hoy / Biblioteca / Repasar / Progreso / Mas.
+- Salir: guarda la sesion para continuarla despues.
+- Hoy, Biblioteca o Mas > Temario y planificacion > Continuar sesion.
+- Dentro de una tarjeta: menu de tres puntos > Finalizar sesion.
+- La vuelta completada conserva su resumen hasta que pulses Finalizar sesion.
+- Intentar empezar otra seleccion permite continuar o finalizar la anterior.
+- Cambiar de dispositivo requiere que el estado haya llegado por la
+  sincronizacion habitual; sin conexion, se envia al volver a conectarte.
+
+Incluye documentacion de funcionamiento, compatibilidad y pruebas reales:
+actualizar/docs/ACTUALIZACION-V13.2.md
+actualizar/docs/PRUEBAS-V13.2.md
+
+No se modifica el servidor ni la rama remota automaticamente.

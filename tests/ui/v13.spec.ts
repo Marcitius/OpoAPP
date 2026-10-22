@@ -8,6 +8,11 @@ async function open(p: Page, w = 390, h = 844) {
   ).toBeVisible();
 }
 async function nav(p: Page, name: string) {
+  if (name === "Estudiar") {
+    await nav(p, "Más");
+    await p.getByRole("button", { name: /Temario y planificación/ }).click();
+    return;
+  }
   await p
     .locator(
       (p.viewportSize()?.width ?? 390) >= 1000
@@ -18,8 +23,7 @@ async function nav(p: Page, name: string) {
     .click();
 }
 async function library(p: Page) {
-  await nav(p, "Más");
-  await p.getByRole("button", { name: /Biblioteca/ }).click();
+  await nav(p, "Biblioteca");
 }
 async function state(p: Page) {
   return p.evaluate(() => (window as any).__opogcQA.state());
@@ -107,6 +111,10 @@ test("Guardar antes de responder, valorar, cerrar y retirar conservando memoria"
     animations: "disabled",
   });
   await page.getByRole("button", { name: /Empezar repaso/ }).click();
+  await page
+    .getByRole("dialog", { name: "Tienes una sesión guardada" })
+    .getByRole("button", { name: "Finalizar actual y empezar otra" })
+    .click();
   await page.getByRole("button", { name: /Guardada en 1 colección/ }).click();
   await page
     .getByRole("dialog")
@@ -480,6 +488,9 @@ test("Varias tarjetas filtradas se mueven juntas sin modificar FSRS", async ({
   }
   expect(after.reviews).toEqual(before.reviews);
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Vamos con lo de hoy" }),
+  ).toBeVisible();
   expect(
     (await state(page)).cards
       .filter((c: any) => ["basic1", "basic2"].includes(c.id))

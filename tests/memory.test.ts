@@ -132,7 +132,7 @@ test("Legacy cards adopt metadata lazily without resetting historical memory", (
   assert.equal(input.reps, c.reviewCount);
   assert.equal(fsrsSnapshot(c).dueAt, c.dueAt);
 });
-test("A failed new card waits for time and intervening cards, never repeats immediately", () => {
+test("A failed new card waits for distinct intervening cards, never repeats immediately", () => {
   const cards = [card("a"), card("b"), card("c")];
   let s = createCardSession(cards, "learn", "session", t);
   cards[0] = applyFsrsReview(cards[0], "again", new Date(t));
@@ -154,42 +154,49 @@ test("A failed new card waits for time and intervening cards, never repeats imme
     id: "a",
   });
 });
-test("One-card sessions wait instead of pretending a back-to-back repetition is spaced", () => {
-  let c = applyFsrsReview(card(), "again", new Date(t));
-  let s = answerSession(
+test("One-card failures stay weak for a later review rather than repeating consecutively", () => {
+  const c = applyFsrsReview(card(), "again", new Date(t));
+  const s = answerSession(
     createCardSession([c], "learn", "one", t),
     c,
     "again",
     "r",
     t,
   );
-  assert.equal(nextSessionCard(s, [c], t + 1000).kind, "waiting");
-  assert.equal(nextSessionCard(s, [c], Date.parse(c.dueAt)).kind, "card");
-  c = applyFsrsReview(c, "good", new Date(c.dueAt), true);
-  s = answerSession(
-    s,
-    c,
-    "good",
-    "r2",
-    s.items[0].eligibleAt,
-  );
-  assert.ok(s.items[0].attempts === 2);
-});
-test("Repeated failures terminate honestly as weak after six attempts, with FSRS due intact", () => {
-  let c = card(),
-    s = createCardSession([c], "learn", "finite", t),
-    clock = t;
-  for (let i = 0; i < 6; i++) {
-    c = applyFsrsReview(c, "again", new Date(clock), i > 0);
-    s = answerSession(s, c, "again", "r" + i, clock);
-    clock = Date.parse(c.dueAt);
-  }
-  assert.equal(nextSessionCard(s, [c], clock).kind, "complete");
+  assert.equal(nextSessionCard(s, [c], t + 1000).kind, "complete");
+  assert.equal(nextSessionCard(s, [c], t + 86400000).kind, "complete");
   assert.equal(sessionSummary(s).weak, 1);
   assert.equal(sessionSummary(s).remembered, 0);
-  assert.equal(c.fsrsReps, 6);
-  assert.equal(s.history.length, 6);
-  assert.ok(Date.parse(c.dueAt) > Date.parse(c.lastReviewedAt!));
+  assert.equal(c.fsrsState, State.Learning);
+});
+test("Repeated failures terminate as weak after three attempts, with FSRS due intact", () => {
+  const cards = Array.from({ length: 12 }, (_, i) => card("finite-" + i));
+  let s = createCardSession(cards, "learn", "finite", t),
+    clock = t,
+    steps = 0;
+  while (steps < 100) {
+    const next = nextSessionCard(s, cards, clock);
+    if (next.kind !== "card") break;
+    const index = cards.findIndex((c) => c.id === next.id);
+    cards[index] = applyFsrsReview(
+      cards[index],
+      "again",
+      new Date(clock),
+      s.items[index].attempts > 0,
+    );
+    s = answerSession(s, cards[index], "again", "r" + steps, clock);
+    clock += 300000;
+    steps++;
+  }
+  assert.equal(nextSessionCard(s, cards, clock).kind, "complete");
+  assert.equal(sessionSummary(s).weak, 12);
+  assert.equal(sessionSummary(s).remembered, 0);
+  assert.ok(s.items.every((i) => i.attempts <= 3));
+  assert.ok(s.items.some((i) => i.attempts === 3));
+  assert.equal(s.history.length, steps);
+  assert.ok(
+    cards.every((c) => Date.parse(c.dueAt) > Date.parse(c.lastReviewedAt!)),
+  );
 });
 test("Skipping does not invent a rating, reschedule a card or claim it was learned", () => {
   const c = card(),
@@ -199,7 +206,7 @@ test("Skipping does not invent a rating, reschedule a card or claim it was learn
   assert.equal(nextSessionCard(s, [c], t).kind, "complete");
   assert.equal(c.reviewCount, 0);
 });
-test("Serialized checkpoint resumes the exact cooldown, attempts and queue", () => {
+test("Serialized checkpoint resumes the exact attempts and queue", () => {
   const c = applyFsrsReview(card(), "again", new Date(t)),
     s = answerSession(
       createCardSession([c], "learn", "saved", t),

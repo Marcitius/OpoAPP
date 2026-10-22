@@ -30,7 +30,7 @@ export default function SessionStatus({
           <Icon name={readyAt ? "review" : "check"} size={34} />
         </span>
         <span className="ux-label">
-          {readyAt ? "DALE UN POCO DE ESPACIO" : "SESIÓN FINALIZADA"}
+          {readyAt ? "DALE UN POCO DE ESPACIO" : "VUELTA COMPLETADA"}
         </span>
         <h2>
           {readyAt ? "El refuerzo está preparado." : "Un paso más cerca."}
@@ -38,7 +38,9 @@ export default function SessionStatus({
         <p>
           {readyAt
             ? "Has terminado esta vuelta. Dejamos algo de tiempo antes de volver a preguntarte lo que necesita refuerzo."
-            : "Tu siguiente repaso ya está organizado. Recordar con facilidad hoy no significa dejar de revisarlo más adelante."}
+            : summary.weak + summary.skipped > 0
+              ? "Hay tarjetas por reforzar en un próximo repaso. No las repetimos seguidas para que puedas comprobar lo que recuerdas de verdad. Tus respuestas y próximos repasos están guardados."
+              : "Has recordado las tarjetas de esta sesión. Tus próximos repasos están guardados."}
         </p>
         <div className="session-result-counts">
           <div>
@@ -68,9 +70,18 @@ export default function SessionStatus({
             </small>
           </>
         ) : (
-          <button className="primary-button full" onClick={onFinish}>
-            Volver a Hoy
-          </button>
+          <>
+            <button className="primary-button full" onClick={onFinish}>
+              Finalizar sesión
+            </button>
+            <button className="secondary-button full" onClick={onClose}>
+              Salir y conservar sesión
+            </button>
+            <small>
+              La sesión se conserva hasta que pulses Finalizar. Tus respuestas
+              permanecen en el historial.
+            </small>
+          </>
         )}
       </div>
     </div>

@@ -8,6 +8,13 @@ async function open(page: Page, params = "") {
   ).toBeVisible();
 }
 async function more(page: Page, label: RegExp) {
+  if (label.source === "Biblioteca") {
+    await page
+      .locator(".ux-bottom-nav")
+      .getByRole("button", { name: "Biblioteca", exact: true })
+      .click();
+    return;
+  }
   await page
     .locator(".ux-bottom-nav")
     .getByRole("button", { name: "Más", exact: true })
@@ -29,73 +36,59 @@ async function noTextFocus(page: Page) {
     ),
   ).toBe(false);
 }
-test("Aprendizaje nuevo: fallos espaciados, checkpoint tras recarga y graduación real", async ({
+test("Aprendizaje nuevo: separación por tarjetas, Bien termina y checkpoint tras recarga", async ({
   page,
 }) => {
   await page.clock.install({ time: new Date("2026-10-02T08:00:00Z") });
   await open(page, "?learning");
-  await page
-    .locator(".ux-bottom-nav")
-    .getByRole("button", { name: "Estudiar", exact: true })
-    .click();
+  await more(page, /Temario y planificación/);
   await page.getByRole("button", { name: /Aprender tarjetas/ }).click();
   await expect(page.locator(".review-prompt")).toContainText("Artículo 53");
   await grade(page, "Otra vez");
   await expect(page.locator(".review-prompt")).toContainText("Artículo 164");
-  await grade(page, "Fácil");
-  await grade(page, "Fácil");
-  await expect(
-    page.getByRole("heading", { name: "El refuerzo está preparado." }),
-  ).toBeVisible();
-  await page.screenshot({
-    path: "docs/capturas/refuerzo-movil.png",
-    animations: "disabled",
-  });
-  await page.getByRole("button", { name: "Salir y continuar después" }).click();
-  await page.reload();
-  await expect(
-    page.getByRole("heading", { name: "Vamos con lo de hoy" }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: /Repaso libre|Repasar ahora/ })
-    .first()
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "El refuerzo está preparado." }),
-  ).toBeVisible();
-  await page.clock.fastForward(61_000);
-  await expect(page.locator(".review-prompt")).toContainText("Artículo 53");
-  await grade(page, "Otra vez");
-  await expect(
-    page.getByRole("heading", { name: "El refuerzo está preparado." }),
-  ).toBeVisible();
-  await page.clock.fastForward(61_000);
+  await page.clock.fastForward(300000);
   await grade(page, "Bien");
-  await expect(
-    page.getByRole("heading", { name: "El refuerzo está preparado." }),
-  ).toBeVisible();
-  await page.clock.fastForward(601_000);
+  await expect(page.locator(".review-prompt")).toContainText(
+    "Concepto de repaso 3",
+  );
+  await grade(page, "Fácil");
+  await expect(page.locator(".review-prompt")).toContainText("Artículo 53");
+  await page.getByRole("button", { name: "Salir", exact: true }).click();
+  await expect(page.locator(".review-v11")).toHaveCount(0);
+  await page.reload();
+  await page.getByRole("button", { name: /Continuar sesión/ }).click();
+  await expect(page.locator(".review-prompt")).toContainText("Artículo 53");
   await grade(page, "Bien");
   await expect(
     page.getByRole("heading", { name: "Un paso más cerca." }),
   ).toBeVisible();
-  const s = await page.evaluate(() => (window as any).__opogcQA.state()),
-    c = s.cards.find((c: any) => c.id === "basic1");
-  expect(c.fsrsState).toBe(2);
-  expect(c.fsrsReps).toBe(4);
+  const s = await page.evaluate(() => (window as any).__opogcQA.state());
+  const c = s.cards.find((c: any) => c.id === "basic1");
+  expect(c.fsrsReps).toBe(2);
   expect(c.reviewCount).toBe(1);
   expect(
     s.reviews
       .filter((r: any) => r.cardId === "basic1")
       .map((r: any) => r.rating),
-  ).toEqual(["again", "again", "good", "good"]);
+  ).toEqual(["again", "good"]);
   expect(
-    s.settings.activeCardSession.items.find((i: any) => i.id === "basic1")
-      .status,
-  ).toBe("remembered");
+    s.settings.activeCardSession.items.every(
+      (i: any) => i.status === "remembered",
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Salir y conservar sesión" }).click();
+  await expect(page.locator(".session-result-v12")).toHaveCount(0);
   await page.reload();
-  const reopened = await page.evaluate(() => (window as any).__opogcQA.state());
-  expect(reopened.cards.find((c: any) => c.id === "basic1").fsrsReps).toBe(4);
+  await page.getByRole("button", { name: /Continuar sesión/ }).click();
+  await expect(page.locator(".session-result-v12")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Finalizar sesión", exact: true })
+    .click();
+  await expect(page.locator(".session-result-v12")).toHaveCount(0);
+  expect(
+    (await page.evaluate(() => (window as any).__opogcQA.state())).settings
+      .activeCardSession,
+  ).toBeNull();
 });
 test("Plan rápido: mover Hoy ↔ Después conserva el ID y permite nota sin fecha", async ({
   page,
@@ -235,10 +228,7 @@ test("Biblioteca → temario: editar, cambiar jerarquía, previsualizar, enlazar
   expect(again.studyNodes.map((n: any) => n.id).sort()).toEqual(
     after.studyNodes.map((n: any) => n.id).sort(),
   );
-  await page
-    .locator(".ux-bottom-nav")
-    .getByRole("button", { name: "Estudiar", exact: true })
-    .click();
+  await more(page, /Temario y planificación/);
   await page
     .getByRole("textbox", { name: "Buscar tema o apartado" })
     .fill("Artículo 53");
