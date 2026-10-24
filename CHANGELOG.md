@@ -1,5 +1,23 @@
 # CHANGELOG — OpoGC
 
+## 14.0.0 · 24 de octubre de 2026 — Material de estudio
+
+- Nueva sección con temas, subtemas y documentos editables; búsqueda en nombres/contenido, navegación progresiva, renombrar, mover, reordenar y eliminar ramas.
+- Copia de estructura desde Biblioteca con selección y previsualización, conservando tarjetas/IDs/historial y evitando duplicados.
+- Editor Tiptap independiente del editor de tarjetas: títulos 1–6, marcas, fuente/tamaño/color, resaltado, listas, sangría, alineación/interlineado, tablas, citas, enlaces, separadores, sub/superíndices y deshacer/rehacer.
+- Pegado HTML enriquecido y conversión Markdown, incluyendo listas alfabéticas y viñetas escapadas del texto adjunto. Importación TXT/MD/HTML, lectura, exportación HTML e impresión/PDF.
+- Guardado automático a través de settings/cola existentes, borrador local por usuario y recuperación tras recarga. Protección frente a versiones recibidas mientras hay cambios locales; guardar copia y recuperar borradores de apartados eliminados remotamente.
+- Editor cargado bajo demanda; sin foco automático de campos al abrir. Nuevos estilos móviles/tablet/escritorio y PWA offline mediante el generador existente.
+- Sin migraciones SQL ni cambios a Supabase, Auth, RLS, sincronización, memoria o sesiones. Conserva la reparación de despliegue anterior.
+
+## 13.2.1 · 22 de octubre de 2026 — Corrección del despliegue
+
+- Recupera los archivos de v13.1 que faltaban en el repositorio: selector de modos, componentes, prueba y documentación. Los cuatro componentes comprobados aún eran los de v13 sin cambios propios posteriores.
+- Preparación del build: aparta solo cinco rutas antiguas D1/R2 y el manifest dinámico anterior, comprobados por contenido, conservando una copia. No ejecuta ni modifica backend o datos.
+- TypeScript incluye la aplicación activa, sus configuraciones y pruebas; evita compilar como entradas los archivos sueltos antiguos de la raíz/ejemplos. Mantiene strict y el control normal de errores.
+- Los comandos de build, desarrollo, typecheck y test ejecutan la preparación. Cloudflare debe usar npm run build con salida out.
+- Sin cambios en la lógica de sesiones, FSRS, Supabase, Auth, RLS, sincronización ni datos. Sin dependencias nuevas.
+
 ## 13.2.0 · 22 de octubre de 2026 — Sesiones a tu ritmo
 
 - Bien y Fácil terminan la tarjeta en esa sesión. El refuerzo exige otras tarjetas distintas; el paso del tiempo no provoca repeticiones consecutivas ni desplaza indefinidamente contenido sin ver.

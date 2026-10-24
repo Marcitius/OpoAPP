@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useEngine } from "../components/SyncContext";
 import {
   CardModal,
@@ -139,6 +139,9 @@ import AppNavigation, {
   type AppTab,
 } from "../components/navigation/AppNavigation";
 import MorePage from "../components/navigation/MorePage";
+const MaterialPage = lazy(() => import("../components/material/MaterialPage"));
+import { saveMaterial } from "../lib/material/model";
+import { sanitizeMaterial } from "../lib/material/sanitize";
 import ProgressPage from "../components/progress/ProgressPage";
 import ReviewSession from "../components/review/ReviewSession";
 import ReviewStartPage from "../components/review/ReviewStartPage";
@@ -2392,7 +2395,7 @@ export default function OpoApp() {
           className={`ux-topbar ${tab === "today" ? "today-topbar" : ""}`}
         >
           <div>
-            {["organize", "psych", "study"].includes(tab) && (
+            {["organize", "psych", "study", "material"].includes(tab) && (
               <button className="ux-link" onClick={() => navigate("more")}>
                 <Icon name="back" size={17} />
                 Más
@@ -2411,6 +2414,7 @@ export default function OpoApp() {
                     progress: "Progreso",
                     more: "Más",
                     library: "Biblioteca",
+                    material: "Material de estudio",
                     organize: "Organizar estudio",
                     psych: "Psicotécnicos",
                     today: "Hoy",
@@ -2544,6 +2548,40 @@ export default function OpoApp() {
             />
           </>
         )}
+        {tab === "material" && (
+          <Suspense fallback={<p role="status">Abriendo material…</p>}>
+            <MaterialPage
+              state={state}
+              user={engine.user}
+              status={saveStatus}
+              onUpdate={updateState}
+              onSave={async (id, html, expected) => {
+                try {
+                  return (await updateState((s) =>
+                    saveMaterial(
+                      s,
+                      id,
+                      sanitizeMaterial(html),
+                      expected,
+                      new Date().toISOString(),
+                    ),
+                  ))
+                    ? "saved"
+                    : "error";
+                } catch (e) {
+                  if (e instanceof Error && e.message === "material-conflict")
+                    return "conflict";
+                  notify(
+                    e instanceof Error
+                      ? e.message
+                      : "No se pudo guardar el material",
+                  );
+                  return "error";
+                }
+              }}
+            />
+          </Suspense>
+        )}
         {tab === "more" && (
           <MorePage
             onNavigate={(next) => {
@@ -2555,6 +2593,14 @@ export default function OpoApp() {
             }
             onSettings={() => setPreferencesOpen(true)}
           />
+        )}
+        {tab === "library" && (
+          <button
+            className="ux-link material-library-link"
+            onClick={() => navigate("material")}
+          >
+            Material de estudio <Icon name="arrow" size={17} />
+          </button>
         )}
         {tab === "library" && (
           <LibraryBrowser

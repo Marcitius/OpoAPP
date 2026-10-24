@@ -3,6 +3,7 @@ import PwaManager from "../components/PwaManager";
 import "./globals.css";
 import "./account.css";
 import "./mobile-ux.css";
+import "./material.css";
 export const metadata: Metadata = {
   title: "OpoGC",
   description: "Organiza, estudia y repasa tu oposición",

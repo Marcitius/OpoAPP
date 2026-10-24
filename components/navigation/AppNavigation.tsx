@@ -7,7 +7,8 @@ export type AppTab =
   | "more"
   | "organize"
   | "library"
-  | "psych";
+  | "psych"
+  | "material";
 const items = [
   { id: "today", label: "Hoy" },
   { id: "library", label: "Biblioteca" },
@@ -24,7 +25,7 @@ export default function AppNavigation({
   onNavigate: (tab: AppTab) => void;
   status: string;
 }) {
-  const active = ["organize", "study", "psych"].includes(tab) ? "more" : tab;
+  const active = ["organize", "study", "psych", "material"].includes(tab) ? "more" : tab;
   const links = items.map((item) => (
     <button
       key={item.id}

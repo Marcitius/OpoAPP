@@ -220,7 +220,9 @@ test("Una vuelta completada permanece hasta Finalizar; una débil no se presenta
     .getByRole("button", { name: "Finalizar sesión", exact: true })
     .click();
   await expect(page.locator(".resume-session")).toHaveCount(0);
-  expect((await state(page)).settings.activeCardSession).toBeNull();
+  await expect
+    .poll(async () => (await state(page)).settings.activeCardSession)
+    .toBeNull();
   expect((await state(page)).reviews).toHaveLength(1);
 });
 test("Dos dispositivos simulados: traspaso exacto y cierre remoto sin duplicar la valoración", async ({
@@ -282,6 +284,9 @@ test("Dos dispositivos simulados: traspaso exacto y cierre remoto sin duplicar l
       .getByRole("dialog")
       .getByRole("button", { name: "Finalizar sesión", exact: true })
       .click();
+    await expect
+      .poll(async () => (await state(b)).settings.activeCardSession)
+      .toBeNull();
     await a.evaluate(
       (snapshot) => (window as any).__opogcQA.receive(snapshot),
       await state(b),

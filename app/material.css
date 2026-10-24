@@ -1,0 +1,457 @@
+.material-browser-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.material-node-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--ux-line);
+}
+.material-node-main,
+.material-current-document {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: none;
+  border: 0;
+  min-width: 0;
+  min-height: 72px;
+  flex: 1;
+  padding: 14px 0;
+  color: var(--ux-ink);
+}
+.material-node-main > span,
+.material-current-document > span {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.material-node-main strong,
+.material-current-document strong {
+  overflow-wrap: anywhere;
+}
+.material-node-main small,
+.material-current-document small {
+  font-size: 12px;
+  color: var(--ux-muted);
+}
+.material-copy-preview {
+  max-height: 28dvh;
+  overflow: auto;
+  background: var(--ux-bg);
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+.material-sheet.ux-sheet.sheet-fullscreen {
+  max-width: 1200px;
+  width: 100%;
+  height: calc(var(--visual-height) - 20px);
+  max-height: calc(var(--visual-height) - 20px);
+}
+.material-sheet .sheet-content {
+  padding: 0 !important;
+  display: block;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.material-sheet .sheet-header {
+  padding-bottom: 14px;
+}
+.material-document-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--ux-line);
+}
+.material-document-actions > span {
+  font-size: 12px;
+  color: var(--ux-muted);
+  margin-right: auto;
+}
+.material-document-actions button {
+  min-height: 40px;
+  font-size: 13px;
+}
+.material-document-actions input[hidden] {
+  display: none;
+}
+.material-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8faf7;
+  border-bottom: 1px solid var(--ux-line);
+  padding: 8px 16px;
+}
+.material-toolbar-primary,
+.material-toolbar-extra {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.material-toolbar button {
+  min-width: 40px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ux-ink);
+  font-weight: 650;
+  padding: 7px;
+}
+.material-toolbar button:hover,
+.material-toolbar button[aria-pressed="true"] {
+  background: #dfeade;
+  color: #214d35;
+}
+.material-toolbar button[aria-label="Negrita"] {
+  font-weight: 800;
+}
+.material-toolbar button[aria-label="Cursiva"] {
+  font-style: italic;
+}
+.material-toolbar button[aria-label="Subrayado"] {
+  text-decoration: underline;
+}
+.material-toolbar select {
+  max-width: 155px;
+  font-size: 13px !important;
+  min-height: 40px;
+  border: 1px solid var(--ux-line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 5px;
+}
+.material-toolbar-extra {
+  padding-top: 10px;
+  margin-top: 7px;
+  border-top: 1px solid var(--ux-line);
+  max-height: 200px;
+  overflow: auto;
+}
+.material-toolbar-extra label {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 12px;
+}
+.material-toolbar-extra input[type="color"] {
+  width: 35px;
+  min-height: 35px;
+  padding: 3px;
+  border: 0;
+  background: none;
+}
+.material-editor .tiptap {
+  outline: none;
+  background: white;
+  max-width: 860px;
+  min-height: 65dvh;
+  margin: 22px auto 60px;
+  padding: 40px 48px;
+  box-shadow: 0 3px 24px #1c32230a;
+  caret-color: #285943;
+}
+.material-editor {
+  background: #f2f4f0;
+  min-height: 60dvh;
+}
+.material-prose {
+  font-family: -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", sans-serif;
+  font-size: 17px;
+  line-height: 1.7;
+  color: #25372b;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  tab-size: 4;
+}
+.material-prose p {
+  margin: 0 0 0.8em !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+.material-prose h1,
+.material-prose h2,
+.material-prose h3,
+.material-prose h4,
+.material-prose h5,
+.material-prose h6 {
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 1.4em 0 0.7em;
+  letter-spacing: -0.02em;
+  color: #253d2d;
+}
+.material-prose h1 {
+  font-size: 1.9em;
+}
+.material-prose h2 {
+  font-size: 1.55em;
+}
+.material-prose h3 {
+  font-size: 1.3em;
+}
+.material-prose h4 {
+  font-size: 1.15em;
+}
+.material-prose h5 {
+  font-size: 1.05em;
+}
+.material-prose h6 {
+  font-size: 1em;
+}
+.material-prose ul,
+.material-prose ol {
+  margin: 12px 0 20px;
+  padding-left: 1.7em;
+  list-style: disc;
+}
+.material-prose ol {
+  list-style: decimal;
+}
+.material-prose ol[type="a"] {
+  list-style: lower-alpha;
+}
+.material-prose ol[type="a"] > li::marker {
+  content: counter(list-item, lower-alpha) ") ";
+}
+.material-prose ol[type="A"] {
+  list-style: upper-alpha;
+}
+.material-prose ul ul {
+  list-style: circle;
+}
+.material-prose li {
+  display: list-item;
+  margin: 8px 0;
+}
+.material-prose li p {
+  margin-bottom: 0 !important;
+}
+.material-prose strong {
+  font-weight: 750;
+}
+.material-prose em {
+  font-style: italic;
+}
+.material-prose u {
+  text-decoration: underline;
+}
+.material-prose s {
+  text-decoration: line-through;
+}
+.material-prose blockquote {
+  border-left: 3px solid #739681;
+  margin: 20px 0;
+  padding: 6px 20px;
+  color: #4b6251;
+}
+.material-prose hr {
+  border: 0;
+  border-top: 1px solid #bccabd;
+  margin: 26px 0;
+}
+.material-prose a {
+  color: #216143;
+  text-decoration: underline;
+}
+.material-prose pre {
+  white-space: pre-wrap;
+  background: #f2f5ef;
+  padding: 14px;
+  border-radius: 8px;
+}
+.material-prose table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 20px 0;
+}
+.material-prose .tableWrapper {
+  overflow-x: auto;
+}
+.material-prose td,
+.material-prose th {
+  border: 1px solid #b9c7b9;
+  min-width: 60px;
+  padding: 8px;
+  vertical-align: top;
+  position: relative;
+}
+.material-prose th {
+  font-weight: 700;
+  background: #edf3e9;
+}
+.material-prose .selectedCell:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: #b9d6be55;
+}
+.material-prose .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #6e9870;
+  pointer-events: none;
+}
+.material-prose.resize-cursor {
+  cursor: col-resize;
+}
+.material-notice {
+  background: #fff5da;
+  padding: 16px;
+  margin: 16px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.material-notice p {
+  flex-basis: 100%;
+}
+@media (max-width: 699px) {
+  .material-sheet.ux-sheet.sheet-fullscreen {
+    height: var(--visual-height);
+    max-height: var(--visual-height);
+    max-width: none;
+    border-radius: 0;
+  }
+  .material-sheet .sheet-drag-area {
+    display: none;
+  }
+  .material-sheet .sheet-header {
+    padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+    flex-shrink: 0;
+  }
+  .material-sheet .sheet-header h2 {
+    font-size: 18px;
+    overflow-wrap: anywhere;
+  }
+  .material-document-actions {
+    padding: 8px 14px;
+    gap: 7px;
+  }
+  .material-document-actions button {
+    min-height: 36px;
+  }
+  .material-toolbar {
+    padding: 6px 10px;
+  }
+  .material-toolbar-primary {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .material-toolbar select {
+    max-width: 125px;
+  }
+  .material-editor .tiptap {
+    margin: 0;
+    box-shadow: none;
+    padding: 24px 19px calc(50px + env(safe-area-inset-bottom));
+    font-size: 17px;
+  }
+  .material-prose h1 {
+    font-size: 1.65em;
+  }
+  .material-node-row {
+    gap: 3px;
+  }
+  .material-node-main {
+    gap: 8px;
+  }
+  .material-node-main strong {
+    font-size: 15px;
+  }
+  .material-browser-actions > .primary-button {
+    flex: 1;
+  }
+  .material-toolbar-extra {
+    max-height: 160px;
+  }
+  .material-prose table {
+    min-width: 280px;
+  }
+}
+@media print {
+  body > .app-shell,
+  body > #root,
+  .material-sheet > .sheet-header,
+  .material-document-actions,
+  .material-toolbar,
+  .sheet-drag-area {
+    display: none !important;
+  }
+  .sheet-backdrop:has(.material-sheet) {
+    position: static !important;
+    height: auto !important;
+    background: white !important;
+  }
+  .material-sheet.ux-sheet {
+    display: block !important;
+    position: static !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .material-sheet .sheet-content {
+    overflow: visible !important;
+  }
+  .material-editor {
+    background: white !important;
+  }
+  .material-editor .tiptap {
+    max-width: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    font-size: 12pt;
+  }
+  .material-prose h1,
+  .material-prose h2,
+  .material-prose h3 {
+    break-after: avoid;
+  }
+  .material-prose tr {
+    break-inside: avoid;
+  }
+}
+.material-library-link {
+  margin-bottom: 16px;
+  min-height: 44px;
+}
+@media (max-width: 699px) {
+  .material-toolbar-primary {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    overflow: visible;
+    gap: 4px;
+  }
+  .material-toolbar-primary > select {
+    grid-column: 1/-1;
+    max-width: none;
+    width: 100%;
+    font-size: 16px !important;
+  }
+  .material-toolbar-primary > button {
+    min-width: 0;
+    min-height: 44px;
+  }
+  .material-toolbar-extra select {
+    font-size: 16px !important;
+  }
+}

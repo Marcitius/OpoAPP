@@ -1,0 +1,53 @@
+{
+  "version": "13.2.1",
+  "date": "2026-10-22",
+  "failedCommit": "5d28bdea0f36d825a7328e1e2062d47c552e5e39",
+  "build": "passed",
+  "typecheck": "passed",
+  "unitTests": {
+    "passed": 68,
+    "failed": 0,
+    "groups": [
+      7,
+      9,
+      12,
+      7,
+      11,
+      5,
+      13,
+      4
+    ]
+  },
+  "newBuildGuardTestsAfterFormatting": {
+    "passed": 4,
+    "failed": 0
+  },
+  "exportChecks": [
+    "index.html exists",
+    "standalone manifest",
+    "icons exist",
+    "version 13.2.1",
+    "legacy API routes absent"
+  ],
+  "unchangedCriticalFiles": [
+    "lib/auth/client.ts",
+    "lib/data/projection.ts",
+    "lib/data/files.ts",
+    "lib/data/local.ts",
+    "lib/data/legacy.ts",
+    "lib/data/models.ts",
+    "lib/sync/engine.ts",
+    "supabase/migrations/202609300001_core.sql",
+    "supabase/migrations/202609300002_storage.sql",
+    "app/fsrs.ts",
+    "app/memoryModel.ts",
+    "components/AccountApp.tsx",
+    "components/SyncContext.tsx",
+    "components/PwaManager.tsx",
+    "public/manifest.webmanifest",
+    "scripts/prepare-pwa.mjs"
+  ],
+  "browserSuiteRerun": false,
+  "remoteDeploymentTested": false,
+  "realSupabaseTested": false
+}
