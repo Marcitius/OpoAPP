@@ -85,10 +85,13 @@ test("Aprendizaje nuevo: separación por tarjetas, Bien termina y checkpoint tra
     .getByRole("button", { name: "Finalizar sesión", exact: true })
     .click();
   await expect(page.locator(".session-result-v12")).toHaveCount(0);
-  expect(
-    (await page.evaluate(() => (window as any).__opogcQA.state())).settings
-      .activeCardSession,
-  ).toBeNull();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as any).__opogcQA.state().settings.activeCardSession,
+      ),
+    )
+    .toBeNull();
 });
 test("Plan rápido: mover Hoy ↔ Después conserva el ID y permite nota sin fecha", async ({
   page,
@@ -263,6 +266,16 @@ test("Mover y reordenar tarjetas y ramas mantiene relaciones y datos después de
     .getByRole("button", { name: "Mover o reordenar tarjeta" })
     .click();
   await page.getByRole("button", { name: "Mover abajo", exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as any).__opogcQA
+            .state()
+            .cards.find((c: any) => c.id === "basic1").sortOrder,
+      ),
+    )
+    .toBe(1);
   let s = await page.evaluate(() => (window as any).__opogcQA.state());
   expect(s.cards.find((c: any) => c.id === "basic1").sortOrder).toBe(1);
   await rows
@@ -290,7 +303,20 @@ test("Mover y reordenar tarjetas y ramas mantiene relaciones y datos después de
   await page
     .getByRole("button", { name: "Sacar un nivel", exact: true })
     .click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as any).__opogcQA
+            .state()
+            .folders.find((f: any) => f.id === "deck2").parentId,
+      ),
+    )
+    .toBe(null);
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Vamos con lo de hoy" }),
+  ).toBeVisible();
   s = await page.evaluate(() => (window as any).__opogcQA.state());
   expect(s.folders.find((f: any) => f.id === "deck2").parentId).toBe(null);
   expect(s.cards.find((c: any) => c.id === "basic2").folderId).toBe("deck");

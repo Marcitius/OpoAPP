@@ -125,6 +125,7 @@ for (const [w, h] of [
       edited = after.cards.find((c: any) => c.id === "basic1");
     expect({ ...edited, front: old.front, back: old.back }).toEqual(old);
     await page.getByRole("button", { name: "Salir", exact: true }).click();
+    await expect(page.locator(".review-v11")).toHaveCount(0);
     await context.setOffline(false);
     await page.reload();
     await nav(page, "Estudiar");

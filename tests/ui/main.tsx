@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import OpoApp from "../../app/OpoApp";
 import { SyncContext } from "../../components/SyncContext";
 import { emptyState, operation } from "../../lib/data/models";
-import { readAccount, transact } from "../../lib/data/local";
+import { readAccount, transact, readValue } from "../../lib/data/local";
 import {
   flatten,
   project,
@@ -21,6 +21,7 @@ import AccountScreen from "../../components/account/AccountScreen";
 import "../../app/globals.css";
 import "../../app/account.css";
 import "../../app/mobile-ux.css";
+import "../../app/material.css";
 const user = "ux-fixture-a",
   stamp = new Date().toISOString();
 const today = new Date().toLocaleDateString("en-CA");
@@ -358,6 +359,7 @@ if (!account.initialized)
     a.queue = [];
     a.initialized = true;
   });
+let failMaterialSave = false;
 const listeners = new Set<() => void>();
 const engine = {
   user,
@@ -369,6 +371,18 @@ const engine = {
     return () => listeners.delete(fn);
   },
   update: async (before: any, next: any) => {
+    if (
+      failMaterialSave &&
+      Object.keys(next.settings).some(
+        (k) =>
+          k.startsWith("studyMaterialContent:") &&
+          JSON.stringify(next.settings[k]) !==
+            JSON.stringify(before.settings[k]),
+      )
+    ) {
+      failMaterialSave = false;
+      throw new Error("Fallo de guardado simulado");
+    }
     account = await transact(user, (a) =>
       applyLocal(a, differences(before, next, a)),
     );
@@ -387,6 +401,10 @@ window.addEventListener("online", () => {
 });
 (window as any).__opogcQA = {
   state: () => engine.state,
+  draft: (key: string) => readValue("legacy", key),
+  failMaterialSaveOnce: () => {
+    failMaterialSave = true;
+  },
   // Test-only sequential device handoff through the real projection, without a Supabase account.
   receive: async (snapshot: any) => {
     account = await transact(user, (a) => {

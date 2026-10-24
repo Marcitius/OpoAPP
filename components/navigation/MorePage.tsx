@@ -13,6 +13,7 @@ export default function MorePage({
     {
       label: "TU MATERIAL",
       items: [
+        {icon:"study",title:"Material de estudio",copy:"Temas, subtemas y documentos con formato",action:()=>onNavigate("material")},
         {
           icon: "study",
           title: "Temario y planificación",

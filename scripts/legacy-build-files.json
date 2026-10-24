@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "5d28bdea0f36d825a7328e1e2062d47c552e5e39",
+  "sha256": {
+    "app/api/annotations/route.ts": "be56950a3bd12df7f40c3de5e9f7d0fed10ae011d51c1d84c0b20a1ad2b2b334",
+    "app/api/files/multipart/route.ts": "ecf283d947f4176895cb43ca403d2f86664cac7174743e487a3e6a6167933cf7",
+    "app/api/files/route.ts": "98aca65c34a95a2ec158596e6f2a458b34fddfe5cceabecc5c11545b47e280e9",
+    "app/api/state/route.ts": "314d42907c4931841827c2080bba83c940624e18d3600c4e950bce5b6737aa64",
+    "app/api/storage-status/route.ts": "c06171b169c56b9af73ce3157c0ff13c6d848d19263efb40584b7f337e15fb44",
+    "app/manifest.ts": "c6709bbdaa66a2fb912e14c3bf4454df3f33e5cb555b324f089dddec9becb4d8"
+  }
+}

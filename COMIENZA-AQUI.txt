@@ -1,33 +1,31 @@
-OpoGC v13.2 - ACTUALIZACION DESDE v13.1
+OpoGC v14 - MATERIAL DE ESTUDIO
 
-Este ZIP NO es el proyecto completo. Contiene solo archivos nuevos/modificados.
-Necesitas tener aplicada v13.1, que incluye editar en directo y elegir modo.
-
-1. Descomprime y abre la carpeta actualizar.
-2. Copia TODO SU CONTENIDO a la raiz de tu proyecto OpoAPP, donde YA esta
-   package.json. Acepta sustituir. Conserva rutas de app, components, lib, etc.
-   No subas una carpeta nueva llamada actualizar. No hay archivos que borrar.
-3. En esa raiz: npm ci, npm run typecheck, npm test, npm run build.
-4. Sube los cambios a la rama conectada a Cloudflare Pages.
+1. Descomprime y abre actualizar.
+2. Sube TODO EL CONTENIDO de actualizar a la raiz de OpoAPP en GitHub,
+   conservando las rutas y aceptando sustituir archivos.
+   No subas una carpeta adicional llamada actualizar.
+3. Sube juntos package.json y package-lock.json: el editor tiene dependencias nuevas.
+4. En Cloudflare Pages:
    Build command: npm run build
    Build output directory: out
-   Root directory: donde este package.json (vacio si esta en la raiz).
-5. Conserva las variables actuales de Supabase. No ejecutes SQL.
-6. Tras el despliegue, acepta la actualizacion de OpoGC en TODOS los dispositivos.
-   No borres datos del navegador, ni reinstales la PWA para aplicar este parche.
+   Root directory: donde esta package.json
+5. Conserva las variables actuales de Supabase y vuelve a desplegar.
+   No ejecutes SQL ni crees otra base de datos.
+6. Acepta la actualizacion de OpoGC en tus dispositivos cuando aparezca.
 
-USO
-- Barra principal: Hoy / Biblioteca / Repasar / Progreso / Mas.
-- Salir: guarda la sesion para continuarla despues.
-- Hoy, Biblioteca o Mas > Temario y planificacion > Continuar sesion.
-- Dentro de una tarjeta: menu de tres puntos > Finalizar sesion.
-- La vuelta completada conserva su resumen hasta que pulses Finalizar sesion.
-- Intentar empezar otra seleccion permite continuar o finalizar la anterior.
-- Cambiar de dispositivo requiere que el estado haya llegado por la
-  sincronizacion habitual; sin conexion, se envia al volver a conectarte.
+El parche incluye los archivos de la reparacion v13.2.1 necesarios para el
+commit de GitHub inspeccionado, ademas de Material. No hay borrados manuales.
+El build aparta los mismos seis archivos antiguos comprobados y conserva copia.
 
-Incluye documentacion de funcionamiento, compatibilidad y pruebas reales:
-actualizar/docs/ACTUALIZACION-V13.2.md
-actualizar/docs/PRUEBAS-V13.2.md
+COMO USARLO
+Biblioteca > Material de estudio (tambien disponible en Mas).
+- Nuevo tema / Nuevo subapartado.
+- O Copiar estructura de Biblioteca: selecciona, revisa y confirma.
+- Leer / Contenido de... abre el documento editable.
+- Pega directamente desde ChatGPT: titulos, negritas y listas aparecen formateados.
+- Mas formato (tres puntos) muestra herramientas adicionales.
+- Importar texto admite TXT, MD y HTML y lo anade al documento actual.
+- Cerrar espera al guardado local; la sincronizacion sigue siendo automatica.
 
-No se modifica el servidor ni la rama remota automaticamente.
+Documentacion: actualizar/docs/MATERIAL-DE-ESTUDIO-V14.md
+Pruebas y limites: actualizar/docs/PRUEBAS-V14.md

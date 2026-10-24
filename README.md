@@ -1,4 +1,36 @@
-# OpoGC v13.2 — Sesiones a tu ritmo
+# OpoGC v14 — Material de estudio
+
+Nueva sección de documentos editables, integrada en la aplicación real. Acceso desde **Biblioteca → Material de estudio** y **Más → Material de estudio**. Conserva las sesiones, tarjetas y backend existentes.
+
+## Usar Material de estudio
+
+1. Crea un tema y sus subapartados o pulsa **Copiar estructura de Biblioteca** para previsualizar y copiar sus carpetas. La copia es independiente; no modifica tarjetas ni duplica ramas ya copiadas.
+2. Pulsa **Leer** o **Contenido de…** para abrir el documento del apartado.
+3. Pega texto desde ChatGPT: el Markdown se convierte en títulos, negritas, cursivas, listas y tablas. Si el portapapeles contiene HTML enriquecido, se conserva ese formato compatible. También puedes importar TXT, MD y HTML.
+4. Edita desde la barra de herramientas. **··· Más formato** muestra fuente, tamaño, colores, alineación, interlineado, listas numeradas/alfabéticas, sangrías, tablas, enlaces y deshacer/rehacer.
+5. El contenido se guarda automáticamente. **Cerrar** espera al guardado local; la sincronización entre dispositivos usa el motor habitual. También hay lectura, exportación HTML e impresión/PDF desde el navegador.
+
+Tu TXT de Ley 39/2015 se ha probado completo: los 28 títulos se convierten y el contenido textual se conserva íntegro en el editor. El archivo adjunto no se incorpora como datos iniciales ni se publica en el proyecto.
+
+## Actualizar
+
+El ZIP contiene solo archivos nuevos/modificados respecto al commit de OpoAPP inspeccionado, incluyendo la reparación de despliegue v13.2.1 para no depender de archivos anteriores ausentes. Sube **el contenido de actualizar/** a la raíz del repositorio, respetando rutas y sustituyendo archivos. Conserva las variables actuales de Supabase. Cloudflare: **npm run build**, salida **out**. No ejecutes SQL. Para probar localmente: npm ci, npm run typecheck, npm test, npm run build.
+
+Hay dependencias nuevas del editor y del conversor Markdown; package.json y package-lock.json deben subirse juntos. Son paquetes locales de código abierto: no requieren cuenta Tiptap, IA ni API de pago. No hay cambios en FSRS, Auth, RLS, migraciones, Service Worker ni motor de sincronización; el build renueva la revisión de caché PWA como antes.
+
+Detalles y límites: **docs/MATERIAL-DE-ESTUDIO-V14.md**. Pruebas actuales: **docs/PRUEBAS-V14.md**. Inventario y hashes: **ARCHIVOS-DEL-PARCHE.json**, en la raíz del ZIP.
+
+---
+
+# OpoGC v13.2.1 — Corrección del despliegue
+
+## Parche de despliegue sobre el commit con error
+
+Este ZIP corrige la mezcla encontrada en el commit `5d28bde` de OpoAPP: faltaban archivos de v13.1 y seguían rutas del backend anterior. Copia todo el contenido de `actualizar/` a la raíz del repositorio y cambia en Cloudflare el comando a **npm run build**, salida **out**. No uses npx next build: omite la preparación y regeneración PWA del proyecto.
+
+El build aparta únicamente seis archivos antiguos comprobados por su contenido y conserva sus bytes en `legacy-backup/`. No llama a Supabase ni modifica datos. TypeScript comprueba la aplicación activa, configuraciones actuales y pruebas; los archivos sueltos de versiones anteriores quedan fuera de la entrada inicial, sin desactivar errores de tipado ni de build. Los imports de la aplicación siguen comprobándose.
+
+Se reponen el selector de modos, cuatro componentes y pruebas/documentación de v13.1 que no se habían cargado. No se cambia el algoritmo ni la UX de v13.2. Detalle e inventario: `docs/REPARACION-DESPLIEGUE-V13.2.1.md` y `ARCHIVOS-DEL-PARCHE.json` dentro del ZIP.
 
 Actualización del proyecto real **v13.1**. Se limita a la cola de tarjetas, la continuidad de la sesión y el acceso directo a Biblioteca. Conserva FSRS, datos, backend y sincronización existentes.
 
