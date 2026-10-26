@@ -180,12 +180,15 @@ import {
 } from "../lib/review/sessionActions";
 import {
   activeCardSession,
+  cardSessionById,
+  savedCardSessions,
+  storeCardSession,
   closeCardSession,
   saveSessionPresentation,
   restoredPresentation,
 } from "../lib/memory/checkpoint";
 import useSessionCheckpoint from "../components/review/useSessionCheckpoint";
-import ResumeSession from "../components/review/ResumeSession";
+import SavedSessions from "../components/review/SavedSessions";
 import BottomSheet from "../components/sheets/BottomSheet";
 export default function OpoApp() {
   useAppViewport();
@@ -252,15 +255,7 @@ export default function OpoApp() {
   const displayedSessionRef = useRef<string | null>(null);
   const displayedTurnRef = useRef(0);
   const queueRef = useRef<ReviewQueueItem[]>([]);
-  const [sessionConflict, setSessionConflict] = useState<null | {
-    folderId?: string;
-    mode: StudyMode;
-    ids?: string[];
-    taskId?: string;
-    nodeId?: string;
-    source?: string;
-  }>(null);
-  const [finishPrompt, setFinishPrompt] = useState(false);
+  const [finishPrompt, setFinishPrompt] = useState<string | null>(null);
   const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [studyMode, setStudyMode] = useState<StudyMode>("recommended");
@@ -1070,7 +1065,17 @@ export default function OpoApp() {
       ) ?? [],
     [state],
   );
-  const savedCardSession = state ? activeCardSession(state.settings) : null;
+  const savedSessions = state ? savedCardSessions(state.settings) : [];
+  const savedCardSession = state
+    ? sessionOpen && displayedSessionRef.current
+      ? cardSessionById(state.settings, displayedSessionRef.current)
+      : activeCardSession(state.settings)
+    : null;
+  function displayedCardSession(current: AppState | null) {
+    return current && displayedSessionRef.current
+      ? cardSessionById(current.settings, displayedSessionRef.current)
+      : null;
+  }
   const sessionNext = savedCardSession
     ? nextSessionCard(savedCardSession, state?.cards ?? [], sessionClock)
     : null;
@@ -1195,9 +1200,7 @@ export default function OpoApp() {
     setViewingStudyImage(false);
     cardShownAtRef.current = Date.now();
     displayedTurnRef.current =
-      activeCardSession(
-        stateRef.current?.settings ?? ({} as AppState["settings"]),
-      )?.turn ?? 0;
+      displayedCardSession(stateRef.current)?.turn ?? 0;
   }
   async function pauseCardSession() {
     if (reviewBusyRef.current) return;
@@ -1207,12 +1210,20 @@ export default function OpoApp() {
     setViewingStudyImage(false);
     displayQueue([], 0);
   }
-  async function finishCardSession() {
+  async function finishCardSession(id?: string) {
     if (reviewBusyRef.current) return false;
-    const session =
-      stateRef.current && activeCardSession(stateRef.current.settings);
+    const current = stateRef.current;
+    const session = current
+      ? cardSessionById(
+          current.settings,
+          id ??
+            displayedSessionRef.current ??
+            activeCardSession(current.settings)?.id ??
+            "",
+        )
+      : null;
     if (!session) {
-      setFinishPrompt(false);
+      setFinishPrompt(null);
       return true;
     }
     reviewBusyRef.current = true;
@@ -1228,7 +1239,7 @@ export default function OpoApp() {
     displayQueue([], 0);
     displayedSessionRef.current = null;
     presentationKeyRef.current = "";
-    setFinishPrompt(false);
+    setFinishPrompt(null);
     return true;
   }
   function matchesDisplayed(session: CardSession) {
@@ -1316,15 +1327,7 @@ export default function OpoApp() {
   ) {
     const current = stateRef.current;
     if (!current || reviewBusyRef.current) return;
-    if (activeCardSession(current.settings)) {
-      setSessionConflict({
-        folderId,
-        mode,
-        ids: scope.map((c) => c.id),
-        source: sourceCollectionId,
-      });
-      return;
-    }
+
     let words = scope.filter(isOrthographyCard);
     if (mode === "weakest")
       words = weakestStudyCards(words, current.reviews, personalModel);
@@ -1347,7 +1350,7 @@ export default function OpoApp() {
     setReviewSaving(true);
     const saved = await updateState((c) => ({
       ...c,
-      settings: { ...c.settings, activeCardSession: session },
+      settings: storeCardSession(c.settings, session, true),
     }));
     reviewBusyRef.current = false;
     setReviewSaving(false);
@@ -1371,7 +1374,7 @@ export default function OpoApp() {
   }
   async function correctOrthographyGroup() {
     const current = stateRef.current,
-      session = current ? activeCardSession(current.settings) : null;
+      session = displayedCardSession(current);
     if (
       !current ||
       !orthographySession ||
@@ -1451,7 +1454,7 @@ export default function OpoApp() {
       ...c,
       cards: c.cards.map((card) => updates.get(card.id) ?? card),
       reviews: [...c.reviews, ...reviews],
-      settings: { ...c.settings, activeCardSession: nextSession },
+      settings: storeCardSession(c.settings, nextSession),
     }));
     reviewBusyRef.current = false;
     setReviewSaving(false);
@@ -1474,7 +1477,7 @@ export default function OpoApp() {
   function continueOrthographySession() {
     if (reviewBusyRef.current) return;
     const current = stateRef.current,
-      session = current ? activeCardSession(current.settings) : null;
+      session = displayedCardSession(current);
     if (!current || !validSession(session)) return;
     if (!matchesDisplayed(session)) return;
     setOrthographySession(null);
@@ -1540,9 +1543,13 @@ export default function OpoApp() {
     cardShownAtRef.current = Date.now();
   }
 
-  function resumeCardSession() {
+  function resumeCardSession(id?: string) {
     const current = stateRef.current,
-      session = current ? activeCardSession(current.settings) : null;
+      session = current
+        ? id
+          ? cardSessionById(current.settings, id)
+          : activeCardSession(current.settings)
+        : null;
     if (!current || !session) return;
     closeOrthographySession();
     setStudyFlow(null);
@@ -1574,17 +1581,7 @@ export default function OpoApp() {
   ) {
     const current = stateRef.current;
     if (!current || reviewBusyRef.current) return;
-    if (activeCardSession(current.settings)) {
-      setSessionConflict({
-        folderId,
-        mode,
-        ids: explicitCardIds,
-        taskId: studyTaskId,
-        nodeId: sourceNodeId,
-        source: sourceCollectionId,
-      });
-      return;
-    }
+
     const ids = explicitCardIds?.length ? new Set(explicitCardIds) : null;
     const fullScope = ids
       ? current.cards.filter((c) => ids.has(c.id) && isStudyableCard(c))
@@ -1672,7 +1669,7 @@ export default function OpoApp() {
     setReviewSaving(true);
     const saved = await updateState((c) => ({
       ...c,
-      settings: { ...c.settings, activeCardSession: session },
+      settings: storeCardSession(c.settings, session, true),
     }));
     reviewBusyRef.current = false;
     setReviewSaving(false);
@@ -1694,7 +1691,7 @@ export default function OpoApp() {
 
   async function removeCurrentFromCollection() {
     const current = stateRef.current;
-    const session = current ? activeCardSession(current.settings) : null;
+    const session = displayedCardSession(current);
     const id = currentCard?.id;
     if (
       !current ||
@@ -1716,9 +1713,7 @@ export default function OpoApp() {
     reviewBusyRef.current = false;
     setReviewSaving(false);
     if (!saved) return;
-    const next = stateRef.current
-      ? activeCardSession(stateRef.current.settings)
-      : null;
+    const next = displayedCardSession(stateRef.current);
     if (!validSession(next)) return;
     const remaining = reviewQueue.filter((item) => item.cardId !== id);
     displayQueue(remaining, remaining.length);
@@ -1763,7 +1758,7 @@ export default function OpoApp() {
       return;
     }
     const current = stateRef.current,
-      session = current ? activeCardSession(current.settings) : null;
+      session = displayedCardSession(current);
     if (!current || !validSession(session)) return;
     if (!matchesDisplayed(session)) return;
     let next = session;
@@ -1782,7 +1777,7 @@ export default function OpoApp() {
       setReviewSaving(true);
       const saved = await updateState((c) => ({
         ...c,
-        settings: { ...c.settings, activeCardSession: next },
+        settings: storeCardSession(c.settings, next),
       }));
       reviewBusyRef.current = false;
       setReviewSaving(false);
@@ -1823,7 +1818,7 @@ export default function OpoApp() {
     outcome: ReviewQueueOutcome,
   ) {
     const current = stateRef.current,
-      session = current ? activeCardSession(current.settings) : null;
+      session = displayedCardSession(current);
     if (
       !current ||
       !currentCard ||
@@ -1896,7 +1891,7 @@ export default function OpoApp() {
       ...c,
       cards: c.cards.map((v) => (v.id === updated.id ? updated : v)),
       reviews: [...c.reviews, review],
-      settings: { ...c.settings, activeCardSession: nextSession },
+      settings: storeCardSession(c.settings, nextSession),
       studyTasks:
         completed && session.studyTaskId
           ? c.studyTasks.map((t) =>
@@ -2431,13 +2426,14 @@ export default function OpoApp() {
             {saveStatus}
           </span>
         </header>
-        {savedCardSession && ["today", "library", "study"].includes(tab) && (
-          <ResumeSession
-            session={savedCardSession}
-            onResume={resumeCardSession}
-            onFinish={() => setFinishPrompt(true)}
-          />
-        )}
+        {savedSessions.length > 0 &&
+          ["today", "library", "study", "review"].includes(tab) && (
+            <SavedSessions
+              sessions={savedSessions}
+              onResume={resumeCardSession}
+              onFinish={setFinishPrompt}
+            />
+          )}
         {tab === "today" && (
           <TodayPage
             reviewPending={
@@ -2492,7 +2488,7 @@ export default function OpoApp() {
                   .map((c) => c.id),
               )
             }
-            onResume={savedCardSession ? resumeCardSession : undefined}
+            onResume={savedCardSession ? () => resumeCardSession() : undefined}
             onOrganize={() => {
               navigate("organize");
               setStudyView("tree");
@@ -3492,7 +3488,7 @@ export default function OpoApp() {
               new Set(reviewQueue.map((q) => q.cardId)).size,
             )}
             weakCount={cardSessionSummary?.weak ?? 0}
-            onFinish={() => setFinishPrompt(true)}
+            onFinish={() => setFinishPrompt(savedCardSession?.id ?? null)}
             total={cardSessionSummary?.total ?? 1}
             continuous={false}
             busy={reviewSaving}
@@ -3644,62 +3640,23 @@ export default function OpoApp() {
           }}
         />
       )}
-      {sessionConflict && (
-        <BottomSheet
-          title="Tienes una sesión guardada"
-          onClose={() => setSessionConflict(null)}
-          dismissible={!reviewSaving}
-        >
-          <p>
-            Continúa donde lo dejaste o finaliza esa sesión antes de empezar
-            otra. Tus valoraciones se conservan.
-          </p>
-          <button
-            className="primary-button full"
-            disabled={reviewSaving}
-            onClick={() => {
-              setSessionConflict(null);
-              resumeCardSession();
-            }}
-          >
-            Continuar sesión guardada
-          </button>
-          <button
-            className="sheet-action"
-            disabled={reviewSaving}
-            onClick={async () => {
-              const request = sessionConflict;
-              if (!(await finishCardSession())) return;
-              setSessionConflict(null);
-              void startReview(
-                request.folderId,
-                request.mode,
-                request.ids,
-                request.taskId,
-                request.nodeId,
-                request.source,
-              );
-            }}
-          >
-            Finalizar actual y empezar otra
-          </button>
-        </BottomSheet>
-      )}
       {finishPrompt && (
         <BottomSheet
           title="¿Finalizar esta sesión?"
-          onClose={() => setFinishPrompt(false)}
+          onClose={() => setFinishPrompt(null)}
           dismissible={!reviewSaving}
         >
           <p>
-            El historial y las valoraciones se conservan. Si quieres retomarla
-            después, elige Salir y continuar después.
+            {savedSessions.find((s) => s.id === finishPrompt)?.label ||
+              "Mis tarjetas"}
+            . Solo se cerrará esta sesión. Las demás sesiones, el historial y
+            las valoraciones se conservan.
           </p>
           <button
             className="primary-button full"
             disabled={reviewSaving}
             onClick={async () => {
-              if (await finishCardSession()) navigate("today");
+              if (await finishCardSession(finishPrompt)) navigate("today");
             }}
           >
             Finalizar sesión
@@ -3709,7 +3666,7 @@ export default function OpoApp() {
             disabled={reviewSaving}
             onClick={async () => {
               if (sessionOpen) await pauseCardSession();
-              setFinishPrompt(false);
+              setFinishPrompt(null);
             }}
           >
             Salir y continuar después

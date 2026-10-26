@@ -6,13 +6,71 @@ import {
   type SessionPresentation,
 } from "./session";
 export const closedSessionKey = (id: string) => "closedCardSession:" + id;
-export function activeCardSession(
-  settings: AppState["settings"],
+// Each session is an independent settings record, so updating one does not
+// replace the other sessions through the existing offline/sync projection.
+export const cardSessionKey = (id: string) => "cardSession:" + id;
+export function savedCardSessions(
+  settings: Record<string, unknown>,
+): CardSession[] {
+  const sessions = new Map<string, CardSession>();
+  const legacy = settings.activeCardSession;
+  if (validSession(legacy)) sessions.set(legacy.id, legacy);
+  for (const [key, value] of Object.entries(settings)) {
+    if (
+      key.startsWith("cardSession:") &&
+      validSession(value) &&
+      key === cardSessionKey(value.id)
+    )
+      sessions.set(value.id, value);
+  }
+  return [...sessions.values()]
+    .filter((s) => !settings[closedSessionKey(s.id)])
+    .map(upgradeCardSession)
+    .sort(
+      (a, b) =>
+        String(b.updatedAt).localeCompare(String(a.updatedAt)) ||
+        a.id.localeCompare(b.id),
+    );
+}
+export function cardSessionById(
+  settings: Record<string, unknown>,
+  id: string,
 ): CardSession | null {
-  const session = settings.activeCardSession;
-  return validSession(session) && !settings[closedSessionKey(session.id)]
-    ? upgradeCardSession(session)
+  if (settings[closedSessionKey(id)]) return null;
+  const session = settings[cardSessionKey(id)];
+  if (validSession(session) && session.id === id)
+    return upgradeCardSession(session);
+  const legacy = settings.activeCardSession;
+  return validSession(legacy) && legacy.id === id
+    ? upgradeCardSession(legacy)
     : null;
+}
+export function activeCardSession(
+  settings: Record<string, unknown>,
+): CardSession | null {
+  return savedCardSessions(settings)[0] ?? null;
+}
+// Adopt the existing single session lazily and without changing its ID, queue,
+// ratings or history. The legacy field remains a compatible recent-session hint.
+export function storeCardSession(
+  settings: AppState["settings"],
+  session: CardSession,
+  activate = false,
+): AppState["settings"] {
+  if (settings[closedSessionKey(session.id)]) return settings;
+  const legacy = settings.activeCardSession;
+  return {
+    ...settings,
+    ...(validSession(legacy) &&
+    !settings[cardSessionKey(legacy.id)] &&
+    !settings[closedSessionKey(legacy.id)]
+      ? { [cardSessionKey(legacy.id)]: legacy }
+      : {}),
+    [cardSessionKey(session.id)]: session,
+    ...(activate || !validSession(legacy) || legacy.id === session.id
+      ? { activeCardSession: session }
+      : {}),
+  };
 }
 export function closeCardSession(
   state: AppState,
@@ -24,6 +82,9 @@ export function closeCardSession(
     settings: {
       ...state.settings,
       [closedSessionKey(id)]: new Date(now).toISOString(),
+      ...(state.settings[cardSessionKey(id)]
+        ? { [cardSessionKey(id)]: null }
+        : {}),
       ...(state.settings.activeCardSession?.id === id
         ? { activeCardSession: null }
         : {}),
@@ -37,9 +98,9 @@ export function saveSessionPresentation(
   presentation: SessionPresentation,
   now: number,
 ): AppState {
-  const session = activeCardSession(state.settings);
-  // A delayed draft must not restore a closed/replaced session or overwrite a rating.
-  if (!session || session.id !== id || session.turn !== turn) return state;
+  const session = cardSessionById(state.settings, id);
+  // A delayed draft must not restore a closed session or overwrite a rating.
+  if (!session || session.turn !== turn) return state;
   const existing = new Set(state.cards.map((c) => c.id));
   const queue = presentation.queue.filter(
     (q) =>
@@ -54,17 +115,14 @@ export function saveSessionPresentation(
   ]);
   return {
     ...state,
-    settings: {
-      ...state.settings,
-      activeCardSession: {
-        ...session,
-        updatedAt: new Date(now).toISOString(),
-        presentation: view,
-        items: session.items
-          .filter((i) => existing.has(i.id))
-          .map((i) => (seen.has(i.id) ? { ...i, seen: true } : i)),
-      },
-    },
+    settings: storeCardSession(state.settings, {
+      ...session,
+      updatedAt: new Date(now).toISOString(),
+      presentation: view,
+      items: session.items
+        .filter((i) => existing.has(i.id))
+        .map((i) => (seen.has(i.id) ? { ...i, seen: true } : i)),
+    }),
   };
 }
 export function restoredPresentation(

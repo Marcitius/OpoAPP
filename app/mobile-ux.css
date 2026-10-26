@@ -3461,7 +3461,7 @@ select {
   }
 }
 
-/* v13.2: one resumable card session, accessible from everyday entry points. */
+/* Resumable card sessions, accessible from everyday entry points. */
 .resume-session {
   display: flex;
   align-items: center;
@@ -3528,4 +3528,43 @@ select {
   .resume-session .row-icon {
     display: none;
   }
+}
+
+/* Independent saved flashcard sessions. */
+.saved-sessions {
+  margin: 0 0 20px;
+  min-width: 0;
+}
+.saved-sessions-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.saved-sessions-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.saved-sessions-heading .ux-link {
+  min-height: 44px;
+}
+.saved-sessions .resume-session {
+  margin-bottom: 0;
+}
+.saved-sessions-list {
+  display: grid;
+  gap: 12px;
+}
+.saved-sessions-list .resume-session {
+  margin: 0;
+}
+.resume-session-main strong {
+  overflow-wrap: anywhere;
+}
+
+.resume-session-main time {
+  font-size: 11px;
+  color: var(--ux-muted);
 }

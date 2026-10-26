@@ -13,7 +13,12 @@ export default function MorePage({
     {
       label: "TU MATERIAL",
       items: [
-        {icon:"study",title:"Material de estudio",copy:"Temas, subtemas y documentos con formato",action:()=>onNavigate("material")},
+        {
+          icon: "study",
+          title: "Material de estudio",
+          copy: "Temas, subtemas y documentos con formato",
+          action: () => onNavigate("material"),
+        },
         {
           icon: "study",
           title: "Temario y planificación",
@@ -77,7 +82,7 @@ export default function MorePage({
         </section>
       ))}
       <p className="ux-footnote">
-        OpoGC v13.2 · Sesiones a tu ritmo
+        OpoGC v14.1 · Sesiones guardadas
         <br />
         Organiza menos. Estudia más.
       </p>

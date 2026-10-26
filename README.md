@@ -1,3 +1,29 @@
+# OpoGC v14.1 — Varias sesiones guardadas
+
+Puedes guardar varias sesiones de tarjetas y elegir cuál continuar. Por ejemplo, Constitución y Ley 40/2015 conservan por separado su selección, orden, tarjeta actual, respuesta escrita, valoraciones de la sesión y refuerzos pendientes.
+
+## Cómo utilizarlo
+
+1. Selecciona los temas o tarjetas en **Biblioteca** y empieza en el modo que prefieras.
+2. **Salir** guarda esa sesión sin finalizarla.
+3. Empieza otra selección: la sesión anterior se conserva automáticamente.
+4. Desde **Hoy**, **Biblioteca**, **Repasar** o el temario, pulsa **Continuar sesión** para la más reciente, o **Ver las N sesiones** para elegir otra.
+5. **Finalizar** pide confirmación y cierra solo la sesión elegida. Las tarjetas y el historial se conservan. Las vueltas completadas también permanecen guardadas hasta finalizarlas expresamente.
+
+La sesión que ya existía se adopta automáticamente con el mismo ID y progreso. No hay caducidad ni un límite artificial de una sola sesión. No se cambia el algoritmo de repetición ni la cola particular de ortografía. Si una tarjeta pertenece a varias sesiones, el progreso de cada sesión es independiente; su historial y próxima fecha de repaso siguen siendo únicos para esa tarjeta.
+
+## Actualización desde v14
+
+El ZIP es **un parche sobre OpoGC v14**, no el proyecto completo. Copia **el contenido de actualizar/** a la raíz del repositorio, respetando carpetas y sustituyendo archivos. No subas la carpeta actualizar como una carpeta nueva. Incluye juntos package.json y package-lock.json; cambia la versión, sin añadir ni actualizar dependencias. No hay archivos que eliminar manualmente.
+
+Conserva Cloudflare **npm run build**, salida **out**, y las variables existentes. No ejecutes SQL ni reconfigures Supabase. Tras desplegar, acepta la actualización de OpoGC en todos tus dispositivos para que usen la misma versión. Necesitas tener aplicada v14; este parche no incorpora de nuevo el editor ni las reparaciones de versiones anteriores.
+
+Pruebas: **docs/PRUEBAS-V14.1.md**. Diseño y compatibilidad: **docs/SESIONES-MULTIPLES-V14.1.md**. Validación local: npm ci, npm run typecheck, npm test y npm run build.
+
+---
+
+Documentación de Material de estudio (v14), conservada como referencia:
+
 # OpoGC v14 — Material de estudio
 
 Nueva sección de documentos editables, integrada en la aplicación real. Acceso desde **Biblioteca → Material de estudio** y **Más → Material de estudio**. Conserva las sesiones, tarjetas y backend existentes.

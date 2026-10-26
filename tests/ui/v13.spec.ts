@@ -111,10 +111,8 @@ test("Guardar antes de responder, valorar, cerrar y retirar conservando memoria"
     animations: "disabled",
   });
   await page.getByRole("button", { name: /Empezar repaso/ }).click();
-  await page
-    .getByRole("dialog", { name: "Tienes una sesión guardada" })
-    .getByRole("button", { name: "Finalizar actual y empezar otra" })
-    .click();
+  // Starting a collection now preserves the previous paused session.
+  await expect(page.locator(".review-v11")).toBeVisible();
   await page.getByRole("button", { name: /Guardada en 1 colección/ }).click();
   await page
     .getByRole("dialog")

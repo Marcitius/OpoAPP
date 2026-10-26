@@ -461,6 +461,13 @@ test("Bottom sheet: arrastre, teclado reducido, foco y cuenta", async ({
   await nav(page, 390, "Más");
   await page.getByRole("button", { name: /Preferencias de estudio/ }).click();
   const handle = page.locator(".sheet-drag-area");
+  // A coordinate drag must start after the sheet's entrance animation settles.
+  // Unlike locator.click(), boundingBox()/mouse.move() do not wait for stability.
+  await handle.evaluate(async (el) => {
+    await Promise.all(
+      el.parentElement!.getAnimations().map((a) => a.finished.catch(() => {})),
+    );
+  });
   const box = await handle.boundingBox();
   await page.mouse.move(box!.x + 50, box!.y + 10);
   await page.mouse.down();

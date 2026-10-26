@@ -1,6 +1,6 @@
 import type { AppState, Card } from "../study/legacy";
 import { assignCollection } from "./collections";
-import { validSession } from "../memory/session";
+import { savedCardSessions, storeCardSession } from "../memory/checkpoint";
 
 // Edit content only: a remote review received while the editor is open must
 // retain its latest scheduling, counters and history. Identity is never copied.
@@ -31,34 +31,31 @@ export function withdrawCollectionCard(
   cardId: string,
   now: number,
 ): AppState {
-  const next = assignCollection(current, collectionId, [cardId], false);
-  const session = next.settings.activeCardSession;
-  if (!validSession(session) || session.sourceCollectionId !== collectionId)
-    return next;
-  return {
-    ...next,
-    settings: {
-      ...next.settings,
-      activeCardSession: {
+  let next = assignCollection(current, collectionId, [cardId], false);
+  for (const session of savedCardSessions(next.settings)) {
+    if (session.sourceCollectionId !== collectionId) continue;
+    const presentation = session.presentation;
+    const queue = presentation?.queue.filter((q) => q.cardId !== cardId);
+    const currentItem = presentation?.queue[presentation.index];
+    next = {
+      ...next,
+      settings: storeCardSession(next.settings, {
         ...session,
         updatedAt: new Date(now).toISOString(),
         items: session.items.filter((item) => item.id !== cardId),
-        ...(session.presentation
+        ...(presentation && queue
           ? {
               presentation: {
-                ...session.presentation,
-                queue: session.presentation.queue.filter(
-                  (q) => q.cardId !== cardId,
-                ),
-                index: Math.min(
-                  session.presentation.index,
-                  session.presentation.queue.filter((q) => q.cardId !== cardId)
-                    .length,
-                ),
+                ...presentation,
+                queue,
+                index: currentItem
+                  ? Math.max(0, queue.indexOf(currentItem))
+                  : queue.length,
               },
             }
           : {}),
-      },
-    },
-  };
+      }),
+    };
+  }
+  return next;
 }

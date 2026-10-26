@@ -1,5 +1,16 @@
 # CHANGELOG — OpoGC
 
+## 14.1.0 · 26 de octubre de 2026 — Varias sesiones guardadas
+
+- Varias sesiones de tarjetas independientes: empezar una selección nueva conserva las anteriores. Lista desde Hoy, Biblioteca, Repasar y el temario; acceso rápido a la más reciente.
+- Cada sesión mantiene selección, orden, cola, tarjeta/cara actuales, respuesta escrita, opciones elegidas, progreso y refuerzos. Salir guarda; Finalizar cierra únicamente el ID confirmado.
+- Adopción compatible del antiguo checkpoint único, sin cambiar IDs ni historial. Registros independientes en settings mediante IndexedDB/outbox/sincronización existentes; marcador de cierre que impide resucitar una sesión con un checkpoint atrasado.
+- Abrir, guardar o cerrar otra sesión en un dispositivo no sustituye la sesión distinta abierta en otro. Los cambios de turno/cierre de la misma sesión conservan las guardas existentes.
+- Retirar una tarjeta de una colección actualiza todas las sesiones de esa colección; conserva las tarjetas y el historial.
+- Sin cambios a FSRS, memoryModel, algoritmo intrasesión, Auth, Supabase, RLS, Realtime, esquema SQL, motor offline, Material ni dependencias.
+- Nuevas pruebas deterministas y de navegador; se actualizan dos pruebas que antes exigían cerrar una sesión para empezar otra.
+
+
 ## 14.0.0 · 24 de octubre de 2026 — Material de estudio
 
 - Nueva sección con temas, subtemas y documentos editables; búsqueda en nombres/contenido, navegación progresiva, renombrar, mover, reordenar y eliminar ramas.

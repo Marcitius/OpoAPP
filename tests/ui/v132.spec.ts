@@ -172,7 +172,7 @@ for (const query of ["Respuesta escrita:", "Test múltiple:"])
       );
     expect((await state(page)).reviews).toHaveLength(0);
   });
-test("Empezar otra selección exige continuar o finalizar la sesión guardada", async ({
+test("Empezar otra selección conserva ambas sesiones y permite retomar la anterior", async ({
   page,
 }) => {
   await open(page);
@@ -180,26 +180,21 @@ test("Empezar otra selección exige continuar o finalizar la sesión guardada", 
   await pause(page);
   const old = (await state(page)).settings.activeCardSession;
   await libraryCard(page, "Artículo 164");
-  const dialog = page.getByRole("dialog", {
-    name: "Tienes una sesión guardada",
-  });
-  await expect(dialog).toBeVisible();
-  await noKeyboard(page);
-  expect((await state(page)).settings.activeCardSession.id).toBe(old.id);
-  await dialog
-    .getByRole("button", { name: "Continuar sesión guardada" })
-    .click();
-  await expect(page.locator(".review-prompt")).toContainText("Artículo 53");
-  await pause(page);
-  await libraryCard(page, "Artículo 164");
-  await dialog
-    .getByRole("button", { name: "Finalizar actual y empezar otra" })
-    .click();
   await expect(page.locator(".review-prompt")).toContainText("Artículo 164");
   const next = await state(page);
   expect(next.settings.activeCardSession.id).not.toBe(old.id);
-  expect(next.settings["closedCardSession:" + old.id]).toBeTruthy();
-  expect(next.reviews).toHaveLength(0);
+  expect(next.settings["cardSession:" + old.id].items).toEqual(old.items);
+  expect(next.settings["closedCardSession:" + old.id]).toBeUndefined();
+  await pause(page);
+  await page.getByRole("button", { name: "Ver las 2 sesiones" }).click();
+  const dialog = page.getByRole("dialog", { name: "Sesiones guardadas" });
+  await expect(dialog.locator(".resume-session")).toHaveCount(2);
+  await noKeyboard(page);
+  await dialog
+    .locator(`[data-session-id="${old.id}"] .resume-session-main`)
+    .click();
+  await expect(page.locator(".review-prompt")).toContainText("Artículo 53");
+  expect((await state(page)).reviews).toHaveLength(0);
 });
 test("Una vuelta completada permanece hasta Finalizar; una débil no se presenta como aprendida", async ({
   page,

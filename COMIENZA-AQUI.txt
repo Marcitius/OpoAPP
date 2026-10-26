@@ -1,31 +1,27 @@
-OpoGC v14 - MATERIAL DE ESTUDIO
+OpoGC v14.1 - VARIAS SESIONES GUARDADAS
 
-1. Descomprime y abre actualizar.
-2. Sube TODO EL CONTENIDO de actualizar a la raiz de OpoAPP en GitHub,
-   conservando las rutas y aceptando sustituir archivos.
-   No subas una carpeta adicional llamada actualizar.
-3. Sube juntos package.json y package-lock.json: el editor tiene dependencias nuevas.
-4. En Cloudflare Pages:
-   Build command: npm run build
-   Build output directory: out
-   Root directory: donde esta package.json
-5. Conserva las variables actuales de Supabase y vuelve a desplegar.
-   No ejecutes SQL ni crees otra base de datos.
-6. Acepta la actualizacion de OpoGC en tus dispositivos cuando aparezca.
+PARCHE SOBRE OpoGC v14. No es el proyecto completo.
 
-El parche incluye los archivos de la reparacion v13.2.1 necesarios para el
-commit de GitHub inspeccionado, ademas de Material. No hay borrados manuales.
-El build aparta los mismos seis archivos antiguos comprobados y conserva copia.
+1. Descomprime el ZIP y abre actualizar.
+2. Sube TODO EL CONTENIDO de actualizar a la raiz de tu repositorio,
+   conservando las rutas y sustituyendo los archivos existentes.
+   No subas otra carpeta llamada actualizar.
+3. Incluye juntos package.json y package-lock.json.
+4. Cloudflare Pages: npm run build, carpeta de salida out.
+5. Conserva las variables de Supabase. No ejecutes SQL.
+6. Tras desplegar, acepta la actualizacion de OpoGC en todos tus dispositivos.
 
-COMO USARLO
-Biblioteca > Material de estudio (tambien disponible en Mas).
-- Nuevo tema / Nuevo subapartado.
-- O Copiar estructura de Biblioteca: selecciona, revisa y confirma.
-- Leer / Contenido de... abre el documento editable.
-- Pega directamente desde ChatGPT: titulos, negritas y listas aparecen formateados.
-- Mas formato (tres puntos) muestra herramientas adicionales.
-- Importar texto admite TXT, MD y HTML y lo anade al documento actual.
-- Cerrar espera al guardado local; la sincronizacion sigue siendo automatica.
+USO
+- Empieza una seleccion desde Biblioteca y pulsa Salir para guardarla.
+- Puedes empezar otra seleccion sin finalizar la anterior.
+- Hoy / Biblioteca / Repasar: Ver las N sesiones permite elegir cual continuar.
+- Finalizar cierra solo la sesion elegida; pide confirmacion y conserva historial.
+- Tu sesion anterior se conserva automaticamente.
 
-Documentacion: actualizar/docs/MATERIAL-DE-ESTUDIO-V14.md
-Pruebas y limites: actualizar/docs/PRUEBAS-V14.md
+No hay cambios de algoritmo, backend ni datos iniciales.
+No hay archivos que eliminar ni dependencias nuevas.
+Necesitas tener instalada v14 antes de aplicar este parche.
+
+Detalles: actualizar/docs/SESIONES-MULTIPLES-V14.1.md
+Pruebas: actualizar/docs/PRUEBAS-V14.1.md
+Inventario del ZIP: ARCHIVOS-DEL-PARCHE.json
