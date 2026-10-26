@@ -187,7 +187,10 @@ import {
   saveSessionPresentation,
   restoredPresentation,
 } from "../lib/memory/checkpoint";
+import { shareJson, orderedDueCards } from "../lib/memory/performance";
+import { readReviewDraft } from "../lib/memory/draft";
 import useSessionCheckpoint from "../components/review/useSessionCheckpoint";
+import StudyBackground from "../components/review/StudyBackground";
 import SavedSessions from "../components/review/SavedSessions";
 import BottomSheet from "../components/sheets/BottomSheet";
 export default function OpoApp() {
@@ -261,9 +264,31 @@ export default function OpoApp() {
   const [studyMode, setStudyMode] = useState<StudyMode>("recommended");
   const [revealed, setRevealed] = useState(false);
   const [viewingStudyImage, setViewingStudyImage] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
-  const [writtenAnswer, setWrittenAnswer] = useState("");
+  const reviewInput = useRef({
+    selectedOption: null as number | null,
+    selectedOptions: [] as number[],
+    writtenAnswer: "",
+  });
+  const [inputVersion, refreshInput] = useState(0);
+  const { selectedOption, selectedOptions, writtenAnswer } =
+    reviewInput.current;
+  function setSelectedOption(value: number | null) {
+    reviewInput.current.selectedOption = value;
+    refreshInput((n) => n + 1);
+  }
+  function setSelectedOptions(
+    value: number[] | ((current: number[]) => number[]),
+  ) {
+    reviewInput.current.selectedOptions =
+      typeof value === "function"
+        ? value(reviewInput.current.selectedOptions)
+        : value;
+    refreshInput((n) => n + 1);
+  }
+  function setWrittenAnswer(value: string) {
+    reviewInput.current.writtenAnswer = value;
+    refreshInput((n) => n + 1);
+  }
   const [writtenResult, setWrittenResult] =
     useState<WrittenAnswerResult | null>(null);
   const [sessionDone, setSessionDone] = useState(0);
@@ -309,8 +334,9 @@ export default function OpoApp() {
         ...engine.state,
         settings: { ...engine.state.settings, seedVersion: 2 },
       } as AppState).state;
-      stateRef.current = loaded;
-      setState(loaded);
+      const shared = shareJson(stateRef.current, loaded);
+      stateRef.current = shared;
+      setState(shared);
       setOnline(navigator.onLine);
       setSync(
         engine.status.phase === "saved"
@@ -1038,32 +1064,29 @@ export default function OpoApp() {
 
   const personalModel = useMemo(
     () => fitPersonalMemoryModel(state?.cards ?? [], state?.reviews ?? []),
-    [state],
+    [state?.reviews],
   );
-  const dueCards = useMemo(() => {
-    if (!state) return [];
-    const now = new Date();
-    return state.cards
-      .filter(
-        (card) =>
-          !isOrthographyCard(card) &&
-          card.reviewCount > 0 &&
-          new Date(card.dueAt).getTime() <= now.getTime(),
-      )
-      .sort(
-        (a, b) =>
-          predictPersonalRecall(a, state.reviews, personalModel, now)
-            .probability -
-          predictPersonalRecall(b, state.reviews, personalModel, now)
-            .probability,
-      );
-  }, [personalModel, state]);
+  const dueCards = useMemo(
+    () =>
+      orderedDueCards(
+        state?.cards ?? [],
+        state?.reviews ?? [],
+        personalModel,
+        new Date(),
+      ),
+    [
+      state?.cards,
+      state?.reviews,
+      personalModel,
+      Math.floor(sessionClock / 30000),
+    ],
+  );
   const todayReviews = useMemo(
     () =>
       state?.reviews.filter(
         (review) => localDateKey(new Date(review.reviewedAt)) === todayKey(),
       ) ?? [],
-    [state],
+    [state?.reviews, localDateKey()],
   );
   const savedSessions = state ? savedCardSessions(state.settings) : [];
   const savedCardSession = state
@@ -1083,10 +1106,13 @@ export default function OpoApp() {
     ? sessionSummary(savedCardSession)
     : null;
   useEffect(() => {
-    if (!sessionOpen) return;
-    const timer = setInterval(() => setSessionClock(Date.now()), 1000);
+    if (sessionOpen && savedCardSession?.format !== "orthography") return;
+    const timer = setInterval(
+      () => setSessionClock(Date.now()),
+      sessionOpen ? 1000 : 30000,
+    );
     return () => clearInterval(timer);
-  }, [sessionOpen]);
+  }, [sessionOpen, savedCardSession?.format]);
   useEffect(() => {
     if (
       sessionOpen &&
@@ -1146,6 +1172,12 @@ export default function OpoApp() {
     orthographySelected,
   };
   const flushCheckpoint = useSessionCheckpoint({
+    user: engine.user,
+    revision: savedCardSession?.updatedAt,
+    getRevision: (id) =>
+      stateRef.current
+        ? cardSessionById(stateRef.current.settings, id)?.updatedAt
+        : undefined,
     id: sessionOpen ? (displayedSessionRef.current ?? undefined) : undefined,
     turn: displayedTurnRef.current,
     open: sessionOpen,
@@ -1448,7 +1480,11 @@ export default function OpoApp() {
     };
     nextSession = {
       ...nextSession,
-      presentation: { ...view, orthography: resultGroup },
+      presentation: {
+        ...view,
+        ...reviewInput.current,
+        orthography: resultGroup,
+      },
     };
     const saved = await updateState((c) => ({
       ...c,
@@ -1543,7 +1579,7 @@ export default function OpoApp() {
     cardShownAtRef.current = Date.now();
   }
 
-  function resumeCardSession(id?: string) {
+  async function resumeCardSession(id?: string) {
     const current = stateRef.current,
       session = current
         ? id
@@ -1551,6 +1587,16 @@ export default function OpoApp() {
           : activeCardSession(current.settings)
         : null;
     if (!current || !session) return;
+    const draft = await readReviewDraft(engine.user, session);
+    const latest =
+      stateRef.current &&
+      cardSessionById(stateRef.current.settings, session.id);
+    if (
+      !latest ||
+      latest.turn !== session.turn ||
+      latest.updatedAt !== session.updatedAt
+    )
+      return;
     closeOrthographySession();
     setStudyFlow(null);
     displayedSessionRef.current = session.id;
@@ -1560,7 +1606,10 @@ export default function OpoApp() {
     setSessionDone(session.history.length);
     setSessionClock(Date.now());
     setSessionOpen(true);
-    const restored = restoredPresentation(session, current.cards);
+    const restored = restoredPresentation(
+      draft ? { ...session, presentation: draft } : session,
+      current.cards,
+    );
     if (restored) {
       displayQueue(restored.queue, restored.index, restored);
       setOrthographySession(restored.orthography);
@@ -1724,6 +1773,7 @@ export default function OpoApp() {
   }
 
   function currentSelectionIsCorrect(card: Card) {
+    const { selectedOption, selectedOptions } = reviewInput.current;
     if (!isMultipleChoiceCard(card)) return true;
     const correct = cardCorrectOptions(card);
     const selected = isMultipleAnswerTest(card)
@@ -1735,6 +1785,7 @@ export default function OpoApp() {
   }
 
   function submitWrittenAnswer() {
+    const { writtenAnswer } = reviewInput.current;
     if (!currentCard || !isWrittenCard(currentCard) || !writtenAnswer.trim())
       return;
     const result = evaluateWrittenAnswer(currentCard, writtenAnswer);
@@ -1768,6 +1819,7 @@ export default function OpoApp() {
         ...next,
         presentation: {
           ...view,
+          ...reviewInput.current,
           queue: reviewQueue.map((item, i) =>
             i === reviewIndex ? { ...item, completed: true } : item,
           ),
@@ -1878,7 +1930,12 @@ export default function OpoApp() {
     );
     nextSession = {
       ...nextSession,
-      presentation: { ...view, queue: completedQueue, revealed: true },
+      presentation: {
+        ...view,
+        ...reviewInput.current,
+        queue: completedQueue,
+        revealed: true,
+      },
     };
     const cards = current.cards.map((c) => (c.id === updated.id ? updated : c));
     const summary = sessionSummary(nextSession);
@@ -1920,6 +1977,7 @@ export default function OpoApp() {
     } else {
       displayQueue(completedQueue, reviewIndex, {
         ...view,
+        ...reviewInput.current,
         queue: completedQueue,
         revealed: true,
         writtenAnswer: "",
@@ -2160,6 +2218,52 @@ export default function OpoApp() {
     notify("Carpeta eliminada");
   }
 
+  const searchText = useRef(
+    new Map<
+      string,
+      { front: string; back: string; path: string; text: string }
+    >(),
+  );
+  const filteredLibraryCards = useMemo(() => {
+    if (!state || tab !== "library") return [];
+    const query = libraryQuery.trim().toLocaleLowerCase("es");
+    const paths = new Map(
+      state.folders.map((folder) => [
+        folder.id,
+        folderPathLabel(state.folders, folder.id),
+      ]),
+    );
+    const cache = new Map<
+      string,
+      { front: string; back: string; path: string; text: string }
+    >();
+    const matches = state.cards.filter((card) => {
+      if (libraryType !== "all" && card.type !== libraryType) return false;
+      if (!query) return true;
+      const path = paths.get(card.folderId) ?? "";
+      let entry = searchText.current.get(card.id);
+      if (
+        !entry ||
+        entry.front !== card.front ||
+        entry.back !== card.back ||
+        entry.path !== path
+      ) {
+        entry = {
+          front: card.front,
+          back: card.back,
+          path,
+          text: `${plainRichText(card.front)} ${plainRichText(card.back)} ${path}`.toLocaleLowerCase(
+            "es",
+          ),
+        };
+      }
+      cache.set(card.id, entry);
+      return entry.text.includes(query);
+    });
+    if (query) searchText.current = cache;
+    return matches;
+  }, [state?.cards, state?.folders, tab, libraryQuery, libraryType]);
+
   if (!state) {
     return (
       <main className="loading-screen">
@@ -2372,956 +2476,981 @@ export default function OpoApp() {
     })),
   ].slice(0, 3);
 
-  const filteredLibraryCards = state.cards.filter(
-    (card) =>
-      (libraryType === "all" || card.type === libraryType) &&
-      `${plainRichText(card.front)} ${plainRichText(card.back)} ${folderPathLabel(state.folders, card.folderId)}`
-        .toLocaleLowerCase("es")
-        .includes(libraryQuery.trim().toLocaleLowerCase("es")),
-  );
-
   return (
     <div
       className={`app-shell app-v11 app-v12 app-v13 ${sessionOpen || orthographySession || studyFlow ? "session-active" : ""}`}
     >
       <AppNavigation tab={tab} onNavigate={navigate} status={saveStatus} />
       <main className="ux-main">
-        <header
-          className={`ux-topbar ${tab === "today" ? "today-topbar" : ""}`}
-        >
-          <div>
-            {["organize", "psych", "study", "material"].includes(tab) && (
-              <button className="ux-link" onClick={() => navigate("more")}>
-                <Icon name="back" size={17} />
-                Más
-              </button>
-            )}
-            {tab === "today" ? (
-              <span className="ux-header-brand">
-                OpoGC <small>Mi preparación</small>
-              </span>
-            ) : (
-              <h1>
-                {
-                  {
-                    study: "Estudiar",
-                    review: "Repasar",
-                    progress: "Progreso",
-                    more: "Más",
-                    library: "Biblioteca",
-                    material: "Material de estudio",
-                    organize: "Organizar estudio",
-                    psych: "Psicotécnicos",
-                    today: "Hoy",
-                  }[tab]
-                }
-              </h1>
-            )}
-          </div>
-          <span
-            className={`ux-save-status ${!online ? "offline" : ""}`}
-            role="status"
+        <StudyBackground frozen={sessionOpen}>
+          <header
+            className={`ux-topbar ${tab === "today" ? "today-topbar" : ""}`}
           >
-            <span className="status-dot" />
-            {saveStatus}
-          </span>
-        </header>
-        {savedSessions.length > 0 &&
-          ["today", "library", "study", "review"].includes(tab) && (
-            <SavedSessions
-              sessions={savedSessions}
-              onResume={resumeCardSession}
-              onFinish={setFinishPrompt}
+            <div>
+              {["organize", "psych", "study", "material"].includes(tab) && (
+                <button className="ux-link" onClick={() => navigate("more")}>
+                  <Icon name="back" size={17} />
+                  Más
+                </button>
+              )}
+              {tab === "today" ? (
+                <span className="ux-header-brand">
+                  OpoGC <small>Mi preparación</small>
+                </span>
+              ) : (
+                <h1>
+                  {
+                    {
+                      study: "Estudiar",
+                      review: "Repasar",
+                      progress: "Progreso",
+                      more: "Más",
+                      library: "Biblioteca",
+                      material: "Material de estudio",
+                      organize: "Organizar estudio",
+                      psych: "Psicotécnicos",
+                      today: "Hoy",
+                    }[tab]
+                  }
+                </h1>
+              )}
+            </div>
+            <span
+              className={`ux-save-status ${!online ? "offline" : ""}`}
+              role="status"
+            >
+              <span className="status-dot" />
+              {saveStatus}
+            </span>
+          </header>
+          {savedSessions.length > 0 &&
+            ["today", "library", "study", "review"].includes(tab) && (
+              <SavedSessions
+                sessions={savedSessions}
+                onResume={resumeCardSession}
+                onFinish={setFinishPrompt}
+              />
+            )}
+          {tab === "today" && (
+            <TodayPage
+              reviewPending={
+                dueCards.length + orthographyDue + reviewTreeDue.length
+              }
+              cardPending={dueCards.length + orthographyDue}
+              reviewDone={
+                todayReviews.length +
+                todayCompleted.filter((t) => t.reason !== "estudio").length
+              }
+              studyPending={plannedStudyDue.length}
+              studyDone={
+                todayCompleted.filter((t) => t.reason === "estudio").length
+              }
+              nextStudy={
+                state.studyNodes.find(
+                  (n) => n.id === plannedStudyDue[0]?.nodeId,
+                )?.name
+              }
+              priorities={priorities}
+              hasCards={state.cards.length > 0}
+              preparation={
+                state.studyNodes.find((n) => !n.parentId)?.name ??
+                "Mi oposición · a tu ritmo"
+              }
+              onReview={startTodayReview}
+              onStudy={() => startStudyWithContent(undefined, plannedStudyDue)}
+              onPlanning={() => {
+                navigate("organize");
+                setStudyView("today");
+              }}
             />
           )}
-        {tab === "today" && (
-          <TodayPage
-            reviewPending={
-              dueCards.length + orthographyDue + reviewTreeDue.length
-            }
-            cardPending={dueCards.length + orthographyDue}
-            reviewDone={
-              todayReviews.length +
-              todayCompleted.filter((t) => t.reason !== "estudio").length
-            }
-            studyPending={plannedStudyDue.length}
-            studyDone={
-              todayCompleted.filter((t) => t.reason === "estudio").length
-            }
-            nextStudy={
-              state.studyNodes.find((n) => n.id === plannedStudyDue[0]?.nodeId)
-                ?.name
-            }
-            priorities={priorities}
-            hasCards={state.cards.length > 0}
-            preparation={
-              state.studyNodes.find((n) => !n.parentId)?.name ??
-              "Mi oposición · a tu ritmo"
-            }
-            onReview={startTodayReview}
-            onStudy={() => startStudyWithContent(undefined, plannedStudyDue)}
-            onPlanning={() => {
-              navigate("organize");
-              setStudyView("today");
-            }}
-          />
-        )}
-        {tab === "study" && (
-          <StudyStartPage
-            state={state}
-            onFilteredCards={chooseStudyMode}
-            nodes={state.studyNodes}
-            tasks={plannedStudyDue}
-            onContinue={() => startStudyWithContent(undefined, plannedStudyDue)}
-            onNode={(id) => startStudyWithContent(id)}
-            newCards={
-              state.cards.filter((c) => !c.reviewCount && !isOrthographyCard(c))
-                .length
-            }
-            onCards={() =>
-              startReview(
-                undefined,
-                "learn",
-                state.cards
-                  .filter((c) => !c.reviewCount && !isOrthographyCard(c))
-                  .slice(0, state.settings.dailyNewLimit)
-                  .map((c) => c.id),
-              )
-            }
-            onResume={savedCardSession ? () => resumeCardSession() : undefined}
-            onOrganize={() => {
-              navigate("organize");
-              setStudyView("tree");
-            }}
-            onPlan={() => {
-              navigate("organize");
-              setStudyView("today");
-            }}
-          />
-        )}
-        {tab === "review" && (
-          <>
-            <ReviewCollections
+          {tab === "study" && (
+            <StudyStartPage
               state={state}
-              onStart={(ids, source) =>
+              onFilteredCards={chooseStudyMode}
+              nodes={state.studyNodes}
+              tasks={plannedStudyDue}
+              onContinue={() =>
+                startStudyWithContent(undefined, plannedStudyDue)
+              }
+              onNode={(id) => startStudyWithContent(id)}
+              newCards={
+                state.cards.filter(
+                  (c) => !c.reviewCount && !isOrthographyCard(c),
+                ).length
+              }
+              onCards={() =>
                 startReview(
                   undefined,
                   "learn",
-                  ids,
-                  undefined,
-                  undefined,
-                  source,
+                  state.cards
+                    .filter((c) => !c.reviewCount && !isOrthographyCard(c))
+                    .slice(0, state.settings.dailyNewLimit)
+                    .map((c) => c.id),
                 )
               }
-              onChooseMode={chooseStudyMode}
-              onRemove={async (id, ids) => {
-                try {
-                  return await updateState((s) =>
-                    ids.reduce(
-                      (next, cardId) =>
-                        withdrawCollectionCard(next, id, cardId, Date.now()),
-                      s,
-                    ),
-                  );
-                } catch {
-                  notify("No se pudo retirar la selección de esta colección.");
-                  return false;
-                }
+              onResume={
+                savedCardSession ? () => resumeCardSession() : undefined
+              }
+              onOrganize={() => {
+                navigate("organize");
+                setStudyView("tree");
               }}
-              onCollection={editReviewCollection}
+              onPlan={() => {
+                navigate("organize");
+                setStudyView("today");
+              }}
+            />
+          )}
+          {tab === "review" && (
+            <>
+              <ReviewCollections
+                state={state}
+                onStart={(ids, source) =>
+                  startReview(
+                    undefined,
+                    "learn",
+                    ids,
+                    undefined,
+                    undefined,
+                    source,
+                  )
+                }
+                onChooseMode={chooseStudyMode}
+                onRemove={async (id, ids) => {
+                  try {
+                    return await updateState((s) =>
+                      ids.reduce(
+                        (next, cardId) =>
+                          withdrawCollectionCard(next, id, cardId, Date.now()),
+                        s,
+                      ),
+                    );
+                  } catch {
+                    notify(
+                      "No se pudo retirar la selección de esta colección.",
+                    );
+                    return false;
+                  }
+                }}
+                onCollection={editReviewCollection}
+                onSave={setSaveReviewIds}
+              />
+              <ReviewStartPage
+                state={state}
+                cards={state.cards}
+                folders={state.folders}
+                pending={dueCards.length + orthographyDue}
+                temarioPending={reviewTreeDue.length}
+                onStart={startReview}
+                onPrimary={startTodayReview}
+                onTemario={() => startStudySession(undefined, reviewTreeDue)}
+                onLibrary={() => navigate("library")}
+              />
+            </>
+          )}
+          {tab === "material" && (
+            <Suspense fallback={<p role="status">Abriendo material…</p>}>
+              <MaterialPage
+                state={state}
+                user={engine.user}
+                status={saveStatus}
+                onUpdate={updateState}
+                onSave={async (id, html, expected) => {
+                  try {
+                    return (await updateState((s) =>
+                      saveMaterial(
+                        s,
+                        id,
+                        sanitizeMaterial(html),
+                        expected,
+                        new Date().toISOString(),
+                      ),
+                    ))
+                      ? "saved"
+                      : "error";
+                  } catch (e) {
+                    if (e instanceof Error && e.message === "material-conflict")
+                      return "conflict";
+                    notify(
+                      e instanceof Error
+                        ? e.message
+                        : "No se pudo guardar el material",
+                    );
+                    return "error";
+                  }
+                }}
+              />
+            </Suspense>
+          )}
+          {tab === "more" && (
+            <MorePage
+              onNavigate={(next) => {
+                navigate(next);
+                if (next === "organize") setStudyView("today");
+              }}
+              onAccount={() =>
+                window.dispatchEvent(new CustomEvent("opogc:account"))
+              }
+              onSettings={() => setPreferencesOpen(true)}
+            />
+          )}
+          {tab === "library" && (
+            <button
+              className="ux-link material-library-link"
+              onClick={() => navigate("material")}
+            >
+              Material de estudio <Icon name="arrow" size={17} />
+            </button>
+          )}
+          {tab === "library" && (
+            <LibraryBrowser
+              state={state}
+              parent={selectedFolder}
+              onParent={setSelectedFolder}
+              onOptions={() => setLibraryActionsOpen(true)}
+              selectionRequest={librarySelectionRequest}
+              onNewCard={() => {
+                setEditingCard(null);
+                setModal("card");
+              }}
+              onEditCard={(id) => {
+                setEditingCard(id);
+                setModal("card");
+              }}
+              onCardActions={setCardActionsId}
+              onDeleteCards={removeLibraryCards}
+              onMove={moveLibraryItems}
               onSave={setSaveReviewIds}
-            />
-            <ReviewStartPage
-              state={state}
-              cards={state.cards}
-              folders={state.folders}
-              pending={dueCards.length + orthographyDue}
-              temarioPending={reviewTreeDue.length}
               onStart={startReview}
-              onPrimary={startTodayReview}
-              onTemario={() => startStudySession(undefined, reviewTreeDue)}
-              onLibrary={() => navigate("library")}
+              onChooseMode={chooseStudyMode}
+              onRename={(id, name) =>
+                updateState((c) => ({
+                  ...c,
+                  folders: c.folders.map((f) =>
+                    f.id === id ? { ...f, name } : f,
+                  ),
+                }))
+              }
             />
-          </>
-        )}
-        {tab === "material" && (
-          <Suspense fallback={<p role="status">Abriendo material…</p>}>
-            <MaterialPage
-              state={state}
-              user={engine.user}
-              status={saveStatus}
-              onUpdate={updateState}
-              onSave={async (id, html, expected) => {
-                try {
-                  return (await updateState((s) =>
-                    saveMaterial(
-                      s,
-                      id,
-                      sanitizeMaterial(html),
-                      expected,
-                      new Date().toISOString(),
-                    ),
-                  ))
-                    ? "saved"
-                    : "error";
-                } catch (e) {
-                  if (e instanceof Error && e.message === "material-conflict")
-                    return "conflict";
-                  notify(
-                    e instanceof Error
-                      ? e.message
-                      : "No se pudo guardar el material",
-                  );
-                  return "error";
-                }
-              }}
-            />
-          </Suspense>
-        )}
-        {tab === "more" && (
-          <MorePage
-            onNavigate={(next) => {
-              navigate(next);
-              if (next === "organize") setStudyView("today");
-            }}
-            onAccount={() =>
-              window.dispatchEvent(new CustomEvent("opogc:account"))
-            }
-            onSettings={() => setPreferencesOpen(true)}
-          />
-        )}
-        {tab === "library" && (
-          <button
-            className="ux-link material-library-link"
-            onClick={() => navigate("material")}
-          >
-            Material de estudio <Icon name="arrow" size={17} />
-          </button>
-        )}
-        {tab === "library" && (
-          <LibraryBrowser
-            state={state}
-            parent={selectedFolder}
-            onParent={setSelectedFolder}
-            onOptions={() => setLibraryActionsOpen(true)}
-            selectionRequest={librarySelectionRequest}
-            onNewCard={() => {
-              setEditingCard(null);
-              setModal("card");
-            }}
-            onEditCard={(id) => {
-              setEditingCard(id);
-              setModal("card");
-            }}
-            onCardActions={setCardActionsId}
-            onDeleteCards={removeLibraryCards}
-            onMove={moveLibraryItems}
-            onSave={setSaveReviewIds}
-            onStart={startReview}
-            onChooseMode={chooseStudyMode}
-            onRename={(id, name) =>
-              updateState((c) => ({
-                ...c,
-                folders: c.folders.map((f) =>
-                  f.id === id ? { ...f, name } : f,
-                ),
-              }))
-            }
-          />
-        )}
-        {tab === "organize" && (
-          <section className="page study-organizer-page">
-            <div className="study-organizer-toolbar">
-              <div
-                className="study-view-switch"
-                role="tablist"
-                aria-label="Organización de estudio"
-              >
-                <button
-                  className={studyView === "today" ? "active" : ""}
-                  onClick={() => {
-                    clearStudySelection();
-                    setStudyView("today");
-                  }}
+          )}
+          {tab === "organize" && (
+            <section className="page study-organizer-page">
+              <div className="study-organizer-toolbar">
+                <div
+                  className="study-view-switch"
+                  role="tablist"
+                  aria-label="Organización de estudio"
                 >
-                  Hoy
-                </button>
-                <button
-                  className={studyView === "tree" ? "active" : ""}
-                  onClick={() => setStudyView("tree")}
-                >
-                  Temario
-                </button>
-                <button
-                  className={studyView === "history" ? "active" : ""}
-                  onClick={() => {
-                    clearStudySelection();
-                    setStudyView("history");
-                  }}
-                >
-                  Historial
-                </button>
-              </div>
-              <div className="study-organizer-actions">
-                <button
-                  className="secondary-button"
-                  onClick={() => openStudyNodeEditor(null, null)}
-                >
-                  <Icon name="plus" size={17} /> Añadir elemento
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => openStudyImport(null)}
-                >
-                  <Icon name="upload" size={17} /> Importar / actualizar
-                </button>
-                <button
-                  className="secondary-button"
-                  disabled={!state.studyNodes.length}
-                  onClick={() => exportStudyData()}
-                >
-                  <Icon name="download" size={17} /> Exportar todo
-                </button>
-                <button
-                  className="primary-button"
-                  disabled={!state.studyNodes.length}
-                  onClick={() => openStudyQuick()}
-                >
-                  <Icon name="plus" size={17} /> Repaso rápido
-                </button>
-              </div>
-            </div>
-
-            {!state.studyNodes.length ? (
-              <div className="study-empty-state">
-                <span className="study-empty-icon">▤</span>
-                <span className="section-label">ORGANIZACIÓN DE ESTUDIO</span>
-                <h2>
-                  Importa tu temario una vez y anota los repasos en segundos
-                </h2>
-                <p>
-                  Puedes pegar un árbol en JSON, pegar un índice en texto,
-                  cargar un archivo .json/.txt o empezar manualmente. Después
-                  puedes ampliar cualquier rama cuando quieras.
-                </p>
-                <div className="study-empty-actions">
                   <button
-                    className="primary-button"
-                    onClick={() => openStudyImport(null)}
+                    className={studyView === "today" ? "active" : ""}
+                    onClick={() => {
+                      clearStudySelection();
+                      setStudyView("today");
+                    }}
                   >
-                    Importar mi temario
+                    Hoy
                   </button>
+                  <button
+                    className={studyView === "tree" ? "active" : ""}
+                    onClick={() => setStudyView("tree")}
+                  >
+                    Temario
+                  </button>
+                  <button
+                    className={studyView === "history" ? "active" : ""}
+                    onClick={() => {
+                      clearStudySelection();
+                      setStudyView("history");
+                    }}
+                  >
+                    Historial
+                  </button>
+                </div>
+                <div className="study-organizer-actions">
                   <button
                     className="secondary-button"
                     onClick={() => openStudyNodeEditor(null, null)}
                   >
-                    ＋ Crear tema manualmente
+                    <Icon name="plus" size={17} /> Añadir elemento
+                  </button>
+                  <button
+                    className="secondary-button"
+                    onClick={() => openStudyImport(null)}
+                  >
+                    <Icon name="upload" size={17} /> Importar / actualizar
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={!state.studyNodes.length}
+                    onClick={() => exportStudyData()}
+                  >
+                    <Icon name="download" size={17} /> Exportar todo
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={!state.studyNodes.length}
+                    onClick={() => openStudyQuick()}
+                  >
+                    <Icon name="plus" size={17} /> Repaso rápido
                   </button>
                 </div>
               </div>
-            ) : studyView === "today" ? (
-              <StudyPlanPage
-                nodes={state.studyNodes}
-                tasks={state.studyTasks}
-                onStart={(task) =>
-                  startStudyWithContent(undefined, [
-                    task,
-                    ...plannedStudyDue.filter((t) => t.id !== task.id),
-                  ])
-                }
-                onPlan={planStudyNode}
-                onEdit={editStudyTask}
-                onReorder={reorderStudyTask}
-                onDelete={deleteStudyTask}
-                onTemario={() => setStudyView("tree")}
-                onHistory={() => setStudyView("history")}
-              />
-            ) : studyView === "tree" ? (
-              <TemarioBrowser
-                nodes={state.studyNodes}
-                tasks={state.studyTasks}
-                onStudy={(id) => startStudyWithContent(id)}
-                onQuick={openStudyQuick}
-                onExport={exportStudyData}
-                onCreate={(parent) => openStudyNodeEditor(parent, null)}
-                onEdit={(id) =>
-                  openStudyNodeEditor(
-                    state.studyNodes.find((n) => n.id === id)?.parentId ?? null,
-                    id,
-                  )
-                }
-                onImport={openStudyImport}
-                onDelete={deleteStudyNodes}
-                onReorder={reorderStudyNode}
-                onMoveOut={moveStudyOut}
-                onPlan={planStudyNode}
-                onMove={moveStudyItems}
-              />
-            ) : (
-              <>
-                <div className="study-history-toolbar">
-                  <div>
-                    <span className="section-label">REGISTRO</span>
-                    <h2>Historial de repasos</h2>
-                  </div>
-                  <HierarchyField
-                    label="Filtrar historial por tema"
-                    items={state.studyNodes}
-                    value={studyHistoryRoot === "all" ? "" : studyHistoryRoot}
-                    rootLabel="Todos los temas"
-                    onChange={(id: string) => setStudyHistoryRoot(id || "all")}
-                  />
-                </div>
-                <section className="panel study-history-panel">
-                  {filteredStudyCompleted.length ? (
-                    <div className="study-history-list">
-                      {filteredStudyCompleted.map((task) => {
-                        const node = state.studyNodes.find(
-                          (item) => item.id === task.nodeId,
-                        );
-                        return (
-                          <div className="study-history-row" key={task.id}>
-                            <span
-                              className={`study-assessment-dot ${task.assessment ?? ""}`}
-                            />
-                            <div>
-                              <strong>
-                                {node?.name ?? "Elemento eliminado"}
-                              </strong>
-                              <small>
-                                {studyNodePath(
-                                  state.studyNodes,
-                                  task.nodeId,
-                                ).join(" · ")}
-                              </small>
-                              {task.note && (
-                                <p className="study-history-note">
-                                  <b>Para repasar:</b> {task.note}
-                                </p>
-                              )}
-                              {task.completionNote && (
-                                <p className="study-history-completion-note">
-                                  <b>Comentario:</b> {task.completionNote}
-                                </p>
-                              )}
-                            </div>
-                            <span
-                              className={`study-result ${task.assessment ?? ""}`}
-                            >
-                              {task.assessment ?? "—"}
-                            </span>
-                            <time>{dateLabel(task.completedAt)}</time>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="study-inline-empty">
-                      <strong>Aún no hay repasos completados.</strong>
-                      <span>
-                        Cuando marques un pendiente como Bien, Regular o Mal
-                        aparecerá aquí.
-                      </span>
-                    </div>
-                  )}
-                </section>
-              </>
-            )}
-          </section>
-        )}
 
-        {tab === "psych" && (
-          <section className="page psych-page">
-            {detailPsych ? (
-              (() => {
-                const stats = psychStats(detailPsych);
-                return (
-                  <div className="psych-detail">
+              {!state.studyNodes.length ? (
+                <div className="study-empty-state">
+                  <span className="study-empty-icon">▤</span>
+                  <span className="section-label">ORGANIZACIÓN DE ESTUDIO</span>
+                  <h2>
+                    Importa tu temario una vez y anota los repasos en segundos
+                  </h2>
+                  <p>
+                    Puedes pegar un árbol en JSON, pegar un índice en texto,
+                    cargar un archivo .json/.txt o empezar manualmente. Después
+                    puedes ampliar cualquier rama cuando quieras.
+                  </p>
+                  <div className="study-empty-actions">
                     <button
-                      className="back-button"
-                      onClick={() => setPsychDetail(null)}
+                      className="primary-button"
+                      onClick={() => openStudyImport(null)}
                     >
-                      ← Volver a psicotécnicos
+                      Importar mi temario
                     </button>
-                    <div className="psych-detail-head">
-                      <div>
-                        <span className="category-chip">
-                          {detailPsych.category || "Sin categoría"}
-                        </span>
-                        <h2>{detailPsych.name || "Psicotécnico sin nombre"}</h2>
-                        <p>
-                          {detailPsych.totalQuestions || 0} preguntas · añadido
-                          el {dateLabel(detailPsych.createdAt)}
-                        </p>
-                      </div>
-                      <div className="psych-detail-actions">
-                        <button
-                          className="secondary-button"
-                          onClick={() => {
-                            setEditingPsychTest(detailPsych.id);
-                            setModal("psych");
-                          }}
-                        >
-                          Editar ficha
-                        </button>
-                        {detailPsych.attachment?.type === "application/pdf" ? (
-                          <button
-                            className="secondary-button"
-                            onClick={() => setEditingPsych(detailPsych.id)}
-                          >
-                            ✎ Abrir PDF
-                          </button>
-                        ) : detailPsych.attachment ? (
-                          <a
-                            className="secondary-button"
-                            href="#"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              setEditingPsych(detailPsych.id);
-                            }}
-                          >
-                            Abrir documento
-                          </a>
-                        ) : null}
-                        <button
-                          className="primary-button"
-                          onClick={() => openAttemptEditor(detailPsych.id)}
-                        >
-                          ＋ Registrar intento
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="psych-summary-grid">
-                      <div>
-                        <span>Última nota</span>
-                        <strong>
-                          {stats.last ? scoreLabel(stats.last.score) : "—"}
-                        </strong>
-                        <small>
-                          {stats.last
-                            ? dateLabel(stats.last.date)
-                            : "Sin intentos"}
-                        </small>
-                      </div>
-                      <div>
-                        <span>Mejor nota</span>
-                        <strong>
-                          {stats.best === null ? "—" : scoreLabel(stats.best)}
-                        </strong>
-                        <small>
-                          {stats.attempts.length
-                            ? `${stats.attempts.length} intentos`
-                            : "Sin intentos"}
-                        </small>
-                      </div>
-                      <div>
-                        <span>Nota media</span>
-                        <strong>
-                          {stats.average === null
-                            ? "—"
-                            : scoreLabel(stats.average)}
-                        </strong>
-                        <small>histórico completo</small>
-                      </div>
-                      <div>
-                        <span>Último tiempo</span>
-                        <strong>
-                          {stats.last
-                            ? `${scoreLabel(stats.last.minutes)} min`
-                            : "—"}
-                        </strong>
-                        <small>
-                          {stats.last
-                            ? `${stats.last.correct} ✓ · ${stats.last.wrong} ✕ · ${stats.last.blank} —`
-                            : "Sin datos"}
-                        </small>
-                      </div>
-                    </div>
-
-                    <section className="panel psych-history-panel">
-                      <div className="panel-head">
-                        <div>
-                          <span className="section-label">HISTORIAL</span>
-                          <h3>Todos los intentos</h3>
-                        </div>
-                        <span className="psych-history-count">
-                          {stats.attempts.length}{" "}
-                          {stats.attempts.length === 1
-                            ? "registro"
-                            : "registros"}
-                        </span>
-                      </div>
-                      {stats.attempts.length ? (
-                        <div className="attempt-history">
-                          {stats.attempts.map((attempt, index) => (
-                            <div
-                              className="attempt-history-row"
-                              key={attempt.id}
-                            >
-                              <div className="attempt-rank">
-                                <span>{stats.attempts.length - index}</span>
-                              </div>
-                              <div className="attempt-main">
-                                <strong>{dateLabel(attempt.date)}</strong>
-                                <small>{attempt.notes || "Sin notas"}</small>
-                              </div>
-                              <div className="attempt-score">
-                                <small>Nota</small>
-                                <strong>{scoreLabel(attempt.score)}</strong>
-                              </div>
-                              <div className="attempt-answers">
-                                <span>{attempt.correct} ✓</span>
-                                <span>{attempt.wrong} ✕</span>
-                                <span>{attempt.blank} —</span>
-                              </div>
-                              <div className="attempt-time">
-                                <small>Tiempo</small>
-                                <strong>
-                                  {scoreLabel(attempt.minutes)} min
-                                </strong>
-                              </div>
-                              <div className="attempt-actions">
-                                <button
-                                  title="Editar intento"
-                                  aria-label="Editar intento"
-                                  onClick={() =>
-                                    openAttemptEditor(
-                                      detailPsych.id,
-                                      attempt.id,
-                                    )
-                                  }
-                                >
-                                  ✎
-                                </button>
-                                <button
-                                  title="Eliminar intento"
-                                  aria-label="Eliminar intento"
-                                  className="danger"
-                                  onClick={() =>
-                                    deleteAttempt(detailPsych.id, attempt.id)
-                                  }
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Empty
-                          icon="◎"
-                          title="Todavía no hay intentos"
-                          copy="Cuando hagas este psicotécnico, registra la nota y la fecha para empezar a ver tu evolución."
-                          action="Registrar primer intento"
-                          onAction={() => openAttemptEditor(detailPsych.id)}
-                        />
-                      )}
-                    </section>
-
-                    <div className="psych-danger-zone">
-                      <button
-                        className="text-button danger-text"
-                        onClick={() => deletePsychTest(detailPsych.id)}
-                      >
-                        Eliminar psicotécnico e historial
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()
-            ) : (
-              <>
-                <div className="section-heading psych-heading">
-                  <div>
-                    <span className="section-label">PRÁCTICA Y EVOLUCIÓN</span>
-                    <h2>Mis psicotécnicos</h2>
-                    <p>
-                      Guarda los PDF una sola vez y utiliza el historial para
-                      decidir cuáles conviene repetir.
-                    </p>
-                  </div>
-                  <button
-                    className="primary-button"
-                    onClick={() => {
-                      setEditingPsychTest(null);
-                      setModal("psych");
-                    }}
-                  >
-                    ＋ Añadir psicotécnico
-                  </button>
-                </div>
-
-                <div className="psych-overview">
-                  <div>
-                    <span>Psicotécnicos</span>
-                    <strong>{state.psychTests.length}</strong>
-                    <small>
-                      {
-                        state.psychTests.filter(
-                          (test) => test.attachment?.type === "application/pdf",
-                        ).length
-                      }{" "}
-                      con PDF
-                    </small>
-                  </div>
-                  <div>
-                    <span>Ya practicados</span>
-                    <strong>{psychAttemptedCount}</strong>
-                    <small>
-                      {state.psychTests.length - psychAttemptedCount} pendientes
-                    </small>
-                  </div>
-                  <div>
-                    <span>Intentos guardados</span>
-                    <strong>{psychAttemptCount}</strong>
-                    <small>histórico total</small>
-                  </div>
-                  <div>
-                    <span>Media última nota</span>
-                    <strong>
-                      {latestPsychAverage === null
-                        ? "—"
-                        : scoreLabel(latestPsychAverage)}
-                    </strong>
-                    <small>solo tests realizados</small>
+                    <button
+                      className="secondary-button"
+                      onClick={() => openStudyNodeEditor(null, null)}
+                    >
+                      ＋ Crear tema manualmente
+                    </button>
                   </div>
                 </div>
-
-                <div className="psych-toolbar">
-                  <div className="search-box psych-search">
-                    <span>⌕</span>
-                    <input
-                      value={psychQuery}
-                      onChange={(event) => setPsychQuery(event.target.value)}
-                      placeholder="Buscar por nombre o categoría"
-                      aria-label="Buscar psicotécnicos"
+              ) : studyView === "today" ? (
+                <StudyPlanPage
+                  nodes={state.studyNodes}
+                  tasks={state.studyTasks}
+                  onStart={(task) =>
+                    startStudyWithContent(undefined, [
+                      task,
+                      ...plannedStudyDue.filter((t) => t.id !== task.id),
+                    ])
+                  }
+                  onPlan={planStudyNode}
+                  onEdit={editStudyTask}
+                  onReorder={reorderStudyTask}
+                  onDelete={deleteStudyTask}
+                  onTemario={() => setStudyView("tree")}
+                  onHistory={() => setStudyView("history")}
+                />
+              ) : studyView === "tree" ? (
+                <TemarioBrowser
+                  nodes={state.studyNodes}
+                  tasks={state.studyTasks}
+                  onStudy={(id) => startStudyWithContent(id)}
+                  onQuick={openStudyQuick}
+                  onExport={exportStudyData}
+                  onCreate={(parent) => openStudyNodeEditor(parent, null)}
+                  onEdit={(id) =>
+                    openStudyNodeEditor(
+                      state.studyNodes.find((n) => n.id === id)?.parentId ??
+                        null,
+                      id,
+                    )
+                  }
+                  onImport={openStudyImport}
+                  onDelete={deleteStudyNodes}
+                  onReorder={reorderStudyNode}
+                  onMoveOut={moveStudyOut}
+                  onPlan={planStudyNode}
+                  onMove={moveStudyItems}
+                />
+              ) : (
+                <>
+                  <div className="study-history-toolbar">
+                    <div>
+                      <span className="section-label">REGISTRO</span>
+                      <h2>Historial de repasos</h2>
+                    </div>
+                    <HierarchyField
+                      label="Filtrar historial por tema"
+                      items={state.studyNodes}
+                      value={studyHistoryRoot === "all" ? "" : studyHistoryRoot}
+                      rootLabel="Todos los temas"
+                      onChange={(id: string) =>
+                        setStudyHistoryRoot(id || "all")
+                      }
                     />
                   </div>
-                  <HierarchyField
-                    label="Filtrar categoría"
-                    items={psychCategories.map((name) => ({
-                      id: name,
-                      name,
-                      parentId: null,
-                    }))}
-                    value={psychCategory === "all" ? "" : psychCategory}
-                    rootLabel="Todas las categorías"
-                    onChange={(id: string) => setPsychCategory(id || "all")}
-                  />
-                  <select
-                    value={psychSort}
-                    onChange={(event) =>
-                      setPsychSort(event.target.value as PsychSort)
-                    }
-                    aria-label="Ordenar psicotécnicos"
-                  >
-                    <option value="oldest">Pendientes / más antiguos</option>
-                    <option value="last-low">Peor última nota</option>
-                    <option value="last-high">Mejor última nota</option>
-                    <option value="avg-low">Peor nota media</option>
-                    <option value="avg-high">Mejor nota media</option>
-                    <option value="recent">Último intento más reciente</option>
-                    <option value="attempts-low">Menos intentos</option>
-                    <option value="attempts-high">Más intentos</option>
-                    <option value="name">Nombre A–Z</option>
-                  </select>
-                </div>
+                  <section className="panel study-history-panel">
+                    {filteredStudyCompleted.length ? (
+                      <div className="study-history-list">
+                        {filteredStudyCompleted.map((task) => {
+                          const node = state.studyNodes.find(
+                            (item) => item.id === task.nodeId,
+                          );
+                          return (
+                            <div className="study-history-row" key={task.id}>
+                              <span
+                                className={`study-assessment-dot ${task.assessment ?? ""}`}
+                              />
+                              <div>
+                                <strong>
+                                  {node?.name ?? "Elemento eliminado"}
+                                </strong>
+                                <small>
+                                  {studyNodePath(
+                                    state.studyNodes,
+                                    task.nodeId,
+                                  ).join(" · ")}
+                                </small>
+                                {task.note && (
+                                  <p className="study-history-note">
+                                    <b>Para repasar:</b> {task.note}
+                                  </p>
+                                )}
+                                {task.completionNote && (
+                                  <p className="study-history-completion-note">
+                                    <b>Comentario:</b> {task.completionNote}
+                                  </p>
+                                )}
+                              </div>
+                              <span
+                                className={`study-result ${task.assessment ?? ""}`}
+                              >
+                                {task.assessment ?? "—"}
+                              </span>
+                              <time>{dateLabel(task.completedAt)}</time>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="study-inline-empty">
+                        <strong>Aún no hay repasos completados.</strong>
+                        <span>
+                          Cuando marques un pendiente como Bien, Regular o Mal
+                          aparecerá aquí.
+                        </span>
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+            </section>
+          )}
 
-                {state.psychTests.length ? (
-                  filteredPsychTests.length ? (
-                    <div className="psych-grid">
-                      {filteredPsychTests.map((test) => {
-                        const stats = psychStats(test);
-                        return (
-                          <article
-                            className="psych-card"
-                            key={test.id}
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`Abrir ${test.name}`}
-                            onClick={(event) => {
-                              if (
-                                !(event.target as Element).closest("button,a")
-                              )
-                                setPsychDetail(test.id);
-                            }}
-                            onKeyDown={(event) => {
-                              if (
-                                event.target === event.currentTarget &&
-                                (event.key === "Enter" || event.key === " ")
-                              ) {
-                                event.preventDefault();
-                                setPsychDetail(test.id);
-                              }
+          {tab === "psych" && (
+            <section className="page psych-page">
+              {detailPsych ? (
+                (() => {
+                  const stats = psychStats(detailPsych);
+                  return (
+                    <div className="psych-detail">
+                      <button
+                        className="back-button"
+                        onClick={() => setPsychDetail(null)}
+                      >
+                        ← Volver a psicotécnicos
+                      </button>
+                      <div className="psych-detail-head">
+                        <div>
+                          <span className="category-chip">
+                            {detailPsych.category || "Sin categoría"}
+                          </span>
+                          <h2>
+                            {detailPsych.name || "Psicotécnico sin nombre"}
+                          </h2>
+                          <p>
+                            {detailPsych.totalQuestions || 0} preguntas ·
+                            añadido el {dateLabel(detailPsych.createdAt)}
+                          </p>
+                        </div>
+                        <div className="psych-detail-actions">
+                          <button
+                            className="secondary-button"
+                            onClick={() => {
+                              setEditingPsychTest(detailPsych.id);
+                              setModal("psych");
                             }}
                           >
-                            <div className="psych-doc">
-                              <span>
-                                {test.attachment?.type === "application/pdf"
-                                  ? "PDF"
-                                  : test.attachment
-                                    ? "IMG"
-                                    : "TEST"}
-                              </span>
-                            </div>
-                            <div className="psych-body">
-                              <div className="psych-card-top">
-                                <span className="category-chip">
-                                  {test.category || "Sin categoría"}
-                                </span>
-                                <button
-                                  className="psych-edit-button"
-                                  title="Editar ficha"
-                                  onClick={() => {
-                                    setEditingPsychTest(test.id);
-                                    setModal("psych");
-                                  }}
-                                >
-                                  ✎
-                                </button>
-                              </div>
-                              <h3>{test.name || "Psicotécnico sin nombre"}</h3>
-                              <p>
-                                {test.totalQuestions || 0} preguntas ·{" "}
-                                {stats.attempts.length}{" "}
-                                {stats.attempts.length === 1
-                                  ? "intento"
-                                  : "intentos"}
-                              </p>
-                              <div className="psych-metrics four">
-                                <div>
-                                  <small>Última</small>
+                            Editar ficha
+                          </button>
+                          {detailPsych.attachment?.type ===
+                          "application/pdf" ? (
+                            <button
+                              className="secondary-button"
+                              onClick={() => setEditingPsych(detailPsych.id)}
+                            >
+                              ✎ Abrir PDF
+                            </button>
+                          ) : detailPsych.attachment ? (
+                            <a
+                              className="secondary-button"
+                              href="#"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                setEditingPsych(detailPsych.id);
+                              }}
+                            >
+                              Abrir documento
+                            </a>
+                          ) : null}
+                          <button
+                            className="primary-button"
+                            onClick={() => openAttemptEditor(detailPsych.id)}
+                          >
+                            ＋ Registrar intento
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="psych-summary-grid">
+                        <div>
+                          <span>Última nota</span>
+                          <strong>
+                            {stats.last ? scoreLabel(stats.last.score) : "—"}
+                          </strong>
+                          <small>
+                            {stats.last
+                              ? dateLabel(stats.last.date)
+                              : "Sin intentos"}
+                          </small>
+                        </div>
+                        <div>
+                          <span>Mejor nota</span>
+                          <strong>
+                            {stats.best === null ? "—" : scoreLabel(stats.best)}
+                          </strong>
+                          <small>
+                            {stats.attempts.length
+                              ? `${stats.attempts.length} intentos`
+                              : "Sin intentos"}
+                          </small>
+                        </div>
+                        <div>
+                          <span>Nota media</span>
+                          <strong>
+                            {stats.average === null
+                              ? "—"
+                              : scoreLabel(stats.average)}
+                          </strong>
+                          <small>histórico completo</small>
+                        </div>
+                        <div>
+                          <span>Último tiempo</span>
+                          <strong>
+                            {stats.last
+                              ? `${scoreLabel(stats.last.minutes)} min`
+                              : "—"}
+                          </strong>
+                          <small>
+                            {stats.last
+                              ? `${stats.last.correct} ✓ · ${stats.last.wrong} ✕ · ${stats.last.blank} —`
+                              : "Sin datos"}
+                          </small>
+                        </div>
+                      </div>
+
+                      <section className="panel psych-history-panel">
+                        <div className="panel-head">
+                          <div>
+                            <span className="section-label">HISTORIAL</span>
+                            <h3>Todos los intentos</h3>
+                          </div>
+                          <span className="psych-history-count">
+                            {stats.attempts.length}{" "}
+                            {stats.attempts.length === 1
+                              ? "registro"
+                              : "registros"}
+                          </span>
+                        </div>
+                        {stats.attempts.length ? (
+                          <div className="attempt-history">
+                            {stats.attempts.map((attempt, index) => (
+                              <div
+                                className="attempt-history-row"
+                                key={attempt.id}
+                              >
+                                <div className="attempt-rank">
+                                  <span>{stats.attempts.length - index}</span>
+                                </div>
+                                <div className="attempt-main">
+                                  <strong>{dateLabel(attempt.date)}</strong>
+                                  <small>{attempt.notes || "Sin notas"}</small>
+                                </div>
+                                <div className="attempt-score">
+                                  <small>Nota</small>
+                                  <strong>{scoreLabel(attempt.score)}</strong>
+                                </div>
+                                <div className="attempt-answers">
+                                  <span>{attempt.correct} ✓</span>
+                                  <span>{attempt.wrong} ✕</span>
+                                  <span>{attempt.blank} —</span>
+                                </div>
+                                <div className="attempt-time">
+                                  <small>Tiempo</small>
                                   <strong>
-                                    {stats.last
-                                      ? scoreLabel(stats.last.score)
-                                      : "—"}
+                                    {scoreLabel(attempt.minutes)} min
                                   </strong>
                                 </div>
-                                <div>
-                                  <small>Mejor</small>
-                                  <strong>
-                                    {stats.best === null
-                                      ? "—"
-                                      : scoreLabel(stats.best)}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <small>Media</small>
-                                  <strong>
-                                    {stats.average === null
-                                      ? "—"
-                                      : scoreLabel(stats.average)}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <small>Último día</small>
-                                  <strong className="metric-date">
-                                    {stats.last
-                                      ? dateLabel(stats.last.date)
-                                      : "Pendiente"}
-                                  </strong>
-                                </div>
-                              </div>
-                              <div className="psych-actions psych-actions-wrap">
-                                <button onClick={() => setPsychDetail(test.id)}>
-                                  Ver ficha
-                                </button>
-                                {test.attachment?.type === "application/pdf" ? (
+                                <div className="attempt-actions">
                                   <button
-                                    onClick={() => setEditingPsych(test.id)}
+                                    title="Editar intento"
+                                    aria-label="Editar intento"
+                                    onClick={() =>
+                                      openAttemptEditor(
+                                        detailPsych.id,
+                                        attempt.id,
+                                      )
+                                    }
                                   >
-                                    ✎ Abrir PDF
+                                    ✎
                                   </button>
-                                ) : test.attachment ? (
-                                  <a
-                                    href="#"
-                                    onClick={(event) => {
-                                      event.preventDefault();
-                                      setEditingPsych(test.id);
-                                    }}
+                                  <button
+                                    title="Eliminar intento"
+                                    aria-label="Eliminar intento"
+                                    className="danger"
+                                    onClick={() =>
+                                      deleteAttempt(detailPsych.id, attempt.id)
+                                    }
                                   >
-                                    Abrir documento
-                                  </a>
-                                ) : null}
-                                <button
-                                  className="psych-register"
-                                  onClick={() => openAttemptEditor(test.id)}
-                                >
-                                  ＋ Intento
-                                </button>
+                                    ×
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          </article>
-                        );
-                      })}
+                            ))}
+                          </div>
+                        ) : (
+                          <Empty
+                            icon="◎"
+                            title="Todavía no hay intentos"
+                            copy="Cuando hagas este psicotécnico, registra la nota y la fecha para empezar a ver tu evolución."
+                            action="Registrar primer intento"
+                            onAction={() => openAttemptEditor(detailPsych.id)}
+                          />
+                        )}
+                      </section>
+
+                      <div className="psych-danger-zone">
+                        <button
+                          className="text-button danger-text"
+                          onClick={() => deletePsychTest(detailPsych.id)}
+                        >
+                          Eliminar psicotécnico e historial
+                        </button>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="psych-no-results">
-                      <span>⌕</span>
-                      <h3>No hay coincidencias</h3>
+                  );
+                })()
+              ) : (
+                <>
+                  <div className="section-heading psych-heading">
+                    <div>
+                      <span className="section-label">
+                        PRÁCTICA Y EVOLUCIÓN
+                      </span>
+                      <h2>Mis psicotécnicos</h2>
                       <p>
-                        Cambia la búsqueda, la categoría o el criterio de
-                        ordenación.
+                        Guarda los PDF una sola vez y utiliza el historial para
+                        decidir cuáles conviene repetir.
                       </p>
                     </div>
-                  )
-                ) : (
-                  <Empty
-                    icon="▧"
-                    title="Añade tu primer psicotécnico"
-                    copy="Sube un PDF o una fotografía y empieza a registrar puntuaciones, tiempos y errores."
-                    action="Añadir psicotécnico"
-                    onAction={() => {
-                      setEditingPsychTest(null);
-                      setModal("psych");
-                    }}
-                  />
-                )}
-              </>
-            )}
-          </section>
-        )}
+                    <button
+                      className="primary-button"
+                      onClick={() => {
+                        setEditingPsychTest(null);
+                        setModal("psych");
+                      }}
+                    >
+                      ＋ Añadir psicotécnico
+                    </button>
+                  </div>
 
-        {tab === "progress" && (
-          <>
-            <ContentScope
-              state={state}
-              folders={progressFolderIds}
-              nodes={progressNodeIds}
-              onFolders={setProgressFolderIds}
-              onNodes={setProgressNodeIds}
-            />
-            <ProgressPage
-              state={scopedProgress(state, progressFolderIds, progressNodeIds)}
-              onCard={(id) => startReview(undefined, "all", [id])}
-              onOrthography={() =>
-                startOrthographySession(
-                  undefined,
-                  "weakest",
-                  scopedCards(state, progressFolderIds, progressNodeIds).filter(
-                    isOrthographyCard,
-                  ),
-                )
-              }
-              onWeak={() => {
-                const ids = scopedCards(
+                  <div className="psych-overview">
+                    <div>
+                      <span>Psicotécnicos</span>
+                      <strong>{state.psychTests.length}</strong>
+                      <small>
+                        {
+                          state.psychTests.filter(
+                            (test) =>
+                              test.attachment?.type === "application/pdf",
+                          ).length
+                        }{" "}
+                        con PDF
+                      </small>
+                    </div>
+                    <div>
+                      <span>Ya practicados</span>
+                      <strong>{psychAttemptedCount}</strong>
+                      <small>
+                        {state.psychTests.length - psychAttemptedCount}{" "}
+                        pendientes
+                      </small>
+                    </div>
+                    <div>
+                      <span>Intentos guardados</span>
+                      <strong>{psychAttemptCount}</strong>
+                      <small>histórico total</small>
+                    </div>
+                    <div>
+                      <span>Media última nota</span>
+                      <strong>
+                        {latestPsychAverage === null
+                          ? "—"
+                          : scoreLabel(latestPsychAverage)}
+                      </strong>
+                      <small>solo tests realizados</small>
+                    </div>
+                  </div>
+
+                  <div className="psych-toolbar">
+                    <div className="search-box psych-search">
+                      <span>⌕</span>
+                      <input
+                        value={psychQuery}
+                        onChange={(event) => setPsychQuery(event.target.value)}
+                        placeholder="Buscar por nombre o categoría"
+                        aria-label="Buscar psicotécnicos"
+                      />
+                    </div>
+                    <HierarchyField
+                      label="Filtrar categoría"
+                      items={psychCategories.map((name) => ({
+                        id: name,
+                        name,
+                        parentId: null,
+                      }))}
+                      value={psychCategory === "all" ? "" : psychCategory}
+                      rootLabel="Todas las categorías"
+                      onChange={(id: string) => setPsychCategory(id || "all")}
+                    />
+                    <select
+                      value={psychSort}
+                      onChange={(event) =>
+                        setPsychSort(event.target.value as PsychSort)
+                      }
+                      aria-label="Ordenar psicotécnicos"
+                    >
+                      <option value="oldest">Pendientes / más antiguos</option>
+                      <option value="last-low">Peor última nota</option>
+                      <option value="last-high">Mejor última nota</option>
+                      <option value="avg-low">Peor nota media</option>
+                      <option value="avg-high">Mejor nota media</option>
+                      <option value="recent">
+                        Último intento más reciente
+                      </option>
+                      <option value="attempts-low">Menos intentos</option>
+                      <option value="attempts-high">Más intentos</option>
+                      <option value="name">Nombre A–Z</option>
+                    </select>
+                  </div>
+
+                  {state.psychTests.length ? (
+                    filteredPsychTests.length ? (
+                      <div className="psych-grid">
+                        {filteredPsychTests.map((test) => {
+                          const stats = psychStats(test);
+                          return (
+                            <article
+                              className="psych-card"
+                              key={test.id}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`Abrir ${test.name}`}
+                              onClick={(event) => {
+                                if (
+                                  !(event.target as Element).closest("button,a")
+                                )
+                                  setPsychDetail(test.id);
+                              }}
+                              onKeyDown={(event) => {
+                                if (
+                                  event.target === event.currentTarget &&
+                                  (event.key === "Enter" || event.key === " ")
+                                ) {
+                                  event.preventDefault();
+                                  setPsychDetail(test.id);
+                                }
+                              }}
+                            >
+                              <div className="psych-doc">
+                                <span>
+                                  {test.attachment?.type === "application/pdf"
+                                    ? "PDF"
+                                    : test.attachment
+                                      ? "IMG"
+                                      : "TEST"}
+                                </span>
+                              </div>
+                              <div className="psych-body">
+                                <div className="psych-card-top">
+                                  <span className="category-chip">
+                                    {test.category || "Sin categoría"}
+                                  </span>
+                                  <button
+                                    className="psych-edit-button"
+                                    title="Editar ficha"
+                                    onClick={() => {
+                                      setEditingPsychTest(test.id);
+                                      setModal("psych");
+                                    }}
+                                  >
+                                    ✎
+                                  </button>
+                                </div>
+                                <h3>
+                                  {test.name || "Psicotécnico sin nombre"}
+                                </h3>
+                                <p>
+                                  {test.totalQuestions || 0} preguntas ·{" "}
+                                  {stats.attempts.length}{" "}
+                                  {stats.attempts.length === 1
+                                    ? "intento"
+                                    : "intentos"}
+                                </p>
+                                <div className="psych-metrics four">
+                                  <div>
+                                    <small>Última</small>
+                                    <strong>
+                                      {stats.last
+                                        ? scoreLabel(stats.last.score)
+                                        : "—"}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <small>Mejor</small>
+                                    <strong>
+                                      {stats.best === null
+                                        ? "—"
+                                        : scoreLabel(stats.best)}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <small>Media</small>
+                                    <strong>
+                                      {stats.average === null
+                                        ? "—"
+                                        : scoreLabel(stats.average)}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <small>Último día</small>
+                                    <strong className="metric-date">
+                                      {stats.last
+                                        ? dateLabel(stats.last.date)
+                                        : "Pendiente"}
+                                    </strong>
+                                  </div>
+                                </div>
+                                <div className="psych-actions psych-actions-wrap">
+                                  <button
+                                    onClick={() => setPsychDetail(test.id)}
+                                  >
+                                    Ver ficha
+                                  </button>
+                                  {test.attachment?.type ===
+                                  "application/pdf" ? (
+                                    <button
+                                      onClick={() => setEditingPsych(test.id)}
+                                    >
+                                      ✎ Abrir PDF
+                                    </button>
+                                  ) : test.attachment ? (
+                                    <a
+                                      href="#"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        setEditingPsych(test.id);
+                                      }}
+                                    >
+                                      Abrir documento
+                                    </a>
+                                  ) : null}
+                                  <button
+                                    className="psych-register"
+                                    onClick={() => openAttemptEditor(test.id)}
+                                  >
+                                    ＋ Intento
+                                  </button>
+                                </div>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="psych-no-results">
+                        <span>⌕</span>
+                        <h3>No hay coincidencias</h3>
+                        <p>
+                          Cambia la búsqueda, la categoría o el criterio de
+                          ordenación.
+                        </p>
+                      </div>
+                    )
+                  ) : (
+                    <Empty
+                      icon="▧"
+                      title="Añade tu primer psicotécnico"
+                      copy="Sube un PDF o una fotografía y empieza a registrar puntuaciones, tiempos y errores."
+                      action="Añadir psicotécnico"
+                      onAction={() => {
+                        setEditingPsychTest(null);
+                        setModal("psych");
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </section>
+          )}
+
+          {tab === "progress" && (
+            <>
+              <ContentScope
+                state={state}
+                folders={progressFolderIds}
+                nodes={progressNodeIds}
+                onFolders={setProgressFolderIds}
+                onNodes={setProgressNodeIds}
+              />
+              <ProgressPage
+                state={scopedProgress(
                   state,
                   progressFolderIds,
                   progressNodeIds,
-                )
-                  .filter((c) => !isOrthographyCard(c))
-                  .map((c) => c.id);
-                if (ids.length) startReview(undefined, "weakest", ids);
-              }}
-              onNode={(id) => startStudySession(id)}
-              onHistory={() => {
-                navigate("organize");
-                setStudyView("history");
-              }}
-            />
-          </>
-        )}
+                )}
+                onCard={(id) => startReview(undefined, "all", [id])}
+                onOrthography={() =>
+                  startOrthographySession(
+                    undefined,
+                    "weakest",
+                    scopedCards(
+                      state,
+                      progressFolderIds,
+                      progressNodeIds,
+                    ).filter(isOrthographyCard),
+                  )
+                }
+                onWeak={() => {
+                  const ids = scopedCards(
+                    state,
+                    progressFolderIds,
+                    progressNodeIds,
+                  )
+                    .filter((c) => !isOrthographyCard(c))
+                    .map((c) => c.id);
+                  if (ids.length) startReview(undefined, "weakest", ids);
+                }}
+                onNode={(id) => startStudySession(id)}
+                onHistory={() => {
+                  navigate("organize");
+                  setStudyView("history");
+                }}
+              />
+            </>
+          )}
+        </StudyBackground>
       </main>
       {saveReviewIds.length > 0 && (
         <SaveReviewSheet
@@ -3478,6 +3607,7 @@ export default function OpoApp() {
         currentCard &&
         currentQueueItem && (
           <ReviewSession
+            key={savedCardSession?.id + ":" + reviewIndex + ":" + inputVersion}
             card={currentCard}
             folder={
               state.folders.find((folder) => folder.id === currentCard.folderId)
@@ -3509,15 +3639,18 @@ export default function OpoApp() {
               setViewingStudyImage(false);
             }}
             onOption={(index) => {
-              if (isMultipleAnswerTest(currentCard))
-                setSelectedOptions((current) =>
-                  current.includes(index)
-                    ? current.filter((value) => value !== index)
-                    : [...current, index],
-                );
-              else setSelectedOption(index);
+              if (isMultipleAnswerTest(currentCard)) {
+                const values = reviewInput.current.selectedOptions;
+                reviewInput.current.selectedOptions = values.includes(index)
+                  ? values.filter((v) => v !== index)
+                  : [...values, index];
+              } else reviewInput.current.selectedOption = index;
+              flushCheckpoint.stage(reviewInput.current);
             }}
-            onWritten={setWrittenAnswer}
+            onWritten={(text) => {
+              reviewInput.current.writtenAnswer = text;
+              flushCheckpoint.stage(reviewInput.current);
+            }}
             onCheckWritten={submitWrittenAnswer}
             onRate={rateCurrent}
             onNext={goToNextCard}

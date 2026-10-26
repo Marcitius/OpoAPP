@@ -1,0 +1,118 @@
+{
+  "date": "2026-10-26",
+  "method": "Three fresh isolated Chromium contexts per version; same Vite/React development fixture, synthetic 2200 cards / 4000 reviews, about 13 MB of card text; 18 scripted characters at 10ms delay. Local real IndexedDB/projection, no Supabase transport. Baseline is v14.1 source with identical QA instrumentation. Not measured on user hardware or production Safari.",
+  "before": {
+    "cards": 2200,
+    "reviews": 4000,
+    "characters": 18,
+    "samples": [
+      {
+        "typingMs": 23002.8277,
+        "checkMs": 2553.8428090000016,
+        "advanceMs": 5987.990177,
+        "reactCommits": 40,
+        "reactMs": 25087.40000000014,
+        "localUpdates": [
+          {
+            "kind": "local-update",
+            "ms": 1374.6000000000931
+          }
+        ]
+      },
+      {
+        "typingMs": 24680.707151999995,
+        "checkMs": 2438.3296510000073,
+        "advanceMs": 7826.929600000003,
+        "reactCommits": 39,
+        "reactMs": 26248.5000000007,
+        "localUpdates": [
+          {
+            "kind": "local-update",
+            "ms": 3560.399999999907
+          },
+          {
+            "kind": "local-update",
+            "ms": 913.1999999999534
+          }
+        ]
+      },
+      {
+        "typingMs": 24191.59972099999,
+        "checkMs": 4227.696356,
+        "advanceMs": 5730.330359999993,
+        "reactCommits": 40,
+        "reactMs": 26508.09999999916,
+        "localUpdates": [
+          {
+            "kind": "local-update",
+            "ms": 2196.0999999998603
+          }
+        ]
+      }
+    ]
+  },
+  "after": {
+    "cards": 2200,
+    "reviews": 4000,
+    "characters": 18,
+    "samples": [
+      {
+        "typingMs": 301.7427609999995,
+        "checkMs": 57.40736300000026,
+        "advanceMs": 258.3468210000001,
+        "reactCommits": 20,
+        "reactMs": 24.5,
+        "localUpdates": [
+          {
+            "kind": "local-update",
+            "ms": 144.39999999990687
+          }
+        ]
+      },
+      {
+        "typingMs": 333.9827600000008,
+        "checkMs": 44.499205000000075,
+        "advanceMs": 279.6135809999996,
+        "reactCommits": 20,
+        "reactMs": 34.200000000186265,
+        "localUpdates": [
+          {
+            "kind": "local-update",
+            "ms": 205.19999999995343
+          }
+        ]
+      },
+      {
+        "typingMs": 261.24541300000055,
+        "checkMs": 40.2306929999977,
+        "advanceMs": 268.1905030000016,
+        "reactCommits": 20,
+        "reactMs": 21.500000000698492,
+        "localUpdates": [
+          {
+            "kind": "local-update",
+            "ms": 126.80000000004657
+          }
+        ]
+      }
+    ]
+  },
+  "medians": {
+    "typingMs": {
+      "before_median_ms": 24191.59972099999,
+      "after_median_ms": 301.7427609999995
+    },
+    "checkMs": {
+      "before_median_ms": 2553.8428090000016,
+      "after_median_ms": 44.499205000000075
+    },
+    "advanceMs": {
+      "before_median_ms": 5987.990177,
+      "after_median_ms": 268.1905030000016
+    },
+    "reactMs": {
+      "before_median_ms": 26248.5000000007,
+      "after_median_ms": 24.5
+    }
+  }
+}

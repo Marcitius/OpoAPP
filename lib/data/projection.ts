@@ -83,19 +83,25 @@ export function project(rows: Record<string, Row>): LegacyState {
     }
   }
   // Logs are the authority for counters; simultaneous absolute updates cannot lose a review.
-  state.cards = state.cards.map((card) => {
-    const history = state.reviews.filter(
-      (r) => r.cardId === card.id && !r.reinforcement,
-    );
-    return {
-      ...card,
-      reviewCount: Math.max(card.reviewCount ?? 0, history.length),
-      successCount: Math.max(
-        card.successCount ?? 0,
-        history.filter((r) => r.correct).length,
-      ),
-    };
-  });
+  const reviewCounts = new Map<string, { total: number; correct: number }>();
+  for (const review of state.reviews) {
+    if (review.reinforcement) continue;
+    const count = reviewCounts.get(review.cardId) ?? { total: 0, correct: 0 };
+    count.total++;
+    if (review.correct) count.correct++;
+    reviewCounts.set(review.cardId, count);
+  }
+  state.cards = state.cards.map((card) => ({
+    ...card,
+    reviewCount: Math.max(
+      card.reviewCount ?? 0,
+      reviewCounts.get(card.id)?.total ?? 0,
+    ),
+    successCount: Math.max(
+      card.successCount ?? 0,
+      reviewCounts.get(card.id)?.correct ?? 0,
+    ),
+  }));
   state.psychTests = list("psychTests").map((x) => ({
     ...x,
     attempts: list("attempts").filter((a) => a.testId === x.id),
@@ -136,14 +142,38 @@ export function differences(
   after: LegacyState,
   account: LocalAccount,
 ): Operation[] {
-  const a = flatten(before),
-    b = flatten(after),
+  // Immutable updaters retain unchanged collection references. Their rows cannot
+  // add a patch or deletion, so avoid expanding the entire library for a draft.
+  const left = { ...before },
+    right = { ...after };
+  for (const key of [
+    "folders",
+    "cards",
+    "reviews",
+    "studyNodes",
+    "studyTasks",
+    "psychTests",
+  ] as const) {
+    if (before[key] === after[key]) {
+      left[key] = [];
+      right[key] = [];
+    }
+  }
+  if (before.settings === after.settings) {
+    left.settings = {};
+    right.settings = {};
+  }
+  const a = flatten(left),
+    b = flatten(right),
     ops: Operation[] = [];
   for (const [key, next] of Object.entries(b)) {
     const old = a[key]?.data;
     const patch: JsonRecord = {};
     for (const [field, value] of Object.entries(next.data))
-      if (JSON.stringify(value) !== JSON.stringify(old?.[field]))
+      if (
+        !Object.is(value, old?.[field]) &&
+        JSON.stringify(value) !== JSON.stringify(old?.[field])
+      )
         patch[field] = value;
     if (!Object.keys(patch).length) continue;
     const current = account.rows[key];

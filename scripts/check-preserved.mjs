@@ -9,7 +9,13 @@ const files = JSON.parse(
 // v12 explicitly changes the memory adapter and queue-priority model. Their
 // historical v10 fingerprints remain in the manifest; new deterministic tests
 // cover the authorized replacements instead of claiming they are unchanged.
-const authorizedFiles = new Set(["app/fsrs.ts", "app/memoryModel.ts"]);
+// v14.2 optimizes only pure projection/diff computation. Deterministic parity
+// tests compare it with the exact v14.1 implementation; transport/IDB stay protected.
+const authorizedFiles = new Set([
+  "app/fsrs.ts",
+  "app/memoryModel.ts",
+  "lib/data/projection.ts",
+]);
 for (const [file, expected] of Object.entries(files))
   if (!authorizedFiles.has(file))
     assert.equal(
@@ -43,10 +49,25 @@ export function functions(file) {
     found = {};
   function visit(node) {
     if (ts.isFunctionDeclaration(node) && node.name && node.body) {
+      let body = node.body;
+      // v14.2 reads the latest isolated input ref. The remaining grading code
+      // must still match its original fingerprint exactly.
+      const inputReaders = {
+        currentSelectionIsCorrect:
+          "const{selectedOption,selectedOptions}=reviewInput.current;",
+        submitWrittenAnswer: "const{writtenAnswer}=reviewInput.current;",
+      };
+      if (file === "app/OpoApp.tsx" && inputReaders[node.name.text]) {
+        assert.equal(
+          node.body.statements[0].getText(source).replace(/\s/g, ""),
+          inputReaders[node.name.text],
+        );
+        body = ts.factory.updateBlock(node.body, node.body.statements.slice(1));
+      }
       found[node.name.text] = hash(
         JSON.stringify({
           parameters: node.parameters.map(shape),
-          body: shape(node.body),
+          body: shape(body),
         }),
       );
     }

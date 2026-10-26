@@ -1,27 +1,26 @@
-OpoGC v14.1 - VARIAS SESIONES GUARDADAS
+OpoGC v14.2 - ESTUDIO MAS FLUIDO
 
-PARCHE SOBRE OpoGC v14. No es el proyecto completo.
+PARCHE SOBRE v14.1. No es el proyecto completo.
+Si aun estas en v14, aplica primero el parche v14.1 de sesiones multiples.
 
-1. Descomprime el ZIP y abre actualizar.
+1. Descomprime y abre actualizar.
 2. Sube TODO EL CONTENIDO de actualizar a la raiz de tu repositorio,
-   conservando las rutas y sustituyendo los archivos existentes.
-   No subas otra carpeta llamada actualizar.
+   conservando carpetas y sustituyendo archivos. No subas otra carpeta actualizar.
 3. Incluye juntos package.json y package-lock.json.
-4. Cloudflare Pages: npm run build, carpeta de salida out.
-5. Conserva las variables de Supabase. No ejecutes SQL.
-6. Tras desplegar, acepta la actualizacion de OpoGC en todos tus dispositivos.
+4. Cloudflare Pages: npm run build; carpeta de salida out.
+5. Conserva las variables de Supabase. No ejecutes SQL ni cambies el backend.
+6. Acepta la actualizacion en todos tus dispositivos.
 
-USO
-- Empieza una seleccion desde Biblioteca y pulsa Salir para guardarla.
-- Puedes empezar otra seleccion sin finalizar la anterior.
-- Hoy / Biblioteca / Repasar: Ver las N sesiones permite elegir cual continuar.
-- Finalizar cierra solo la sesion elegida; pide confirmacion y conserva historial.
-- Tu sesion anterior se conserva automaticamente.
+No hay dependencias nuevas ni archivos que borrar.
+Las sesiones multiples, tarjetas, historial y Material se conservan.
+El algoritmo de memorizacion es el mismo.
 
-No hay cambios de algoritmo, backend ni datos iniciales.
-No hay archivos que eliminar ni dependencias nuevas.
-Necesitas tener instalada v14 antes de aplicar este parche.
+NOVEDADES
+Escritura y test con actualizacion local en la tarjeta.
+Biblioteca no recorre todos los textos en cada pulsacion.
+Guardado ligero del borrador y checkpoint de sesion agrupado.
+La valoracion sigue confirmandose localmente antes de avanzar.
 
-Detalles: actualizar/docs/SESIONES-MULTIPLES-V14.1.md
-Pruebas: actualizar/docs/PRUEBAS-V14.1.md
-Inventario del ZIP: ARCHIVOS-DEL-PARCHE.json
+Documentacion: actualizar/docs/OPTIMIZACION-V14.2.md
+Pruebas: actualizar/docs/PRUEBAS-V14.2.md
+Mediciones: actualizar/docs/RENDIMIENTO-V14.2.json

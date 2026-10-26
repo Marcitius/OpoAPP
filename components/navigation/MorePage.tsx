@@ -82,7 +82,7 @@ export default function MorePage({
         </section>
       ))}
       <p className="ux-footnote">
-        OpoGC v14.1 · Sesiones guardadas
+        OpoGC v14.2 · Estudio más fluido
         <br />
         Organiza menos. Estudia más.
       </p>

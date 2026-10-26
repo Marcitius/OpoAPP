@@ -1,5 +1,16 @@
 # CHANGELOG — OpoGC
 
+## 14.2.0 · 26 de octubre de 2026 — Estudio más fluido
+
+- Respuestas y selección de test aisladas de la aplicación principal; render del contenido enriquecido reutilizado y fondo de estudio conservado mientras está cubierto.
+- Búsqueda de Biblioteca solo cuando procede, sin recorrer HTML para búsquedas vacías, con caché invalidada al editar contenido, mover carpetas o cambiar la cuenta.
+- Referencias estables para datos sin cambios; modelo de memoria y pendientes dependen de sus datos, no del borrador. Probabilidades precalculadas una vez al ordenar; mismo resultado/algoritmo.
+- Borrador local pequeño por cuenta/sesión usando el almacén IndexedDB existente; checkpoint agrupado a 1,5 segundos, guardado al salir/ocultarse y recuperación tras recarga. Protección por ID, turno y revisión; rebase del borrador si se sigue escribiendo durante un checkpoint.
+- Optimización pura de project/differences: índice de contadores y omisión de colecciones con la misma referencia. Pruebas de equivalencia con el código v14.1 archivado; sin cambiar formatos, operaciones, motor de sincronización, transacciones o SQL.
+- Banco sintético de 2.200 tarjetas y 4.000 repasos, medición antes/después y nuevas pruebas de fluidez, recuperación y error de valoración.
+- FSRS, memoryModel, algoritmos de sesión/ortografía, Auth, Supabase, RLS, Realtime, esquema, Material y dependencias permanecen sin cambios.
+
+
 ## 14.1.0 · 26 de octubre de 2026 — Varias sesiones guardadas
 
 - Varias sesiones de tarjetas independientes: empezar una selección nueva conserva las anteriores. Lista desde Hoy, Biblioteca, Repasar y el temario; acceso rápido a la más reciente.

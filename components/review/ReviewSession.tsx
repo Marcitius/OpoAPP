@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { Card, Rating, WrittenAnswerResult } from "../../lib/study/legacy";
 import {
   isMultipleChoiceCard,
@@ -11,6 +11,7 @@ import { RichContent, plainRichText } from "../../app/RichTextEditor";
 import { AnnotatedCardImage } from "../../app/CardImage";
 import Icon from "../shared/Icon";
 import BottomSheet from "../sheets/BottomSheet";
+const CardContent = memo(RichContent);
 interface Props {
   card: Card;
   folder: string;
@@ -49,7 +50,11 @@ interface Props {
   busy?: boolean;
   canGoBack?: boolean;
 }
-export default function ReviewSession(p: Props) {
+export default function ReviewSession(props: Props) {
+  const [writtenAnswer, setWrittenAnswer] = useState(props.writtenAnswer);
+  const [selectedOption, setSelectedOption] = useState(props.selectedOption);
+  const [selectedOptions, setSelectedOptions] = useState(props.selectedOptions);
+  const p = { ...props, writtenAnswer, selectedOption, selectedOptions };
   const [more, setMore] = useState(false);
   const written = isWrittenCard(p.card),
     choice = isMultipleChoiceCard(p.card),
@@ -135,13 +140,16 @@ export default function ReviewSession(p: Props) {
                     : "ELIGE UNA RESPUESTA"
                   : "RECUERDA"}
           </span>
-          <RichContent html={p.card.front} className="review-prompt" />
+          <CardContent html={p.card.front} className="review-prompt" />
           {!p.revealed && written && (
             <label className="written-entry">
               <span className="sr-only">Tu respuesta</span>
               <textarea
                 value={p.writtenAnswer}
-                onChange={(e) => p.onWritten(e.target.value)}
+                onChange={(e) => {
+                  setWrittenAnswer(e.target.value);
+                  p.onWritten(e.target.value);
+                }}
                 placeholder="Escribe tu respuesta…"
                 rows={5}
               />
@@ -158,7 +166,16 @@ export default function ReviewSession(p: Props) {
                     key={index}
                     className={selected ? "selected" : ""}
                     aria-pressed={selected}
-                    onClick={() => p.onOption(index)}
+                    onClick={() => {
+                      if (multi)
+                        setSelectedOptions((values) =>
+                          values.includes(index)
+                            ? values.filter((v) => v !== index)
+                            : [...values, index],
+                        );
+                      else setSelectedOption(index);
+                      p.onOption(index);
+                    }}
                   >
                     <span>
                       {multi
@@ -208,7 +225,7 @@ export default function ReviewSession(p: Props) {
                   {plainRichText(p.card.back) && (
                     <details className="review-detail">
                       <summary>Respuesta modelo</summary>
-                      <RichContent html={p.card.back} />
+                      <CardContent html={p.card.back} />
                     </details>
                   )}
                 </>
@@ -232,7 +249,7 @@ export default function ReviewSession(p: Props) {
                     </>
                   )}
                   {plainRichText(p.card.back) && (
-                    <RichContent
+                    <CardContent
                       html={p.card.back}
                       className="review-answer-text"
                     />

@@ -1,5 +1,5 @@
 // UI-only fixture: real v10 IndexedDB, differences and projection; no fixture data is compiled into the application.
-import React, { useEffect, useState } from "react";
+import React, { Profiler, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import OpoApp from "../../app/OpoApp";
 import { SyncContext } from "../../components/SyncContext";
@@ -347,6 +347,30 @@ if (new URLSearchParams(location.search).has("empty")) {
   fixture.folders = [];
   fixture.psychTests = [];
 }
+if (new URLSearchParams(location.search).has("performance")) {
+  const padding = "Texto de estudio para medir el rendimiento local. ".repeat(
+    120,
+  );
+  fixture.cards.push(
+    ...Array.from({ length: 2200 - fixture.cards.length }, (_, i) =>
+      card(
+        "perf-" + i,
+        "basic",
+        "Pregunta de rendimiento " + i,
+        "<p>" + padding + "</p>",
+      ),
+    ),
+  );
+  fixture.reviews = Array.from({ length: 4000 }, (_, i) => ({
+    id: "perf-review-" + i,
+    cardId: fixture.cards[i % fixture.cards.length].id,
+    rating: "good",
+    correct: true,
+    predictedRecall: 0.8,
+    reviewedAt: "2026-10-01T10:00:00Z",
+  }));
+}
+const timings: { kind: string; ms: number }[] = [];
 let account = await readAccount(user);
 if (!account.initialized)
   account = await transact(user, (a) => {
@@ -360,6 +384,10 @@ if (!account.initialized)
     a.initialized = true;
   });
 let failMaterialSave = false;
+let failReviewSave = false;
+let checkpointGate: Promise<void> | undefined;
+let releaseCheckpoint: (() => void) | undefined;
+let checkpointWaiting = false;
 const listeners = new Set<() => void>();
 const engine = {
   user,
@@ -371,6 +399,27 @@ const engine = {
     return () => listeners.delete(fn);
   },
   update: async (before: any, next: any) => {
+    const start = performance.now();
+    if (
+      checkpointGate &&
+      next.reviews.length === before.reviews.length &&
+      Object.keys(next.settings).some(
+        (k) =>
+          k.startsWith("cardSession:") &&
+          JSON.stringify(next.settings[k]) !==
+            JSON.stringify(before.settings[k]),
+      )
+    ) {
+      const gate = checkpointGate;
+      checkpointGate = undefined;
+      checkpointWaiting = true;
+      await gate;
+      checkpointWaiting = false;
+    }
+    if (failReviewSave && next.reviews.length > before.reviews.length) {
+      failReviewSave = false;
+      throw new Error("Fallo de valoración simulado");
+    }
     if (
       failMaterialSave &&
       Object.keys(next.settings).some(
@@ -389,6 +438,7 @@ const engine = {
     engine.state = project(account.rows);
     engine.status.pending = account.queue.length;
     listeners.forEach((fn) => fn());
+    timings.push({ kind: "local-update", ms: performance.now() - start });
   },
 };
 window.addEventListener("offline", () => {
@@ -401,6 +451,22 @@ window.addEventListener("online", () => {
 });
 (window as any).__opogcQA = {
   state: () => engine.state,
+  timings: () => timings,
+  holdCheckpoint: () => {
+    checkpointGate = new Promise<void>((resolve) => {
+      releaseCheckpoint = resolve;
+    });
+  },
+  checkpointWaiting: () => checkpointWaiting,
+  releaseCheckpoint: () => {
+    releaseCheckpoint?.();
+  },
+  failReviewSaveOnce: () => {
+    failReviewSave = true;
+  },
+  resetTimings: () => {
+    timings.length = 0;
+  },
   draft: (key: string) => readValue("legacy", key),
   failMaterialSaveOnce: () => {
     failMaterialSave = true;
@@ -495,7 +561,14 @@ function QAOverlayTest() {
 }
 createRoot(document.getElementById("root")!).render(
   <SyncContext.Provider value={engine as any}>
-    <OpoApp />
+    <Profiler
+      id="app"
+      onRender={(_id, _phase, ms) => {
+        timings.push({ kind: "react", ms });
+      }}
+    >
+      <OpoApp />
+    </Profiler>
     <QAAccount />
     <QAOverlayTest />
   </SyncContext.Provider>,

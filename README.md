@@ -1,3 +1,39 @@
+# OpoGC v14.2 — Estudio más fluido
+
+Optimización sobre v14.1 para escribir respuestas, seleccionar opciones y avanzar entre tarjetas con bibliotecas grandes. Conserva las sesiones múltiples, Material, datos y algoritmo de memorización.
+
+## Qué cambia
+
+- La escritura y las opciones de test se actualizan dentro de la tarjeta, sin renderizar la aplicación completa por cada pulsación.
+- Biblioteca no analiza todos los textos fuera de su pantalla ni con la búsqueda vacía. Las búsquedas reutilizan el texto convertido cuando el contenido no cambia.
+- La pantalla de fondo conserva su estado durante el repaso y se actualiza al salir. Los cálculos de memoria/pendientes reutilizan sus datos y se evalúa la probabilidad una sola vez por tarjeta al ordenar.
+- Cada edición deja un borrador local pequeño, separado por cuenta y sesión. El checkpoint completo se agrupa tras 1,5 segundos de pausa; al salir o cambiar de aplicación se fuerza el guardado. Recargar permite recuperar el borrador compatible con la misma sesión y turno.
+- El guardado general evita recorrer colecciones que no cambian y calcula los contadores con un índice del historial. La valoración sigue esperando la confirmación local antes de avanzar.
+
+## Resultados medidos
+
+Tres ejecuciones por versión, mismos datos sintéticos de 2.200 tarjetas / 4.000 repasos y unos 13 MB de texto, Chromium con React de desarrollo:
+
+| Acción | Mediana v14.1 | Mediana v14.2 |
+| --- | ---: | ---: |
+| Escribir 18 caracteres (con 10 ms programados entre teclas) | 24,19 s | 0,30 s |
+| Comprobar respuesta escrita | 2,55 s | 0,04 s |
+| Guardar y continuar | 5,99 s | 0,27 s |
+
+Es una comparación reproducible en este entorno, no una medición en tu Mac, Safari o la PWA instalada ni una garantía de esos tiempos en todos los dispositivos. Detalles y muestras: **docs/RENDIMIENTO-V14.2.json**. Reproducción con Chromium instalado para Playwright: **node scripts/benchmark-review.mjs ruta-resultados.json**. Puede indicarse CHROMIUM_EXECUTABLE si se usa un navegador externo.
+
+## Actualizar desde v14.1
+
+El ZIP contiene solo archivos nuevos/modificados **sobre v14.1**. Sube el contenido de **actualizar/** a la raíz del repositorio conservando rutas y sustituyendo archivos. No subas una carpeta adicional llamada actualizar. Incluye juntos package.json y package-lock.json. No hay dependencias nuevas ni archivos que borrar.
+
+Cloudflare: **npm run build**, salida **out**. Conserva las variables actuales y acepta la actualización de OpoGC en todos los dispositivos. No ejecutes SQL ni reconfigures Supabase. Si aún estás en v14, aplica primero el parche de sesiones múltiples v14.1.
+
+Detalles técnicos y compatibilidad: **docs/OPTIMIZACION-V14.2.md**. Pruebas ejecutadas: **docs/PRUEBAS-V14.2.md**. Los comandos siguen siendo npm ci, npm run typecheck, npm test y npm run build.
+
+---
+
+Documentación de versiones anteriores, conservada como referencia:
+
 # OpoGC v14.1 — Varias sesiones guardadas
 
 Puedes guardar varias sesiones de tarjetas y elegir cuál continuar. Por ejemplo, Constitución y Ley 40/2015 conservan por separado su selección, orden, tarjeta actual, respuesta escrita, valoraciones de la sesión y refuerzos pendientes.
