@@ -1,26 +1,20 @@
-OpoGC v14.2 - ESTUDIO MAS FLUIDO
+OpoGC v14.2.1 - CURSOR Y TECLADO EN MATERIAL
 
-PARCHE SOBRE v14.1. No es el proyecto completo.
-Si aun estas en v14, aplica primero el parche v14.1 de sesiones multiples.
+PARCHE SOBRE v14.2. No es el proyecto completo.
 
-1. Descomprime y abre actualizar.
+1. Descomprime el ZIP y abre actualizar.
 2. Sube TODO EL CONTENIDO de actualizar a la raiz de tu repositorio,
-   conservando carpetas y sustituyendo archivos. No subas otra carpeta actualizar.
+   conservando carpetas y sustituyendo archivos.
+   No subas otra carpeta llamada actualizar.
 3. Incluye juntos package.json y package-lock.json.
-4. Cloudflare Pages: npm run build; carpeta de salida out.
-5. Conserva las variables de Supabase. No ejecutes SQL ni cambies el backend.
-6. Acepta la actualizacion en todos tus dispositivos.
+4. Cloudflare Pages: npm run build; salida out.
+5. Conserva las variables actuales de Supabase. No ejecutes SQL.
+6. Acepta la actualizacion de OpoGC en tus dispositivos.
 
-No hay dependencias nuevas ni archivos que borrar.
-Las sesiones multiples, tarjetas, historial y Material se conservan.
-El algoritmo de memorizacion es el mismo.
+Corrige la perdida de foco al autoguardar Material y evita reconfigurar
+el editor durante la escritura. No cambia tus documentos ni sus formatos.
+Sin dependencias nuevas y sin archivos que eliminar.
+Las sesiones y las optimizaciones de v14.2 se conservan.
 
-NOVEDADES
-Escritura y test con actualizacion local en la tarjeta.
-Biblioteca no recorre todos los textos en cada pulsacion.
-Guardado ligero del borrador y checkpoint de sesion agrupado.
-La valoracion sigue confirmandose localmente antes de avanzar.
-
-Documentacion: actualizar/docs/OPTIMIZACION-V14.2.md
-Pruebas: actualizar/docs/PRUEBAS-V14.2.md
-Mediciones: actualizar/docs/RENDIMIENTO-V14.2.json
+Detalles: actualizar/docs/CURSOR-MATERIAL-V14.2.1.md
+Pruebas ejecutadas: actualizar/docs/RESULTADOS-V14.2.1.json

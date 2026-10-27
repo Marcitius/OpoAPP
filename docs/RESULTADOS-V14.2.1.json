@@ -1,0 +1,569 @@
+{
+  "version": "14.2.1",
+  "date": "2026-10-27",
+  "base": "OpoGC v14.2",
+  "build": "passed",
+  "typecheck": "passed",
+  "unit": {
+    "passed": 91,
+    "failed": 0,
+    "groups": [
+      7,
+      9,
+      12,
+      7,
+      11,
+      5,
+      13,
+      4,
+      10,
+      7,
+      6
+    ]
+  },
+  "browser_stats": {
+    "startTime": "2026-10-27T16:19:56.537Z",
+    "duration": 211021.198,
+    "expected": 100,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "browser_tests": [
+    {
+      "title": "Escritura y autoguardado no reconfiguran ni reemplazan el editor",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Retroceso en mitad de un párrafo y Enter/Shift+Enter 390",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Retroceso en mitad de un párrafo y Enter/Shift+Enter 1366",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Borrar junto a negrita, en lista y en celda mantiene posición y formato",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Deshacer y rehacer después de autoguardar conserva el texto y se puede reabrir",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Un guardado pendiente no roba foco ni permite cerrar con Escape; después vuelve a permitirlo",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Material 360x800: crear, Markdown, lectura, cierre y recarga",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Material 390x844: crear, Markdown, lectura, cierre y recarga",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Material 430x932: crear, Markdown, lectura, cierre y recarga",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Material 768x1024: crear, Markdown, lectura, cierre y recarga",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Material 1024x768: crear, Markdown, lectura, cierre y recarga",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Material 1366x768: crear, Markdown, lectura, cierre y recarga",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Material 1920x1080: crear, Markdown, lectura, cierre y recarga",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Formato real: negrita, color, fuente, tamaño, tablas, sangría y deshacer",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Copiar Biblioteca conserva tarjetas e IDs y permite organizar ramas de material",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Pegado HTML conserva formato y exporta; guardado offline permite reabrir",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Conflicto remoto conserva ambas versiones con guardar como copia",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Documento guardado se abre con el formato en otro dispositivo simulado",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Texto real adjunto: importar íntegro y conservar títulos, listas y todos los párrafos",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Recarga brusca recupera un borrador local antes del autoguardado",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Borrador de un apartado eliminado remotamente se recupera como nuevo documento",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Un fallo de guardado conserva el texto local y permite reintentar",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 360x800",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 390x844",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 430x932",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 768x1024",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 1024x768",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 1366x768",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 1920x1080",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Dos sesiones offline conservan progreso y borrador después de reabrir",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Dos dispositivos simulados: trabajar en otra sesión no interrumpe la abierta; cerrar una no cierra otra",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "2200 tarjetas y 4000 repasos: escribir no actualiza la cuenta ni recorre Biblioteca",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Recarga antes del checkpoint global recupera el último borrador local",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Un fallo al guardar la valoración conserva respuesta y permite reintentar sin duplicar historial",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Elegir varias opciones y comprobar de inmediato utiliza la selección actual",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Escribir durante un checkpoint lento conserva el texto posterior tras recargar",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "iphone-pequeno: navegación, estudio, repaso, temario y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "iphone-grande: navegación, estudio, repaso, temario y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "android-pequeno: navegación, estudio, repaso, temario y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "android-grande: navegación, estudio, repaso, temario y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "ipad-vertical: navegación, estudio, repaso, temario y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "ipad-horizontal: navegación, estudio, repaso, temario y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "desktop: navegación, estudio, repaso, temario y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "desktop-grande: navegación, estudio, repaso, temario y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Varias tarjetas consecutivas, FSRS y registros individuales",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Bien, Regular y Mal con nota, siguiente automático y recarga IndexedDB",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Árbol: crear, editar, mover, reordenar y eliminar conservando IDs",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Tarjeta larga: scroll interior y valoración siempre accesible",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Psicotécnicos, nota e intento existentes",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Bottom sheet: arrastre, teclado reducido, foco y cuenta",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Production PWA: manifest, iconos, Service Worker y recarga offline",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "50 tarjetas consecutivas sin reconfigurar ni perder registros",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Doce niveles, atrás y cambio de orientación sin overflow",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Altura visual del teclado con layout intacto",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Offline: valoración duradera y backup portable con IDs e historial",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Cuenta vacía: sin reinicio ni inserción de datos de ejemplo",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Editor e importación de tarjetas: pantalla completa móvil",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Imagen y PDF sobre un formulario: capas, foco y Escape",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Planificación v10: repasos existentes conservados y sin duplicar contadores",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Prioridad de estudio: continúa solo los elementos planificados como estudio",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Aprendizaje nuevo: separación por tarjetas, Bien termina y checkpoint tras recarga",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Plan rápido: mover Hoy ↔ Después conserva el ID y permite nota sin fecha",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Biblioteca → temario: editar, cambiar jerarquía, previsualizar, enlazar y reimportar",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Mover y reordenar tarjetas y ramas mantiene relaciones y datos después de recargar",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Creación de tarjetas y formularios no enfocan campos al abrirse",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Guardar antes de responder, valorar, cerrar y retirar conservando memoria",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Crear colección durante una tarjeta no abre el teclado ni avanza",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Biblioteca: padre e hijo y tarjeta seleccionados se mueven entre ramas sin perder datos",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Mover tarjeta a raíz mantiene pertenencia y el filtro por subtema responde al cambio",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Temario: selección entre niveles mueve la rama conservando planificación e IDs",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Filtros y colecciones 360x800: niveles, búsqueda, foco y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Filtros y colecciones 430x932: niveles, búsqueda, foco y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Filtros y colecciones 768x1024: niveles, búsqueda, foco y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Filtros y colecciones 1024x768: niveles, búsqueda, foco y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Filtros y colecciones 1366x768: niveles, búsqueda, foco y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Filtros y colecciones 1920x1080: niveles, búsqueda, foco y capas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Renombrar y eliminar colección persiste después de volver a abrir",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Varias tarjetas filtradas se mueven juntas sin modificar FSRS",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Editar en directo sin valorar ni avanzar, persistir y continuar 390",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Editar en directo sin valorar ni avanzar, persistir y continuar 1366",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Cancelar edicion conserva la tarjeta y permite seguir valorando",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Quitar en sesion elimina solo la pertenencia y finaliza, incluso offline",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Coleccion de origen sigue disponible al reabrir y quitar en la lista",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Biblioteca multiseleccion permite modo Aprender",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Biblioteca multiseleccion permite modo Aleatorio",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Biblioteca multiseleccion permite modo En orden",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Biblioteca multiseleccion permite modo Más falladas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Biblioteca multiseleccion permite modo Repasos pendientes",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Selector desde Estudiar, cancelar, y modo en coleccion conserva contexto",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Retirar una tarjeta fallada avanza a la siguiente de la coleccion sin borrar su intento",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Seleccion mixta permite elegir ortografia sin mezclar tarjetas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Biblioteca está a una pulsación y el temario sigue en Más",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "69 seleccionadas: una pausa larga no devuelve Bien ni bloquea las nuevas",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Salir conserva tarjeta y cara; recargar y continuar desde Biblioteca no reinicia",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Borrador y selección se conservan: Respuesta escrita:",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Borrador y selección se conservan: Test múltiple:",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Empezar otra selección conserva ambas sesiones y permite retomar la anterior",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Una vuelta completada permanece hasta Finalizar; una débil no se presenta como aprendida",
+      "status": "expected",
+      "attempts": 1
+    },
+    {
+      "title": "Dos dispositivos simulados: traspaso exacto y cierre remoto sin duplicar la valoración",
+      "status": "expected",
+      "attempts": 1
+    }
+  ],
+  "critical_files_identical": [
+    "lib/auth/client.ts",
+    "lib/data/local.ts",
+    "lib/data/files.ts",
+    "lib/data/legacy.ts",
+    "lib/data/models.ts",
+    "lib/data/projection.ts",
+    "lib/sync/engine.ts",
+    "app/OpoApp.tsx",
+    "app/fsrs.ts",
+    "app/memoryModel.ts",
+    "lib/memory/session.ts",
+    "lib/memory/orthographyQueue.ts",
+    "lib/memory/checkpoint.ts",
+    "lib/memory/draft.ts",
+    "lib/memory/performance.ts",
+    "components/AccountApp.tsx",
+    "components/SyncContext.tsx",
+    "components/PwaManager.tsx",
+    "public/manifest.webmanifest",
+    "scripts/prepare-pwa.mjs",
+    "supabase/migrations/202609300001_core.sql",
+    "supabase/migrations/202609300002_storage.sql"
+  ],
+  "reproduction": {
+    "old_editor_options_changes_during_short_edit": 5,
+    "fixed_editor_options_changes": 0,
+    "old_autosave_focus_loss": "reproduced in Chromium regression test",
+    "fixed_autosave_focus_loss": "regression passed, including a retained save and Escape restrictions"
+  },
+  "limits": [
+    "Chromium automated tests only; exact Safari visual caret jump not reproduced on user hardware.",
+    "WebKit download was attempted but browser could not launch because host libraries were missing. No WebKit/Safari test claimed.",
+    "No live Supabase or installed physical PWA/account end-to-end test in this iteration."
+  ]
+}

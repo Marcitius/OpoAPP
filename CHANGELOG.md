@@ -1,5 +1,14 @@
 # CHANGELOG — OpoGC
 
+## 14.2.1 · 27 de octubre de 2026 — Cursor y teclado en Material
+
+- BottomSheet toma el foco solo al abrirse. Los cambios de dismissible durante el guardado no reenfocan el diálogo; Escape sigue consultando las reglas actuales de cierre y se mantiene el focus trapping.
+- Opciones, extensiones y editorProps de Tiptap estables. Se elimina la reconfiguración del editor en cada transacción de texto/selección; setEditable solo se ejecuta si cambia realmente la edición permitida.
+- Material distingue las ediciones locales de las cargas externas (importación, recuperación, versión remota y carga explícita). El autoguardado ya no reinyecta la propia edición como contenido externo.
+- Pruebas de posición, foco durante autoguardado, guardado retenido, Backspace, Enter/Shift+Enter, listas, negrita, tablas y deshacer/rehacer.
+- Sin cambios en datos, esquema, backend, FSRS, sincronización, sesiones o dependencias. Se conservan las optimizaciones v14.2.
+
+
 ## 14.2.0 · 26 de octubre de 2026 — Estudio más fluido
 
 - Respuestas y selección de test aisladas de la aplicación principal; render del contenido enriquecido reutilizado y fondo de estudio conservado mientras está cubierto.

@@ -27,6 +27,7 @@ export default function MaterialDocument({
   onCopy: (html: string) => Promise<boolean>;
 }) {
   const [draft, setDraft] = useState(html),
+    [editorContent, setEditorContent] = useState(html),
     [saving, setSaving] = useState(false),
     [error, setError] = useState(false),
     [conflict, setConflict] = useState(false),
@@ -49,6 +50,7 @@ export default function MaterialDocument({
         if (saved.html !== html) {
           live.current = saved.html;
           setDraft(saved.html);
+          setEditorContent(saved.html);
           base.current = saved.base;
           if (saved.base !== html) {
             blocked.current = true;
@@ -70,6 +72,7 @@ export default function MaterialDocument({
       base.current = html;
       live.current = html;
       setDraft(html);
+      setEditorContent(html);
     } else {
       blocked.current = true;
       setConflict(true);
@@ -218,7 +221,9 @@ export default function MaterialDocument({
                 rich = /\.html?$/i.test(f.name)
                   ? sanitizeMaterial(text)
                   : markdownToMaterial(text);
-              change(live.current + rich);
+              const imported = live.current + rich;
+              change(imported);
+              setEditorContent(imported);
               setImportError("");
             } catch {
               setImportError(
@@ -272,6 +277,7 @@ export default function MaterialDocument({
               live.current = html;
               blocked.current = false;
               setDraft(html);
+              setEditorContent(html);
               setConflict(false);
               void writeValue("legacy", draftKey, null);
             }}
@@ -281,7 +287,7 @@ export default function MaterialDocument({
         </div>
       )}
       <MaterialEditor
-        html={draft}
+        html={editorContent}
         onChange={change}
         readOnly={reading || conflict}
       />

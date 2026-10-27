@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   EditorContent,
   useEditor,
   useEditorState,
   type Editor,
 } from "@tiptap/react";
+import type { EditorOptions } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
 import { materialExtensions } from "./extensions";
 import {
@@ -32,56 +33,69 @@ export default function MaterialEditor({
     [raw, setRaw] = useState(""),
     [link, setLink] = useState(false),
     [url, setUrl] = useState("");
-  const editor: Editor | null = useEditor({
-    extensions: materialExtensions(),
-    content: sanitizeMaterial(html),
-    immediatelyRender: false,
-    autofocus: false,
-    editable: !readOnly,
-    editorProps: {
-      handleKeyDown: (_view, event) => {
-        if (event.key !== "Tab" || !editor) return false;
-        if (editor.isActive("table")) {
-          event.stopPropagation();
-          return false;
-        }
-        if (editor.isActive("listItem")) {
+  const instance = useRef<Editor | null>(null);
+  // Configure the view once. Reapplying editorProps/content on every local
+  // transaction can disturb native deletion/composition and the DOM selection.
+  const options = useMemo<Partial<EditorOptions>>(
+    () => ({
+      extensions: materialExtensions(),
+      content: sanitizeMaterial(html),
+      autofocus: false,
+      editable: !readOnly,
+      editorProps: {
+        handleKeyDown: (_view, event) => {
+          const editor = instance.current;
+          if (event.key !== "Tab" || !editor) return false;
+          if (editor.isActive("table")) {
+            event.stopPropagation();
+            return false;
+          }
+          if (editor.isActive("listItem")) {
+            event.preventDefault();
+            event.stopPropagation();
+            return event.shiftKey
+              ? editor.commands.liftListItem("listItem")
+              : editor.commands.sinkListItem("listItem");
+          }
+          const type = editor.isActive("heading") ? "heading" : "paragraph",
+            current = editor.getAttributes(type).indent || 0;
+          if (event.shiftKey && !current) return false;
           event.preventDefault();
           event.stopPropagation();
-          return event.shiftKey
-            ? editor.commands.liftListItem("listItem")
-            : editor.commands.sinkListItem("listItem");
-        }
-        const type = editor.isActive("heading") ? "heading" : "paragraph",
-          current = editor.getAttributes(type).indent || 0;
-        if (event.shiftKey && !current) return false;
-        event.preventDefault();
-        event.stopPropagation();
-        return editor.commands.updateAttributes(type, {
-          indent: Math.min(8, Math.max(0, current + (event.shiftKey ? -1 : 1))),
-        });
+          return editor.commands.updateAttributes(type, {
+            indent: Math.min(
+              8,
+              Math.max(0, current + (event.shiftKey ? -1 : 1)),
+            ),
+          });
+        },
+        attributes: {
+          class: "material-prose",
+          role: "textbox",
+          "aria-label": "Contenido del apartado",
+          "aria-multiline": "true",
+          tabindex: "0",
+        },
+        handlePaste: (_view, event) => {
+          const cb = event.clipboardData;
+          if (!cb) return false;
+          const text = cb.getData("text/plain"),
+            rich = cb.getData("text/html");
+          if (!text && !rich) return false;
+          event.preventDefault();
+          instance.current?.commands.insertContent(
+            clipboardMaterial(rich, text),
+          );
+          return true;
+        },
       },
-      attributes: {
-        class: "material-prose",
-        role: "textbox",
-        "aria-label": "Contenido del apartado",
-        "aria-multiline": "true",
-        tabindex: "0",
-      },
-      handlePaste: (_view, event) => {
-        const cb = event.clipboardData;
-        if (!cb) return false;
-        const text = cb.getData("text/plain"),
-          rich = cb.getData("text/html");
-        if (!text && !rich) return false;
-        event.preventDefault();
-        editor?.commands.insertContent(clipboardMaterial(rich, text));
-        return true;
-      },
-    },
-    onUpdate: ({ editor }) =>
-      change.current(sanitizeMaterial(editor.getHTML())),
-  });
+      onUpdate: ({ editor }) =>
+        change.current(sanitizeMaterial(editor.getHTML())),
+    }),
+    [],
+  );
+  const editor = useEditor({ ...options, immediatelyRender: false });
+  instance.current = editor;
   useEffect(() => {
     if (editor) {
       onReady?.(editor);
@@ -92,7 +106,8 @@ export default function MaterialEditor({
       editor.commands.setContent(sanitizeMaterial(html), { emitUpdate: false });
   }, [html, editor]);
   useEffect(() => {
-    editor?.setEditable(!readOnly, false);
+    if (editor && editor.isEditable === readOnly)
+      editor.setEditable(!readOnly, false);
   }, [readOnly, editor]);
   // Re-render the toolbar only on editor transactions, without rebuilding the document.
   useEditorState({ editor, selector: (ctx) => ctx.editor?.state });

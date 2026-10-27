@@ -24,15 +24,17 @@ export default function BottomSheet({
   const ref = useRef<HTMLElement>(null),
     id = useId(),
     startY = useRef<number | null>(null),
-    closeRef = useRef(onClose);
+    closeRef = useRef(onClose),
+    dismissibleRef = useRef(dismissible);
   closeRef.current = onClose;
+  dismissibleRef.current = dismissible;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const el = ref.current!;
     el.focus({ preventScroll: true });
     const key = (e: KeyboardEvent) => {
       if (!isTopOverlay(el)) return;
-      if (e.key === "Escape" && dismissible) {
+      if (e.key === "Escape" && dismissibleRef.current) {
         e.preventDefault();
         closeRef.current();
       }
@@ -76,7 +78,9 @@ export default function BottomSheet({
       )
         previous.focus({ preventScroll: true });
     };
-  }, [dismissible]);
+    // Focus belongs to the sheet only on opening. Saving may change dismissal
+    // rules, but must never refocus the dialog or restore the previous control.
+  }, []);
   return typeof document === "undefined"
     ? null
     : createPortal(

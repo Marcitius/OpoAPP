@@ -1,3 +1,23 @@
+# OpoGC v14.2.1 — Cursor y teclado en Material
+
+Corrección sobre v14.2 para evitar que el autoguardado interrumpa la escritura en Material de estudio.
+
+Se reprodujo una pérdida de foco: al cambiar saving, el panel cambiaba dismissible y su efecto volvía a enfocar el diálogo, quitando el foco del editor. Ahora toma el foco solo al abrirse y consulta las reglas actuales de cierre sin reenfocar al guardar. Además, las opciones de Tiptap se mantienen estables y las ediciones locales no se devuelven como una carga externa del documento en cada pulsación.
+
+Se conservan Markdown, formato, tablas, borradores, guardado automático, modo lectura y conflictos. No se intercepta Backspace ni se introducen readonly temporales, blur repetidos o foco automático de campos.
+
+## Actualizar desde v14.2
+
+El ZIP contiene solo archivos nuevos/modificados **sobre v14.2**. Sube el contenido de **actualizar/** a la raíz del repositorio, conservando rutas y sustituyendo archivos. Incluye juntos package.json y package-lock.json. No hay archivos que eliminar ni dependencias nuevas.
+
+Cloudflare: **npm run build**, salida **out**. Conserva las variables de Supabase y acepta la actualización en todos los dispositivos. No requiere SQL ni reconfigurar el backend. Si usas una versión anterior, aplica primero los parches v14.1 y v14.2 correspondientes.
+
+Detalles y validación: **docs/CURSOR-MATERIAL-V14.2.1.md** y **docs/RESULTADOS-V14.2.1.json**. Pruebas nuevas: **tests/ui/material-cursor.spec.ts**.
+
+---
+
+Documentación anterior, conservada como referencia:
+
 # OpoGC v14.2 — Estudio más fluido
 
 Optimización sobre v14.1 para escribir respuestas, seleccionar opciones y avanzar entre tarjetas con bibliotecas grandes. Conserva las sesiones múltiples, Material, datos y algoritmo de memorización.

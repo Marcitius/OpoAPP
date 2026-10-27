@@ -384,6 +384,9 @@ if (!account.initialized)
     a.initialized = true;
   });
 let failMaterialSave = false;
+let materialSaveGate: Promise<void> | undefined;
+let releaseMaterialSave: (() => void) | undefined;
+let materialSaveHeld = false;
 let failReviewSave = false;
 let checkpointGate: Promise<void> | undefined;
 let releaseCheckpoint: (() => void) | undefined;
@@ -400,6 +403,21 @@ const engine = {
   },
   update: async (before: any, next: any) => {
     const start = performance.now();
+    if (
+      materialSaveGate &&
+      Object.keys(next.settings).some(
+        (k) =>
+          k.startsWith("studyMaterialContent:") &&
+          JSON.stringify(next.settings[k]) !==
+            JSON.stringify(before.settings[k]),
+      )
+    ) {
+      const gate = materialSaveGate;
+      materialSaveGate = undefined;
+      materialSaveHeld = true;
+      await gate;
+      materialSaveHeld = false;
+    }
     if (
       checkpointGate &&
       next.reviews.length === before.reviews.length &&
@@ -468,6 +486,15 @@ window.addEventListener("online", () => {
     timings.length = 0;
   },
   draft: (key: string) => readValue("legacy", key),
+  holdMaterialSave: () => {
+    materialSaveGate = new Promise<void>((resolve) => {
+      releaseMaterialSave = resolve;
+    });
+  },
+  materialSaveHeld: () => materialSaveHeld,
+  releaseMaterialSave: () => {
+    releaseMaterialSave?.();
+  },
   failMaterialSaveOnce: () => {
     failMaterialSave = true;
   },
