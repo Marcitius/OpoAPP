@@ -455,3 +455,48 @@
     font-size: 16px !important;
   }
 }
+
+.material-image {
+  max-width: 100%;
+  display: block;
+  margin: 18px auto;
+  box-sizing: border-box;
+}
+.material-image[data-align="left"] {
+  margin-left: 0;
+  margin-right: auto;
+}
+.material-image[data-align="right"] {
+  margin-right: 0;
+  margin-left: auto;
+}
+.material-image img {
+  display: block;
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.material-image.is-selected {
+  outline: 2px solid #285943;
+  outline-offset: 3px;
+}
+.material-image-status,
+.material-image-message {
+  display: block;
+  padding: 12px;
+  font:
+    14px/1.5 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+@media print {
+  .material-image {
+    break-inside: avoid;
+    outline: none !important;
+  }
+  .material-image-message {
+    display: none !important;
+  }
+}

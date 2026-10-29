@@ -1,10 +1,16 @@
 // UI-only fixture: real v10 IndexedDB, differences and projection; no fixture data is compiled into the application.
 import React, { Profiler, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { MaterialImageServices } from "../../components/material/MaterialImageServices";
 import OpoApp from "../../app/OpoApp";
 import { SyncContext } from "../../components/SyncContext";
 import { emptyState, operation } from "../../lib/data/models";
-import { readAccount, transact, readValue } from "../../lib/data/local";
+import {
+  readAccount,
+  transact,
+  readValue,
+  writeValue,
+} from "../../lib/data/local";
 import {
   flatten,
   project,
@@ -383,6 +389,9 @@ if (!account.initialized)
     a.queue = [];
     a.initialized = true;
   });
+let imageUploadGate: Promise<void> | undefined;
+let releaseImageUpload: (() => void) | undefined;
+let imageUploadHeld = false;
 let failMaterialSave = false;
 let materialSaveGate: Promise<void> | undefined;
 let releaseMaterialSave: (() => void) | undefined;
@@ -486,6 +495,15 @@ window.addEventListener("online", () => {
     timings.length = 0;
   },
   draft: (key: string) => readValue("legacy", key),
+  holdImageUpload: () => {
+    imageUploadGate = new Promise<void>((resolve) => {
+      releaseImageUpload = resolve;
+    });
+  },
+  imageUploadHeld: () => imageUploadHeld,
+  releaseImageUpload: () => {
+    releaseImageUpload?.();
+  },
   holdMaterialSave: () => {
     materialSaveGate = new Promise<void>((resolve) => {
       releaseMaterialSave = resolve;
@@ -586,17 +604,51 @@ function QAOverlayTest() {
     </BottomSheet>
   ) : null;
 }
+const testImages = {
+  upload: async (file: File, progress?: (n: number) => void) => {
+    if (imageUploadGate) {
+      const gate = imageUploadGate;
+      imageUploadGate = undefined;
+      imageUploadHeld = true;
+      await gate;
+      imageUploadHeld = false;
+    }
+    if (!navigator.onLine)
+      throw Error("Para añadir una imagen necesitas conexión.");
+    const id = crypto.randomUUID(),
+      key = user + "/" + id;
+    await writeValue("blobs", user + ":" + key, file);
+    progress?.(100);
+    return {
+      id,
+      key,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      url: "supabase://" + key,
+    };
+  },
+  blob: async (a: { key: string; url: string }) => {
+    const blob = await readValue<Blob>("blobs", user + ":" + a.key);
+    if (!blob) throw Error("Imagen no disponible.");
+    return blob;
+  },
+  url: async (a: { key: string; url: string }) =>
+    URL.createObjectURL(await testImages.blob(a)),
+};
 createRoot(document.getElementById("root")!).render(
   <SyncContext.Provider value={engine as any}>
-    <Profiler
-      id="app"
-      onRender={(_id, _phase, ms) => {
-        timings.push({ kind: "react", ms });
-      }}
-    >
-      <OpoApp />
-    </Profiler>
-    <QAAccount />
-    <QAOverlayTest />
+    <MaterialImageServices.Provider value={testImages}>
+      <Profiler
+        id="app"
+        onRender={(_id, _phase, ms) => {
+          timings.push({ kind: "react", ms });
+        }}
+      >
+        <OpoApp />
+      </Profiler>
+      <QAAccount />
+      <QAOverlayTest />
+    </MaterialImageServices.Provider>
   </SyncContext.Provider>,
 );

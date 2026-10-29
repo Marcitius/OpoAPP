@@ -1,3 +1,31 @@
+# OpoGC v14.3 — Imágenes en Material
+
+Ahora puedes insertar imágenes entre los bloques de texto de Material de estudio, sin cambiar las tarjetas ni tus documentos existentes.
+
+## Uso
+
+1. Abre un apartado de **Material de estudio** y sitúa el cursor donde quieras.
+2. Pulsa **Imagen / Insertar imagen** y elige uno o varios archivos PNG, JPEG, WebP o GIF. También puedes pegar una captura si el navegador entrega el archivo en el portapapeles, o arrastrar archivos al documento en escritorio.
+3. Pulsa la imagen para seleccionarla. Ajusta **Tamaño de imagen** (25/50/75/100 %) y alineación; **Descripción** permite cambiar su texto alternativo.
+4. **Quitar imagen** elimina su aparición en el documento; puedes deshacer. El archivo no se destruye de Storage al quitarlo, para conservar deshacer y copias.
+5. El autoguardado conserva el contenido y el formato. El modo lectura muestra las imágenes.
+
+Se reutiliza el almacenamiento privado de OpoGC. Añadir imágenes requiere conexión, igual que los adjuntos anteriores; una imagen ya guardada en la caché del dispositivo puede abrirse offline. El máximo existente es 50 MB por archivo. No se admiten SVG ni se descargan automáticamente imágenes externas de cualquier URL pegada.
+
+Las copias portátiles incluyen los archivos de Material y reasignan sus referencias al importar en otra cuenta. **Exportar HTML** incorpora las imágenes dentro del archivo descargado, sin URLs temporales. Imprimir/PDF usa las imágenes visibles del documento. Para trasladar todo a otra cuenta, utiliza la copia portátil; un HTML no sustituye a la copia de seguridad.
+
+## Actualizar desde v14.2.1
+
+El ZIP contiene solo archivos nuevos/modificados **sobre v14.2.1**. Sube el contenido de **actualizar/** a la raíz del repositorio, conservando rutas y sustituyendo archivos. Incluye juntos package.json y package-lock.json. No hay dependencias nuevas ni archivos que borrar.
+
+Cloudflare: **npm run build**, salida **out**. Conserva las variables actuales de Supabase. No ejecutes SQL ni crees otro bucket o proyecto. Acepta la actualización en todos tus dispositivos antes de editar documentos con imágenes: las versiones anteriores del editor no reconocen esos bloques.
+
+Detalles: **docs/IMAGENES-MATERIAL-V14.3.md**. Pruebas: **docs/RESULTADOS-V14.3.json**. Los comandos de validación siguen siendo npm run typecheck, npm test y npm run build.
+
+---
+
+Documentación de versiones anteriores, conservada como referencia:
+
 # OpoGC v14.2.1 — Cursor y teclado en Material
 
 Corrección sobre v14.2 para evitar que el autoguardado interrumpa la escritura en Material de estudio.

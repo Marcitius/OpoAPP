@@ -1,5 +1,15 @@
 # CHANGELOG — OpoGC
 
+## 14.3.0 · 29 de octubre de 2026 — Imágenes en Material
+
+- Inserción de una o varias imágenes en el cursor, pegado de archivos del portapapeles y drop de archivos. Se conservan las ediciones realizadas mientras se sube mediante selección mapeada por transacciones.
+- Nodo de imagen Tiptap con almacenamiento privado y caché existentes; HTML persistente con referencias estables, sin blobs ni base64 en settings.
+- Tamaño relativo, alineación, descripción alternativa, quitar/deshacer y lectura. La imagen elegida sigue siendo el destino de sus controles aunque un selector o panel tome el foco.
+- Sanitización de referencias; se retiran URLs/scripts y etiquetas de imagen externas no registradas.
+- Copias portátiles incluyen imágenes de Material y restauran su propietario; HTML exportado incorpora los bytes. No cambian los formatos de copia ni los IDs de nodos/tarjetas.
+- Sin dependencias nuevas, SQL, configuración de Supabase, cambios de Auth, RLS, sincronización, FSRS o sesiones. Se conserva la corrección del cursor v14.2.1.
+
+
 ## 14.2.1 · 27 de octubre de 2026 — Cursor y teclado en Material
 
 - BottomSheet toma el foco solo al abrirse. Los cambios de dismissible durante el guardado no reenfocan el diálogo; Escape sigue consultando las reglas actuales de cierre y se mantiene el focus trapping.

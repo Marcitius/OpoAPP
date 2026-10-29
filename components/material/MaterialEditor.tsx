@@ -14,17 +14,20 @@ import {
   markdownToMaterial,
   sanitizeMaterial,
 } from "../../lib/material/format";
+import useMaterialImages from "./useMaterialImages";
 import BottomSheet from "../sheets/BottomSheet";
 export default function MaterialEditor({
   html,
   onChange,
   readOnly = false,
   onReady,
+  onUploading,
 }: {
   html: string;
   onChange: (html: string) => void;
   readOnly?: boolean;
   onReady?: (e: Editor) => void;
+  onUploading?: (busy: boolean) => void;
 }) {
   const change = useRef(onChange);
   change.current = onChange;
@@ -34,6 +37,11 @@ export default function MaterialEditor({
     [link, setLink] = useState(false),
     [url, setUrl] = useState("");
   const instance = useRef<Editor | null>(null);
+  const selectedImageId = useRef<string | null>(null);
+  const imageFile = useRef<HTMLInputElement>(null);
+  const images = useMaterialImages(instance, onUploading);
+  const [imageOptions, setImageOptions] = useState(false),
+    [imageAlt, setImageAlt] = useState("");
   // Configure the view once. Reapplying editorProps/content on every local
   // transaction can disturb native deletion/composition and the DOM selection.
   const options = useMemo<Partial<EditorOptions>>(
@@ -76,8 +84,41 @@ export default function MaterialEditor({
           "aria-multiline": "true",
           tabindex: "0",
         },
+        handleDrop: (view, event, _slice, moved) => {
+          const files = Array.from(event.dataTransfer?.files ?? []).filter(
+            (f) => f.type.startsWith("image/"),
+          );
+          if (!files.length || moved || !instance.current?.isEditable)
+            return false;
+          event.preventDefault();
+          void images.insert.current(
+            files,
+            view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos,
+          );
+          return true;
+        },
         handlePaste: (_view, event) => {
           const cb = event.clipboardData;
+          const files = Array.from(cb?.files ?? []).filter((f) =>
+            f.type.startsWith("image/"),
+          );
+          if (files.length && instance.current?.isEditable) {
+            event.preventDefault();
+            // A rich clipboard may contain both text and files. Preserve its
+            // formatted text rather than dropping it when adding the images.
+            const prose = new DOMParser().parseFromString(
+              clipboardMaterial(
+                cb?.getData("text/html") || "",
+                cb?.getData("text/plain") || "",
+              ),
+              "text/html",
+            );
+            prose.querySelectorAll("img").forEach((image) => image.remove());
+            if (prose.body.textContent?.trim())
+              instance.current.commands.insertContent(prose.body.innerHTML);
+            void images.insert.current(files);
+            return true;
+          }
           if (!cb) return false;
           const text = cb.getData("text/plain"),
             rich = cb.getData("text/html");
@@ -121,6 +162,7 @@ export default function MaterialEditor({
     text: string,
     run: (e: Editor) => void,
     active = false,
+    disabled = false,
   ) => (
     <button
       key={label}
@@ -128,12 +170,43 @@ export default function MaterialEditor({
       title={label}
       aria-label={label}
       aria-pressed={active}
+      disabled={disabled}
       onPointerDown={(e) => e.preventDefault()}
       onClick={() => act(run)}
     >
       {text}
     </button>
   );
+  if (editor.storage.materialImage?.selectedId)
+    selectedImageId.current = editor.storage.materialImage.selectedId;
+  if (editor.isActive("materialImage"))
+    selectedImageId.current = editor.getAttributes("materialImage").imageId;
+  let hasImages = false;
+  let imageAttrs: Record<string, any> = {};
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === "materialImage") {
+      hasImages = true;
+      if (node.attrs.imageId === selectedImageId.current)
+        imageAttrs = node.attrs;
+    }
+  });
+  const imageSelected = Object.hasOwn(imageAttrs, "imageId");
+  // Toolbar controls keep targeting the selected image when a native select or
+  // description sheet takes DOM focus. Never delete the current text selection.
+  const selectImage = () => {
+    let pos: number | undefined;
+    editor.state.doc.descendants((node, index) => {
+      if (
+        node.type.name === "materialImage" &&
+        node.attrs.imageId === selectedImageId.current
+      )
+        pos = index;
+    });
+    return pos !== undefined && editor.commands.setNodeSelection(pos);
+  };
+  const updateImage = (attrs: Record<string, any>) => {
+    if (selectImage()) editor.commands.updateAttributes("materialImage", attrs);
+  };
   const indent = (direction: number) => {
     if (editor.isActive("listItem")) {
       direction > 0
@@ -221,8 +294,70 @@ export default function MaterialEditor({
               },
               editor.isActive("bulletList"),
             )}
+            {button("Insertar imagen", "Imagen", () =>
+              imageFile.current?.click(),
+            )}
             {button("Más formato", "···", () => setTools((v) => !v), tools)}
           </div>
+          {hasImages && (
+            <div
+              className="material-toolbar-extra"
+              aria-label="Formato de imagen"
+            >
+              <label>
+                Tamaño{" "}
+                <select
+                  disabled={!imageSelected}
+                  aria-label="Tamaño de imagen"
+                  value={imageAttrs?.width || 100}
+                  onChange={(e) =>
+                    updateImage({
+                      width: Number(e.target.value),
+                    })
+                  }
+                >
+                  {[25, 50, 75, 100].map((n) => (
+                    <option key={n} value={n}>
+                      {n}%
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <select
+                disabled={!imageSelected}
+                aria-label="Alineación de imagen"
+                value={imageAttrs?.align || "center"}
+                onChange={(e) =>
+                  updateImage({
+                    align: e.target.value,
+                  })
+                }
+              >
+                <option value="left">Izquierda</option>
+                <option value="center">Centro</option>
+                <option value="right">Derecha</option>
+              </select>
+              {button(
+                "Descripción de imagen",
+                "Descripción",
+                () => {
+                  setImageAlt(imageAttrs?.alt || "");
+                  setImageOptions(true);
+                },
+                false,
+                !imageSelected,
+              )}
+              {button(
+                "Quitar imagen",
+                "Quitar imagen",
+                (e) => {
+                  if (selectImage()) e.commands.deleteSelection();
+                },
+                false,
+                !imageSelected,
+              )}
+            </div>
+          )}
           {tools && (
             <div className="material-toolbar-extra">
               <label>
@@ -394,7 +529,54 @@ export default function MaterialEditor({
           )}
         </div>
       )}
+      <input
+        ref={imageFile}
+        type="file"
+        hidden
+        multiple
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        aria-label="Seleccionar imágenes"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = "";
+          void images.insert.current(files);
+        }}
+      />
+      {images.message && (
+        <p
+          className="material-image-message"
+          role={images.busy ? "status" : "alert"}
+        >
+          {images.message}
+        </p>
+      )}
       <EditorContent editor={editor} />
+      {imageOptions && (
+        <BottomSheet
+          title="Descripción de imagen"
+          onClose={() => setImageOptions(false)}
+        >
+          <label>
+            Descripción{" "}
+            <input
+              aria-label="Descripción de imagen"
+              value={imageAlt}
+              onChange={(e) => setImageAlt(e.target.value)}
+            />
+          </label>
+          <button
+            className="primary-button full"
+            onClick={() => {
+              updateImage({
+                alt: imageAlt.slice(0, 500),
+              });
+              setImageOptions(false);
+            }}
+          >
+            Guardar descripción
+          </button>
+        </BottomSheet>
+      )}
       {paste && (
         <BottomSheet
           title="Pegar texto de ChatGPT"

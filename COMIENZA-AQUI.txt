@@ -1,20 +1,26 @@
-OpoGC v14.2.1 - CURSOR Y TECLADO EN MATERIAL
+OpoGC v14.3 - IMAGENES EN MATERIAL
 
-PARCHE SOBRE v14.2. No es el proyecto completo.
+PARCHE SOBRE v14.2.1. No es el proyecto completo.
 
 1. Descomprime el ZIP y abre actualizar.
 2. Sube TODO EL CONTENIDO de actualizar a la raiz de tu repositorio,
-   conservando carpetas y sustituyendo archivos.
+   conservando rutas y sustituyendo los archivos existentes.
    No subas otra carpeta llamada actualizar.
 3. Incluye juntos package.json y package-lock.json.
-4. Cloudflare Pages: npm run build; salida out.
-5. Conserva las variables actuales de Supabase. No ejecutes SQL.
-6. Acepta la actualizacion de OpoGC en tus dispositivos.
+4. Cloudflare Pages: npm run build; carpeta de salida out.
+5. Conserva las variables de Supabase. No ejecutes SQL ni crees otro bucket.
+6. Actualiza la PWA en TODOS tus dispositivos antes de editar imagenes.
 
-Corrige la perdida de foco al autoguardar Material y evita reconfigurar
-el editor durante la escritura. No cambia tus documentos ni sus formatos.
-Sin dependencias nuevas y sin archivos que eliminar.
-Las sesiones y las optimizaciones de v14.2 se conservan.
+USO
+Material de estudio > abrir apartado > situar cursor > Imagen.
+Se pueden seleccionar varios archivos, pegar capturas o arrastrar imagenes.
+Pulsa una imagen para cambiar tamano/alineacion, descripcion o quitarla.
+Deshacer permite recuperarla si la quitas.
 
-Detalles: actualizar/docs/CURSOR-MATERIAL-V14.2.1.md
-Pruebas ejecutadas: actualizar/docs/RESULTADOS-V14.2.1.json
+PNG, JPEG, WebP y GIF; maximo 50 MB por archivo.
+Hace falta conexion para subir. Las imagenes cacheadas se pueden ver offline.
+La copia portatil incluye los archivos; Exportar HTML los integra en el HTML.
+
+Sin dependencias nuevas ni archivos que borrar.
+Detalles: actualizar/docs/IMAGENES-MATERIAL-V14.3.md
+Pruebas: actualizar/docs/RESULTADOS-V14.3.json

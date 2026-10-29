@@ -45,7 +45,7 @@ export function clipboardMaterial(html: string, text: string): string {
   if (
     html &&
     !/^\s*(?:<meta[^>]*>\s*)?<pre[\s>]/i.test(html) &&
-    /<(?:p|h[1-6]|ul|ol|table|strong|b|em|span|div)\b/i.test(html)
+    /<(?:p|h[1-6]|ul|ol|table|strong|b|em|span|div|img)\b/i.test(html)
   )
     return sanitizeMaterial(html);
   return markdownToMaterial(text);

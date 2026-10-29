@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import type { MaterialNode } from "../../lib/material/model";
 import {
   markdownToMaterial,
@@ -7,6 +7,9 @@ import {
 } from "../../lib/material/format";
 import { readValue, writeValue } from "../../lib/data/local";
 import BottomSheet from "../sheets/BottomSheet";
+import { useEngine } from "../SyncContext";
+import { MaterialImageServices } from "./MaterialImageServices";
+import { exportMaterialImages } from "../../lib/material/exportImages";
 import MaterialEditor from "./MaterialEditor";
 export type SaveResult = "saved" | "conflict" | "error";
 export default function MaterialDocument({
@@ -26,6 +29,10 @@ export default function MaterialDocument({
   onClose: () => void;
   onCopy: (html: string) => Promise<boolean>;
 }) {
+  const engine = useEngine(),
+    services = useContext(MaterialImageServices);
+  const [uploading, setUploading] = useState(false),
+    [exporting, setExporting] = useState(false);
   const [draft, setDraft] = useState(html),
     [editorContent, setEditorContent] = useState(html),
     [saving, setSaving] = useState(false),
@@ -145,22 +152,37 @@ export default function MaterialDocument({
     };
   }, []);
   async function close() {
+    if (uploading) return;
     if (await flushRef.current()) onClose();
   }
-  function download() {
-    const blob = new Blob(
-      [
-        `<!doctype html><html lang="es"><meta charset="utf-8"><title>${node.name.replace(/[<>&"]/g, "")}</title><style>body{max-width:850px;margin:40px auto;padding:24px;font:16px/1.65 system-ui}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:8px}blockquote{border-left:3px solid #285943;padding-left:16px}</style><body>${sanitizeMaterial(live.current)}</body></html>`,
-      ],
-      { type: "text/html;charset=utf-8" },
-    );
-    const a = document.createElement("a"),
-      url = URL.createObjectURL(blob);
-    a.href = url;
-    a.download =
-      node.name.replace(/[^\p{L}\p{N} _-]/gu, "").slice(0, 90) + ".html";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  async function download() {
+    setExporting(true);
+    try {
+      const exported = await exportMaterialImages(
+        live.current,
+        engine.state.settings,
+        services.blob,
+      );
+      const blob = new Blob(
+        [
+          `<!doctype html><html lang="es"><meta charset="utf-8"><title>${node.name.replace(/[<>&"]/g, "")}</title><style>body{max-width:850px;margin:40px auto;padding:24px;font:16px/1.65 system-ui}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:8px}img{width:100%;max-width:100%;height:auto;display:block;margin:16px auto}img[data-width="25"]{width:25%}img[data-width="50"]{width:50%}img[data-width="75"]{width:75%}img[data-align="left"]{margin-left:0}img[data-align="right"]{margin-right:0}blockquote{border-left:3px solid #285943;padding-left:16px}</style><body>${exported}</body></html>`,
+        ],
+        { type: "text/html;charset=utf-8" },
+      );
+      const a = document.createElement("a"),
+        url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download =
+        node.name.replace(/[^\p{L}\p{N} _-]/gu, "").slice(0, 90) + ".html";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setImportError(
+        (error as Error).message || "No se pudo exportar el documento.",
+      );
+    } finally {
+      setExporting(false);
+    }
   }
   return (
     <BottomSheet
@@ -168,13 +190,14 @@ export default function MaterialDocument({
       subtitle="Material de estudio"
       fullScreen
       className="material-sheet"
-      dismissible={!saving}
+      dismissible={!saving && !uploading}
       onClose={() => void close()}
     >
       <div className="material-document-actions">
         <button
           className="secondary-button"
           aria-pressed={reading}
+          disabled={uploading}
           onClick={() => setReading((v) => !v)}
         >
           {reading ? "Editar contenido" : "Modo lectura"}
@@ -194,7 +217,11 @@ export default function MaterialDocument({
         <button className="ux-link" onClick={() => file.current?.click()}>
           Importar texto
         </button>
-        <button className="ux-link" onClick={download}>
+        <button
+          className="ux-link"
+          disabled={uploading || exporting}
+          onClick={() => void download()}
+        >
           Exportar HTML
         </button>
         <button className="ux-link" onClick={() => window.print()}>
@@ -288,6 +315,7 @@ export default function MaterialDocument({
       )}
       <MaterialEditor
         html={editorContent}
+        onUploading={setUploading}
         onChange={change}
         readOnly={reading || conflict}
       />

@@ -6,6 +6,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import { TableKit } from "@tiptap/extension-table";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
+import { MaterialImage } from "./MaterialImage";
 export const MaterialLayout = Extension.create({
   name: "materialLayout",
   addGlobalAttributes() {
@@ -59,4 +60,5 @@ export const materialExtensions = () => [
   Subscript,
   Superscript,
   MaterialLayout,
+  MaterialImage,
 ];

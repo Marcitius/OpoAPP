@@ -1,3 +1,7 @@
+import {
+  materialImageAttachments,
+  remapMaterialImages,
+} from "../material/images";
 import { Upload } from "tus-js-client";
 import { supabase } from "../auth/client";
 import { readAccount, readValue, writeValue } from "./local";
@@ -194,9 +198,11 @@ export async function saveAnnotations(
   if (ops.length) await engine.enqueue(ops);
 }
 const attachments = (state: LegacyState) =>
-  [...state.cards, ...state.psychTests]
-    .map((x) => x.attachment)
-    .filter(Boolean) as Attachment[];
+  (
+    [...state.cards, ...state.psychTests]
+      .map((x) => x.attachment)
+      .filter(Boolean) as Attachment[]
+  ).concat(materialImageAttachments(state.settings));
 export async function preparePortableBackup(engine: SyncEngine) {
   await engine.flush();
   const state = structuredClone(engine.state),
@@ -257,5 +263,6 @@ export async function restorePortableAssets(
   }
   for (const x of [...next.cards, ...next.psychTests])
     if (x.attachment) x.attachment = mapping.get(x.attachment.key);
+  next.settings = remapMaterialImages(next.settings, mapping);
   return next;
 }

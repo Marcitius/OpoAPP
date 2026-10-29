@@ -82,7 +82,7 @@ export default function MorePage({
         </section>
       ))}
       <p className="ux-footnote">
-        OpoGC v14.2.1 · Edición de Material
+        OpoGC v14.3 · Imágenes en Material
         <br />
         Organiza menos. Estudia más.
       </p>
