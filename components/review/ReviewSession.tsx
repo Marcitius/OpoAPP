@@ -10,6 +10,7 @@ import {
 import { RichContent, plainRichText } from "../../app/RichTextEditor";
 import { AnnotatedCardImage } from "../../app/CardImage";
 import Icon from "../shared/Icon";
+import ScorePicker from "./ScorePicker";
 import BottomSheet from "../sheets/BottomSheet";
 const CardContent = memo(RichContent);
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
   folder: string;
   position: number;
   total: number;
+  passedCount: number;
   weakCount: number;
   onFinish: () => void;
   continuous: boolean;
@@ -35,7 +37,10 @@ interface Props {
   onOption: (index: number) => void;
   onWritten: (text: string) => void;
   onCheckWritten: () => void;
-  onRate: (rating: Rating, result?: WrittenAnswerResult | null) => void;
+  onRate: (score: number, result?: WrittenAnswerResult | null) => void;
+  gradeHint: string;
+  averageScore: number | null;
+  latestScore: number | null;
   onNext: () => void;
   onPrevious: () => void;
   onUnknown: () => void;
@@ -75,8 +80,11 @@ export default function ReviewSession(props: Props) {
             `${p.doneCount} repasos`
           ) : (
             <>
-              {p.position}
-              <small> / {p.total} vistas</small>
+              {p.passedCount}
+              <small>
+                {" "}
+                / {p.total} aprobadas · {p.position} vistas
+              </small>
             </>
           )}
         </span>
@@ -87,7 +95,7 @@ export default function ReviewSession(props: Props) {
       <div className="session-progress-line">
         <i
           style={{
-            width: `${p.continuous ? 100 : Math.min(100, Math.round((p.position / Math.max(1, p.total)) * 100))}%`,
+            width: `${p.continuous ? 100 : Math.min(100, Math.round((p.passedCount / Math.max(1, p.total)) * 100))}%`,
           }}
         />
       </div>
@@ -96,7 +104,13 @@ export default function ReviewSession(props: Props) {
         key={p.card.id + ":" + p.position + ":" + p.revealed}
       >
         <div className="review-context">
-          <span>{p.folder}</span>
+          <span>
+            {p.folder}
+            <small className="recall-score">
+              Media {p.averageScore === null ? "—" : p.averageScore.toFixed(1)}{" "}
+              · Última {p.latestScore ?? "—"}
+            </small>
+          </span>
           {p.weakCount > 0 && <small>{p.weakCount} por reforzar</small>}
           <button
             className="icon-button"
@@ -309,49 +323,13 @@ export default function ReviewSession(props: Props) {
           >
             Continuar <Icon name="arrow" size={18} />
           </button>
-        ) : written && p.writtenResult ? (
-          <button
-            className="primary-button full"
-            disabled={p.busy}
-            onClick={() => p.onRate(p.writtenResult!.rating, p.writtenResult)}
-          >
-            Guardar y continuar <Icon name="arrow" size={18} />
-          </button>
         ) : (
-          <>
-            <p className="rating-prompt">
-              {choice ? "¿Cómo te ha resultado?" : "¿Qué tal la recordabas?"}
-            </p>
-            <div className="review-rating-buttons">
-              {(
-                [
-                  { value: "again", label: "Otra vez", symbol: "↻" },
-                  { value: "hard", label: "Difícil", symbol: "≈" },
-                  { value: "good", label: "Bien", symbol: "✓" },
-                  { value: "easy", label: "Fácil", symbol: "✓✓" },
-                ] as const
-              ).map((r) => (
-                <button
-                  aria-label={r.label}
-                  disabled={p.busy}
-                  title={
-                    {
-                      again: "No la recordé",
-                      hard: "Recordé con esfuerzo",
-                      good: "La recordé bien",
-                      easy: "La recordé fácilmente",
-                    }[r.value]
-                  }
-                  className={r.value}
-                  key={r.value}
-                  onClick={() => p.onRate(r.value)}
-                >
-                  <span>{r.symbol}</span>
-                  <strong>{r.label}</strong>
-                </button>
-              ))}
-            </div>
-          </>
+          <ScorePicker
+            disabled={p.busy}
+            incorrect={choice && !p.correct}
+            hint={p.gradeHint}
+            onScore={(score) => p.onRate(score, p.writtenResult)}
+          />
         )}
       </footer>
       {more && (

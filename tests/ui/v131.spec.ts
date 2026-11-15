@@ -142,7 +142,9 @@ for (const [w, h] of [
     await expect(page.locator(".review-answer-text")).toHaveText(
       "Respuesta corregida sin perder memoria",
     );
-    await page.getByRole("button", { name: "Fácil", exact: true }).click();
+    await page
+      .getByRole("button", { name: /^(Fácil|Nota 9)$/, exact: true })
+      .click();
     await expect(page.locator(".review-prompt")).toContainText("Artículo 164");
     expect((await state(page)).reviews.length).toBe(before.reviews.length + 1);
   });
@@ -234,7 +236,11 @@ test("Coleccion de origen sigue disponible al reabrir y quitar en la lista", asy
   await page.getByRole("button", { name: /Quitar de Regular:/ }).click();
   await expect(page.locator(".collection-card")).toHaveCount(0);
   expect((await state(page)).cards).toEqual(before.cards);
-  expect((await state(page)).settings.activeCardSession.items).toHaveLength(0);
+  await expect
+    .poll(
+      async () => (await state(page)).settings.activeCardSession.items.length,
+    )
+    .toBe(0);
 });
 for (const [label, mode] of [
   ["Aprender", "learn"],

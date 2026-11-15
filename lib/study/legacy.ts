@@ -20,7 +20,8 @@ export type CardType = "basic" | "choice" | "test" | "orthography" | "written";
 
 export type Rating = "again" | "hard" | "good" | "easy";
 
-export type StudyMode = "recommended" | "random" | "all" | "learn" | "weakest";
+export type StudyMode =
+  "recommended" | "random" | "all" | "learn" | "weakest" | "grades";
 
 export type ReviewQueueOutcome = "rated" | "unknown";
 
@@ -128,6 +129,24 @@ export type Card = {
 };
 
 export type Review = {
+  score?: number;
+  scoreKind?: "recall" | "reinforcement";
+  cardSessionId?: string;
+  cardSnapshot?: {
+    type: CardType;
+    folderPath: string[];
+    question: string;
+    answer: string;
+    options: string[];
+    correctOptions: number[];
+  };
+  answerEvidence?: {
+    text?: string;
+    selectedOptions?: number[];
+    objectiveCorrect?: boolean;
+    writtenCriteria?: WrittenCriterionResult[];
+    criticalMisses?: string[];
+  };
   schedulerVersion?: string;
   fsrsBefore?: ReturnType<typeof import("../../app/fsrs").fsrsSnapshot>;
   fsrsAfter?: ReturnType<typeof import("../../app/fsrs").fsrsSnapshot>;

@@ -60,7 +60,10 @@ test("2200 tarjetas y 4000 repasos: escribir no actualiza la cuenta ni recorre B
     .click();
   await expect(page.locator(".written-result-summary")).toContainText("100%");
   await page
-    .getByRole("button", { name: "Guardar y continuar", exact: true })
+    .getByRole("button", {
+      name: /^(Guardar y continuar|Nota 7)$/,
+      exact: true,
+    })
     .click();
   await expect(page.locator(".session-result-v12")).toBeVisible();
   expect((await state(page)).reviews).toHaveLength(4001);
@@ -97,12 +100,18 @@ test("Un fallo al guardar la valoración conserva respuesta y permite reintentar
   await expect(page.locator(".written-result-summary")).toContainText("100%");
   await page.evaluate(() => (window as any).__opogcQA.failReviewSaveOnce());
   await page
-    .getByRole("button", { name: "Guardar y continuar", exact: true })
+    .getByRole("button", {
+      name: /^(Guardar y continuar|Nota 7)$/,
+      exact: true,
+    })
     .click();
   await expect(page.getByText(/Fallo de valoración simulado/)).toBeVisible();
   expect((await state(page)).reviews).toHaveLength(0);
   await page
-    .getByRole("button", { name: "Guardar y continuar", exact: true })
+    .getByRole("button", {
+      name: /^(Guardar y continuar|Nota 7)$/,
+      exact: true,
+    })
     .click();
   await expect(page.locator(".session-result-v12")).toBeVisible();
   expect((await state(page)).reviews).toHaveLength(1);

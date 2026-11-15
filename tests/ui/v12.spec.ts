@@ -19,13 +19,30 @@ async function more(page: Page, label: RegExp) {
     .locator(".ux-bottom-nav")
     .getByRole("button", { name: "Más", exact: true })
     .click();
-  await page.getByRole("button", { name: label }).click();
+  await page
+    .getByRole("button", {
+      name: label,
+    })
+    .click();
 }
 async function grade(page: Page, label: string) {
   await page
     .getByRole("button", { name: "Mostrar respuesta", exact: true })
     .click();
-  await page.getByRole("button", { name: label, exact: true }).click();
+  await page
+    .getByRole("button", {
+      name:
+        (
+          {
+            Bien: "Nota 7",
+            Fácil: "Nota 9",
+            "Otra vez": "Nota 2",
+            Difícil: "Nota 5",
+          } as Record<string, string>
+        )[label] ?? label,
+      exact: true,
+    })
+    .click();
 }
 async function noTextFocus(page: Page) {
   expect(

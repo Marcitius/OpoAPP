@@ -1,26 +1,27 @@
-OpoGC v14.3 - IMAGENES EN MATERIAL
+OpoGC v15 - NOTAS E INFORME DIARIO
 
-PARCHE SOBRE v14.2.1. No es el proyecto completo.
+PARCHE SOBRE v14.3. No es el proyecto completo.
 
 1. Descomprime el ZIP y abre actualizar.
-2. Sube TODO EL CONTENIDO de actualizar a la raiz de tu repositorio,
-   conservando rutas y sustituyendo los archivos existentes.
-   No subas otra carpeta llamada actualizar.
+2. Sube TODO SU CONTENIDO a la raiz del repositorio de v14.3,
+   conservando rutas y sustituyendo archivos.
+   No subas una carpeta adicional llamada actualizar.
 3. Incluye juntos package.json y package-lock.json.
-4. Cloudflare Pages: npm run build; carpeta de salida out.
-5. Conserva las variables de Supabase. No ejecutes SQL ni crees otro bucket.
-6. Actualiza la PWA en TODOS tus dispositivos antes de editar imagenes.
+4. Cloudflare Pages: npm run build; directorio de salida out.
+5. Conserva las variables actuales de Supabase. No ejecutes SQL.
+6. Actualiza la PWA en todos tus dispositivos.
 
-USO
-Material de estudio > abrir apartado > situar cursor > Imagen.
-Se pueden seleccionar varios archivos, pegar capturas o arrastrar imagenes.
-Pulsa una imagen para cambiar tamano/alineacion, descripcion o quitarla.
-Deshacer permite recuperarla si la quitas.
+NOVEDADES
+- Tarjetas: notas 1 a 10; desde 5, no vuelve en esa sesion.
+- Biblioteca y Estudiar seleccion: filtros por nota y Peor nota primero.
+- Media de recuerdo: no incluye refuerzos inmediatos. Para un nuevo
+  recuerdo deben pasar 12 horas sin practicar esa tarjeta.
+- Progreso > Informe diario para ChatGPT > Exportar para ChatGPT.
+- Sesiones guardadas: finalizar una, varias seleccionadas o todas.
 
-PNG, JPEG, WebP y GIF; maximo 50 MB por archivo.
-Hace falta conexion para subir. Las imagenes cacheadas se pueden ver offline.
-La copia portatil incluye los archivos; Exportar HTML los integra en el HTML.
+No hay dependencias nuevas, archivos que borrar ni migraciones.
+Se conserva el historial anterior sin inventar notas numericas.
 
-Sin dependencias nuevas ni archivos que borrar.
-Detalles: actualizar/docs/IMAGENES-MATERIAL-V14.3.md
-Pruebas: actualizar/docs/RESULTADOS-V14.3.json
+Detalles: actualizar/docs/NOTAS-INFORME-V15.md
+Pruebas: actualizar/docs/RESULTADOS-V15.json
+Lista completa: ARCHIVOS-DEL-PARCHE.json

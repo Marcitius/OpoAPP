@@ -1,3 +1,15 @@
+# v15.0.0 — Notas e informe diario
+
+- Notas 1–10 con aprobación desde 5 y refuerzos intercalados priorizados por menor nota. Aprobadas fuera de la cola de esa sesión.
+- Media y última nota de recuerdo calculadas desde registros persistidos; refuerzos separados mediante una pausa mínima de 12 h. Sin convertir las valoraciones antiguas ni cambiar FSRS.
+- Filtros por media/última nota, suspendidas, intervalo y sin nota en Biblioteca y en las opciones de selección; nuevo modo Peor nota primero. Modos existentes conservados.
+- Informe diario JSON para ChatGPT, con respuestas/contexto del intento, refuerzos, resultados de temario/psicotécnicos y planificación opcional. Fechas por zona horaria y registros offline originales.
+- Finalización individual, selección múltiple o todas las sesiones con confirmación; resumen de cierres y pendientes conservado.
+- Pruebas deterministas nuevas de notas, sesiones, media, límites diarios/DST, persistencia y exportación; regresiones UI adaptadas a los controles numéricos.
+- Sin dependencias ni migraciones SQL. Auth, sincronización, RLS, Storage, FSRS, editor de Material y transporte offline se reutilizan.
+
+---
+
 # CHANGELOG — OpoGC
 
 ## 14.3.0 · 29 de octubre de 2026 — Imágenes en Material

@@ -1,3 +1,4 @@
+import { validScore } from "./grades";
 import { legacyNextSessionCard, legacyAnswerSession } from "./orthographyQueue";
 import type {
   Card,
@@ -9,6 +10,8 @@ import type {
 } from "../study/legacy";
 
 export interface SessionItem {
+  lastScore?: number;
+  priorityScore?: number;
   id: string;
   attempts: number;
   failures: number;
@@ -33,6 +36,7 @@ export interface SessionPresentation {
   orthographySelected: string[];
 }
 export interface CardSession {
+  grading?: "scores-v1";
   version: 1;
   id: string;
   mode: StudyMode;
@@ -46,7 +50,12 @@ export interface CardSession {
   turn: number;
   lastId?: string;
   items: SessionItem[];
-  history: { cardId: string; rating: Rating; reviewId: string }[];
+  history: {
+    cardId: string;
+    rating: Rating;
+    reviewId: string;
+    score?: number;
+  }[];
   studyTaskId?: string;
   sourceNodeId?: string;
   sourceCollectionId?: string;
@@ -144,6 +153,9 @@ export function nextSessionCard(
     })
     .sort(
       (a, b) =>
+        (s.grading === "scores-v1"
+          ? (a.lastScore ?? 4) - (b.lastScore ?? 4)
+          : 0) ||
         (a.lastStep ?? 0) - (b.lastStep ?? 0) ||
         s.items.indexOf(a) - s.items.indexOf(b),
     );
@@ -164,7 +176,10 @@ export function answerSession(
   rating: Rating,
   reviewId: string,
   now: number,
+  score?: number,
 ): CardSession {
+  if (score !== undefined && !validScore(score))
+    throw new Error("Nota inválida");
   if (session.history.some((r) => r.reviewId === reviewId)) return session;
   if (session.format === "orthography")
     return legacyAnswerSession(session, card, rating, reviewId, now);
@@ -172,10 +187,13 @@ export function answerSession(
     item = s.items.find((i) => i.id === card.id);
   if (!item || !["new", "reinforce"].includes(item.status)) return session;
   const attempts = item.attempts + 1;
-  const remembered = rating === "good" || rating === "easy";
+  const graded = validScore(score);
+  const remembered = graded
+    ? score >= 5
+    : rating === "good" || rating === "easy";
   const status: SessionItem["status"] = remembered
     ? "remembered"
-    : (rating === "hard" ? attempts >= 2 : attempts >= 3)
+    : !graded && (rating === "hard" ? attempts >= 2 : attempts >= 3)
       ? "weak"
       : "reinforce";
   const trail = [...(s.trail ?? []), card.id];
@@ -191,13 +209,17 @@ export function answerSession(
     : undefined;
   return {
     ...s,
+    ...(graded ? { grading: "scores-v1" as const } : {}),
     turn: s.turn + 1,
     lastId: card.id,
     trail,
     ...(presentation ? { presentation } : {}),
     ...(item.attempts > 0 ? { lastReinforcementStep: trail.length } : {}),
     updatedAt: new Date(now).toISOString(),
-    history: [...s.history, { cardId: card.id, rating, reviewId }],
+    history: [
+      ...s.history,
+      { cardId: card.id, rating, reviewId, ...(graded ? { score } : {}) },
+    ],
     items: s.items.map((i) =>
       i.id === card.id
         ? {
@@ -207,10 +229,11 @@ export function answerSession(
             failures: i.failures + Number(rating === "again"),
             remembered: i.remembered + Number(remembered),
             lastRating: rating,
+            ...(graded ? { lastScore: score } : {}),
             lastTurn: s.turn + 1,
             lastStep: trail.length,
             eligibleAt: now,
-            gap: Math.min(8, Math.max(1, s.items.length - 1)),
+            gap: Math.min(graded ? 3 : 8, Math.max(1, s.items.length - 1)),
             status,
           }
         : i,
@@ -281,5 +304,35 @@ export function skipSessionCard(
     items: session.items.map((i) =>
       i.id === id ? { ...i, seen: true, status: "skipped" } : i,
     ),
+  };
+}
+
+// An explicit extra round resets separation only, never ratings, attempts or
+// progress. This also makes a single remaining card reachable by user choice.
+export function retryPendingSession(
+  session: CardSession,
+  now: number,
+): CardSession {
+  return {
+    ...session,
+    turn: session.turn + 1,
+    grading: "scores-v1",
+    updatedAt: new Date(now).toISOString(),
+    trail: [],
+    lastReinforcementStep: undefined,
+    presentation: undefined,
+    items: session.items
+      .map((i) =>
+        i.status === "weak" ||
+        i.status === "reinforce" ||
+        i.status === "skipped"
+          ? { ...i, status: "reinforce" as const, gap: 0, lastStep: 0 }
+          : i,
+      )
+      .sort(
+        (a, b) =>
+          (a.lastScore ?? a.priorityScore ?? 11) -
+          (b.lastScore ?? b.priorityScore ?? 11),
+      ),
   };
 }

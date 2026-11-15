@@ -102,6 +102,7 @@ import {
   createCardSession,
   nextSessionCard,
   answerSession,
+  retryPendingSession,
   sessionSummary,
   skipSessionCard,
   validSession,
@@ -184,6 +185,7 @@ import {
   savedCardSessions,
   storeCardSession,
   closeCardSession,
+  closeCardSessions,
   saveSessionPresentation,
   restoredPresentation,
 } from "../lib/memory/checkpoint";
@@ -191,6 +193,15 @@ import { shareJson, orderedDueCards } from "../lib/memory/performance";
 import { readReviewDraft } from "../lib/memory/draft";
 import useSessionCheckpoint from "../components/review/useSessionCheckpoint";
 import StudyBackground from "../components/review/StudyBackground";
+import {
+  gradeIndex,
+  scoreKind,
+  scoreRating,
+  orderByGrade,
+  type GradeFilter,
+} from "../lib/memory/grades";
+import { snapshotCard } from "../lib/reports/daily";
+import DailyReport from "../components/progress/DailyReport";
 import SavedSessions from "../components/review/SavedSessions";
 import BottomSheet from "../components/sheets/BottomSheet";
 export default function OpoApp() {
@@ -1088,6 +1099,10 @@ export default function OpoApp() {
       ) ?? [],
     [state?.reviews, localDateKey()],
   );
+  const grades = useMemo(
+    () => gradeIndex(state?.reviews ?? []),
+    [state?.reviews],
+  );
   const savedSessions = state ? savedCardSessions(state.settings) : [];
   const savedCardSession = state
     ? sessionOpen && displayedSessionRef.current
@@ -1273,6 +1288,49 @@ export default function OpoApp() {
     presentationKeyRef.current = "";
     setFinishPrompt(null);
     return true;
+  }
+  async function finishManyCardSessions(ids: string[]) {
+    if (reviewBusyRef.current) return false;
+    reviewBusyRef.current = true;
+    setReviewSaving(true);
+    const saved = await updateState((s) =>
+      closeCardSessions(s, ids, Date.now()),
+    );
+    reviewBusyRef.current = false;
+    setReviewSaving(false);
+    if (
+      saved &&
+      displayedSessionRef.current &&
+      ids.includes(displayedSessionRef.current)
+    ) {
+      setSessionOpen(false);
+      setOrthographySession(null);
+      displayQueue([], 0);
+      displayedSessionRef.current = null;
+      presentationKeyRef.current = "";
+    }
+    return saved;
+  }
+  async function retrySessionPending() {
+    if (reviewBusyRef.current) return;
+    const session = displayedCardSession(stateRef.current);
+    if (!session) return;
+    reviewBusyRef.current = true;
+    setReviewSaving(true);
+    const next = retryPendingSession(session, Date.now());
+    displayedTurnRef.current = next.turn;
+    presentationKeyRef.current = "";
+    const saved = await updateState((s) => ({
+      ...s,
+      settings: storeCardSession(s.settings, next),
+    }));
+    reviewBusyRef.current = false;
+    setReviewSaving(false);
+    if (saved) {
+      displayQueue([], 0);
+      presentationKeyRef.current = "";
+      showSessionNext(next, stateRef.current!.cards);
+    }
   }
   function matchesDisplayed(session: CardSession) {
     if (
@@ -1627,6 +1685,7 @@ export default function OpoApp() {
     studyTaskId?: string,
     sourceNodeId?: string,
     sourceCollectionId?: string,
+    scoreMetric: GradeFilter["metric"] = "average",
   ) {
     const current = stateRef.current;
     if (!current || reviewBusyRef.current) return;
@@ -1682,6 +1741,8 @@ export default function OpoApp() {
         );
       pool = interleaveNewCards([...learning, ...ordinary, ...fresh]);
     }
+    if (mode === "grades" || mode === "learn" || mode === "recommended")
+      pool = orderByGrade(pool, gradeIndex(current.reviews), scoreMetric);
     if (!pool.length)
       return notify(
         mode === "weakest"
@@ -1690,6 +1751,7 @@ export default function OpoApp() {
       );
     const session = {
       ...createCardSession(pool, mode, uid(), +now),
+      grading: "scores-v1" as const,
       label: sourceCollectionId
         ? reviewCollections(current.settings).find(
             (c) => c.id === sourceCollectionId,
@@ -1853,18 +1915,18 @@ export default function OpoApp() {
     const zeroResult = isWrittenCard(currentCard)
       ? zeroWrittenAnswerResult(currentCard)
       : null;
-    recordCurrentReview("again", zeroResult, false, "unknown");
+    recordCurrentReview(1, zeroResult, false, "unknown");
   }
 
   function rateCurrent(
-    rating: Rating,
+    score: number,
     writtenEvaluation?: WrittenAnswerResult | null,
   ) {
-    recordCurrentReview(rating, writtenEvaluation, true, "rated");
+    recordCurrentReview(score, writtenEvaluation, true, "rated");
   }
 
   async function recordCurrentReview(
-    rating: Rating,
+    requestedScore: number,
     writtenEvaluation: WrittenAnswerResult | null | undefined,
     advance: boolean,
     outcome: ReviewQueueOutcome,
@@ -1887,11 +1949,13 @@ export default function OpoApp() {
     reviewBusyRef.current = true;
     setReviewSaving(true);
     const now = new Date();
-    const effective: Rating =
+    const score =
       isMultipleChoiceCard(card) && !currentSelectionIsCorrect(card)
-        ? "again"
-        : rating;
-    const reinforcement = item.attempts > 0;
+        ? Math.min(4, requestedScore)
+        : requestedScore;
+    const effective = scoreRating(score);
+    const kind = scoreKind(card, gradeIndex(current.reviews), +now);
+    const reinforcement = kind === "reinforcement";
     const scheduled = applyFsrsReview(card, effective, now, reinforcement);
     const updated =
       writtenEvaluation && isWrittenCard(card)
@@ -1901,6 +1965,29 @@ export default function OpoApp() {
       id: uid(),
       cardId: card.id,
       rating: effective,
+      score,
+      scoreKind: kind,
+      cardSessionId: session.id,
+      cardSnapshot: snapshotCard(current, card),
+      answerEvidence: {
+        ...(isWrittenCard(card)
+          ? {
+              text: reviewInput.current.writtenAnswer,
+              writtenCriteria: writtenEvaluation?.criteria,
+              criticalMisses: writtenEvaluation?.criticalMisses,
+            }
+          : {}),
+        ...(isMultipleChoiceCard(card)
+          ? {
+              selectedOptions: isMultipleAnswerTest(card)
+                ? [...reviewInput.current.selectedOptions]
+                : reviewInput.current.selectedOption === null
+                  ? []
+                  : [reviewInput.current.selectedOption],
+              objectiveCorrect: currentSelectionIsCorrect(card),
+            }
+          : {}),
+      },
       correct: effective !== "again",
       accuracy: outcome === "unknown" ? 0 : writtenEvaluation?.accuracy,
       reviewedAt: now.toISOString(),
@@ -1924,6 +2011,7 @@ export default function OpoApp() {
       effective,
       review.id,
       +now,
+      score,
     );
     const completedQueue = reviewQueue.map((q, i) =>
       i === reviewIndex ? { ...q, completed: true, outcome } : q,
@@ -2529,6 +2617,7 @@ export default function OpoApp() {
                 sessions={savedSessions}
                 onResume={resumeCardSession}
                 onFinish={setFinishPrompt}
+                onFinishMany={finishManyCardSessions}
               />
             )}
           {tab === "today" && (
@@ -3407,6 +3496,7 @@ export default function OpoApp() {
 
           {tab === "progress" && (
             <>
+              <DailyReport state={state} />
               <ContentScope
                 state={state}
                 folders={progressFolderIds}
@@ -3620,6 +3710,7 @@ export default function OpoApp() {
             weakCount={cardSessionSummary?.weak ?? 0}
             onFinish={() => setFinishPrompt(savedCardSession?.id ?? null)}
             total={cardSessionSummary?.total ?? 1}
+            passedCount={cardSessionSummary?.remembered ?? 0}
             continuous={false}
             busy={reviewSaving}
             canGoBack={reviewIndex > 0}
@@ -3653,6 +3744,13 @@ export default function OpoApp() {
             }}
             onCheckWritten={submitWrittenAnswer}
             onRate={rateCurrent}
+            averageScore={grades.get(currentCard.id)?.average ?? null}
+            latestScore={grades.get(currentCard.id)?.latestRecall ?? null}
+            gradeHint={
+              scoreKind(currentCard, grades, Date.now()) === "recall"
+                ? "Este primer intento contará para tu nota media de recuerdo."
+                : "Refuerzo: esta nota no modifica tu media de recuerdo."
+            }
             onNext={goToNextCard}
             onPrevious={goToPreviousCard}
             onUnknown={markCurrentUnknown}
@@ -3709,6 +3807,8 @@ export default function OpoApp() {
         reviewIndex >= reviewQueue.length &&
         sessionNext.kind !== "card" && (
           <SessionStatus
+            busy={reviewSaving}
+            onRetry={retrySessionPending}
             session={savedCardSession}
             readyAt={
               sessionNext.kind === "waiting" ? sessionNext.readyAt : undefined
@@ -3758,8 +3858,9 @@ export default function OpoApp() {
       {modeSelection && (
         <StudyModeSheet
           cards={state.cards.filter((c) => modeSelection.ids.includes(c.id))}
+          reviews={state.reviews}
           onClose={() => setModeSelection(null)}
-          onStart={(mode, ids) => {
+          onStart={(mode, ids, metric) => {
             const source = modeSelection.sourceCollectionId;
             setModeSelection(null);
             void startReview(
@@ -3769,6 +3870,7 @@ export default function OpoApp() {
               undefined,
               undefined,
               source,
+              metric,
             );
           }}
         />

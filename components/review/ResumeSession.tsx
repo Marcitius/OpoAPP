@@ -42,6 +42,7 @@ export default function ResumeSession({
                 learn: "Aprender",
                 random: "Aleatorio",
                 weakest: "Más falladas",
+                grades: "Peor nota primero",
               } as Record<string, string>
             )[session.mode] ?? "Repaso"}
             {summary.weak > 0 ? ` · ${summary.weak} por reforzar` : ""}

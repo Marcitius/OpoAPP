@@ -1,6 +1,7 @@
 import type { AppState } from "../study/legacy";
 import {
   validSession,
+  sessionSummary,
   upgradeCardSession,
   type CardSession,
   type SessionPresentation,
@@ -77,10 +78,24 @@ export function closeCardSession(
   id: string,
   now: number,
 ): AppState {
+  const session = cardSessionById(state.settings, id);
+  if (!session) return state;
   return {
     ...state,
     settings: {
       ...state.settings,
+      ["finishedCardSession:" + id]: {
+        version: 1,
+        id,
+        label: session.label ?? "Mis tarjetas",
+        mode: session.mode,
+        createdAt: session.createdAt,
+        finishedAt: new Date(now).toISOString(),
+        summary: sessionSummary(session),
+        pendingCardIds: session.items
+          .filter((i) => i.status !== "remembered")
+          .map((i) => i.id),
+      },
       [closedSessionKey(id)]: new Date(now).toISOString(),
       ...(state.settings[cardSessionKey(id)]
         ? { [cardSessionKey(id)]: null }
@@ -156,4 +171,15 @@ export function restoredPresentation(
   const index =
     p.index < p.queue.length ? queue.indexOf(p.queue[p.index]) : queue.length;
   return { ...p, queue, index };
+}
+
+export function closeCardSessions(
+  state: AppState,
+  ids: string[],
+  now: number,
+): AppState {
+  return [...new Set(ids)].reduce(
+    (current, id) => closeCardSession(current, id, now),
+    state,
+  );
 }

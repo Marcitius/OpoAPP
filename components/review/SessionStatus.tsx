@@ -7,30 +7,38 @@ export default function SessionStatus({
   now,
   onClose,
   onFinish,
+  onRetry,
+  busy,
 }: {
   session: CardSession;
   readyAt?: number;
   now: number;
   onClose: () => void;
   onFinish: () => void;
+  onRetry?: () => void;
+  busy?: boolean;
 }) {
   const summary = sessionSummary(session),
     seconds = Math.max(1, Math.ceil(((readyAt ?? now) - now) / 1000));
   return (
     <div className="review-overlay immersion session-result-v12">
       <header className="immersion-header">
-        <button className="exit-session" onClick={onClose}>
+        <button disabled={busy} className="exit-session" onClick={onClose}>
           <Icon name="back" size={20} />
           Salir
         </button>
-        <small>Progreso guardado</small>
+        <small>{busy ? "Guardando…" : "Progreso guardado"}</small>
       </header>
       <div className="session-result-content">
         <span className="completion-mark">
           <Icon name={readyAt ? "review" : "check"} size={34} />
         </span>
         <span className="ux-label">
-          {readyAt ? "DALE UN POCO DE ESPACIO" : "VUELTA COMPLETADA"}
+          {readyAt
+            ? "DALE UN POCO DE ESPACIO"
+            : summary.weak + summary.skipped > 0
+              ? "VUELTA TERMINADA · QUEDAN PENDIENTES"
+              : "VUELTA COMPLETADA"}
         </span>
         <h2>
           {readyAt ? "El refuerzo está preparado." : "Un paso más cerca."}
@@ -62,7 +70,11 @@ export default function SessionStatus({
               Próxima tarjeta en{" "}
               {seconds < 60 ? `${seconds} s` : `${Math.ceil(seconds / 60)} min`}
             </p>
-            <button className="primary-button full" onClick={onClose}>
+            <button
+              disabled={busy}
+              className="primary-button full"
+              onClick={onClose}
+            >
               Salir y continuar después
             </button>
             <small>
@@ -71,10 +83,27 @@ export default function SessionStatus({
           </>
         ) : (
           <>
-            <button className="primary-button full" onClick={onFinish}>
+            {onRetry && summary.weak + summary.skipped > 0 && (
+              <button
+                disabled={busy}
+                className="primary-button full"
+                onClick={onRetry}
+              >
+                Volver a intentar pendientes
+              </button>
+            )}
+            <button
+              disabled={busy}
+              className="primary-button full"
+              onClick={onFinish}
+            >
               Finalizar sesión
             </button>
-            <button className="secondary-button full" onClick={onClose}>
+            <button
+              disabled={busy}
+              className="secondary-button full"
+              onClick={onClose}
+            >
               Salir y conservar sesión
             </button>
             <small>

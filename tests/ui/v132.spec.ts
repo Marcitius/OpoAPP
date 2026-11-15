@@ -24,7 +24,20 @@ async function grade(page: Page, label: string) {
   await page
     .getByRole("button", { name: "Mostrar respuesta", exact: true })
     .click();
-  await page.getByRole("button", { name: label, exact: true }).click();
+  await page
+    .getByRole("button", {
+      name:
+        (
+          {
+            Bien: "Nota 7",
+            Fácil: "Nota 9",
+            "Otra vez": "Nota 2",
+            Difícil: "Nota 5",
+          } as Record<string, string>
+        )[label] ?? label,
+      exact: true,
+    })
+    .click();
 }
 async function libraryCard(page: Page, query: string) {
   await nav(page, "Biblioteca");
@@ -78,7 +91,7 @@ test("69 seleccionadas: una pausa larga no devuelve Bien ni bloquea las nuevas",
     .click();
   await grade(page, "Otra vez");
   await page.clock.fastForward(300000);
-  for (let i = 2; i <= 9; i++) {
+  for (let i = 2; i <= 4; i++) {
     await expect(page.locator(".review-prompt")).toHaveText(
       "Repaso consecutivo " + i,
     );
@@ -88,10 +101,10 @@ test("69 seleccionadas: una pausa larga no devuelve Bien ni bloquea las nuevas",
     "Repaso consecutivo 1",
   );
   await expect(page.locator(".immersion-header")).toContainText(
-    "9 / 69 vistas",
+    "3 / 69 aprobadas · 4 vistas",
   );
   await grade(page, "Bien");
-  for (let i = 10; i <= 69; i++) {
+  for (let i = 5; i <= 69; i++) {
     await expect(page.locator(".review-prompt")).toHaveText(
       "Repaso consecutivo " + i,
     );
@@ -141,7 +154,9 @@ test("Salir conserva tarjeta y cara; recargar y continuar desde Biblioteca no re
   await expect(page.locator(".review-answer-text")).toBeVisible();
   await noKeyboard(page);
   expect((await state(page)).reviews).toEqual(before.reviews);
-  await page.getByRole("button", { name: "Bien", exact: true }).click();
+  await page
+    .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+    .click();
   await expect(page.locator(".review-prompt")).toContainText(
     "Concepto de repaso 3",
   );
@@ -258,7 +273,9 @@ test("Dos dispositivos simulados: traspaso exacto y cierre remoto sin duplicar l
     await expect(b.locator(".review-prompt")).toContainText("Artículo 164");
     await expect(b.locator(".review-answer-text")).toBeVisible();
     await noKeyboard(b);
-    await b.getByRole("button", { name: "Bien", exact: true }).click();
+    await b
+      .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+      .click();
     await pause(b);
     const fromB = await state(b);
     await a.evaluate(

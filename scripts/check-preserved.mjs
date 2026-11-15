@@ -83,6 +83,9 @@ const behavior = JSON.parse(
 );
 let count = 0;
 const authorizedFunctions = new Set([
+  // v15 replaces ordinary card rating controls with numeric scores.
+  "markCurrentUnknown",
+  "rateCurrent",
   "startReview",
   "goToPreviousCard",
   "goToNextCard",
@@ -109,6 +112,13 @@ console.log(
 );
 // Material extends only asset enumeration/remapping. The authenticated file
 // transport, caching and existing portable-export body remain protected.
-const fileFunctions = JSON.parse(fs.readFileSync("docs/v14.3-file-function-fingerprints.json", "utf8"));
+const fileFunctions = JSON.parse(
+  fs.readFileSync("docs/v14.3-file-function-fingerprints.json", "utf8"),
+);
 const actualFileFunctions = functions("lib/data/files.ts");
-for (const [name, expected] of Object.entries(fileFunctions)) assert.equal(actualFileFunctions[name], expected, `lib/data/files.ts: ${name} changed outside the Material image scope`);
+for (const [name, expected] of Object.entries(fileFunctions))
+  assert.equal(
+    actualFileFunctions[name],
+    expected,
+    `lib/data/files.ts: ${name} changed outside the Material image scope`,
+  );

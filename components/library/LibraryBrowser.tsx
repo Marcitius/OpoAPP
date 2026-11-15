@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { AppState, StudyMode, CardType } from "../../lib/study/legacy";
 import {
   cardsInFolderScope,
@@ -14,6 +14,14 @@ import {
   searchText,
   scopedCards,
 } from "../../lib/study/selection";
+import GradeFilter from "../review/GradeFilter";
+import {
+  defaultGradeFilter,
+  filterByGrade,
+  gradeIndex,
+  recallTrend,
+  type GradeFilter as Filter,
+} from "../../lib/memory/grades";
 import ContentScope from "../filters/ContentScope";
 import { HierarchyPicker } from "../filters/HierarchyPicker";
 import BottomSheet from "../sheets/BottomSheet";
@@ -72,12 +80,18 @@ export default function LibraryBrowser({
       setCards([]);
     }
   }, [selectionRequest]);
+  const [gradeFilter, setGradeFilter] = useState<Filter>(defaultGradeFilter);
+  const grades = useMemo(() => gradeIndex(state.reviews), [state.reviews]);
   const current = state.folders.find((f) => f.id === parent),
     filtered =
-      !!query.trim() || type !== "all" || fs.length > 0 || ns.length > 0,
+      !!query.trim() ||
+      type !== "all" ||
+      fs.length > 0 ||
+      ns.length > 0 ||
+      gradeFilter.kind !== "all",
     scope = scopedCards(state, fs, ns),
     shownCards = filtered
-      ? scope.filter(
+      ? filterByGrade(scope, grades, gradeFilter).filter(
           (c) =>
             (type === "all" || c.type === type) &&
             searchText(
@@ -141,6 +155,10 @@ export default function LibraryBrowser({
         onFolders={setFs}
         onNodes={setNs}
       />
+      <details className="library-grade-filter">
+        <summary>Filtrar por nota</summary>
+        <GradeFilter value={gradeFilter} onChange={setGradeFilter} />
+      </details>
       <div className="library-filter-row">
         <label>
           Tipo
@@ -190,6 +208,7 @@ export default function LibraryBrowser({
               setType("all");
               setFs([]);
               setNs([]);
+              setGradeFilter(defaultGradeFilter);
             }}
           >
             Limpiar filtros
@@ -419,6 +438,12 @@ export default function LibraryBrowser({
                 </small>
                 <strong>{plainRichText(c.front) || "Tarjeta visual"}</strong>
                 <small>{plainRichText(c.back).slice(0, 140)}</small>
+                {grades.get(c.id)?.average != null && (
+                  <small>
+                    Media {grades.get(c.id)!.average!.toFixed(1)} / 10 · Última{" "}
+                    {grades.get(c.id)!.latestRecall} {recallTrend(grades, c.id)}
+                  </small>
+                )}
               </span>
             </button>
             {!select && (

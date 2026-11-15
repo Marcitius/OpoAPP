@@ -1,3 +1,45 @@
+# OpoGC v15 — Notas e informe diario
+
+Actualización sobre **v14.3** con tres cambios: valorar tarjetas del 1 al 10, exportar el estudio diario para ChatGPT y finalizar sesiones individualmente o en grupo.
+
+## Estudiar por notas
+
+Después de mostrar/comprobar la respuesta, pulsa una nota. **1–4** suspende y prepara refuerzo; **5–10** aprueba y retira la tarjeta de esa sesión. En tests incorrectos solo se permiten notas 1–4; la respuesta elegida y la corrección objetiva se conservan. En respuesta escrita se mantiene la corrección por criterios y eliges la nota de recuerdo.
+
+Las suspendidas vuelven tras otras tarjetas, con prioridad para las de menor nota. Las nuevas de la selección siguen teniendo turnos. Si falta separación porque quedan pocas tarjetas, se mantienen pendientes: puedes salir y continuar otro día, finalizar o pulsar **Volver a intentar pendientes** para otra vuelta explícita. Aprobar nunca vuelve a introducir esa tarjeta automáticamente en la misma sesión.
+
+La **media de recuerdo** utiliza únicamente evaluaciones independientes. Para contar otra nota de recuerdo deben pasar **al menos 12 horas sin practicar esa tarjeta**. Es una regla de producto para separar refuerzo y recuerdo, no un intervalo de FSRS ni una garantía de retención. Reiniciar una sesión, cambiar de dispositivo o cruzar medianoche no basta. Las notas de refuerzo se guardan, pero no elevan esa media. Los recuerdos antiguos sin nota no se convierten en números inventados.
+
+Biblioteca muestra media, última nota de recuerdo y cambio entre los dos últimos recuerdos. Puedes filtrar por suspendidas, intervalo o sin nota y seleccionar los resultados. En **Estudiar selección** hay filtros por media/última nota y un modo **Peor nota primero**. Se conservan Aprender, Aleatorio, En orden, Más falladas y Repasos pendientes. Aprender y el repaso recomendado priorizan notas bajas en sus tarjetas elegibles; Aleatorio y En orden respetan su modo. Las tarjetas sin nota tienen turnos reservados, sin tratarlas como un cero. Ortografía mantiene su flujo por errores.
+
+## Informe diario para ChatGPT
+
+Entra en **Progreso → Informe diario para ChatGPT**. Elige una fecha y pulsa **Exportar para ChatGPT**. Opcionalmente añade el contexto actual para planificar: pendientes, tarjetas débiles, planificación y sesiones abiertas. **Copiar instrucciones para ChatGPT** prepara el texto para interpretar el informe.
+
+El día va de 00:00 a 00:00 de la zona horaria del dispositivo. Los intentos se asignan por su fecha original, aunque se sincronicen después. El JSON distingue tarjetas distintas, intentos iniciales, refuerzos, respuestas de test/escritas, notas y estudio de temario/psicotécnicos registrado. Los nuevos intentos numéricos guardan una copia de pregunta, respuesta y ruta de carpeta de ese momento. Los registros antiguos usan el contenido actual si existe y lo indican. No se inventan respuestas antiguas ni tiempo activo; abrir Material por sí solo no se cuenta como estudio completado.
+
+Adjunta el JSON descargado en ChatGPT. No se integra ni contrata una API de IA. No incluye adjuntos binarios ni credenciales de la aplicación. El informe no sustituye a la copia portátil de seguridad.
+
+## Sesiones abiertas
+
+Desde **Ver las N sesiones** o **Gestionar sesión** puedes continuar o finalizar una, seleccionar varias, seleccionar todas y finalizar todas. El cierre múltiple pide confirmación, avisa de los pendientes y conserva las tarjetas, notas e historial. Guarda también un resumen del cierre para el informe diario. Finalizar no aprueba tarjetas pendientes. Los cierres se guardan offline mediante la cola existente.
+
+## Validación de esta entrega
+
+TypeScript y build correctos; **116 pruebas de lógica/datos y 121 de navegador aprobadas**, sin fallos ni pruebas omitidas en la ejecución final. Entorno local con Chromium y traspaso de dispositivos simulado; no se ha probado contra tu Supabase real ni en Safari físico.
+
+## Actualizar desde v14.3
+
+Este ZIP es **solo un parche**, no el proyecto completo. Sube el **contenido de actualizar/** a la raíz del repositorio de v14.3 conservando rutas y sustituyendo archivos. No subas otra carpeta llamada actualizar. Incluye juntos package.json y package-lock.json. No hay dependencias nuevas ni archivos que borrar. Si tu proyecto es anterior a v14.3, aplica primero los parches anteriores correspondientes.
+
+Cloudflare Pages: **npm run build**, directorio **out**. Mantén las variables existentes de Supabase. No ejecutes SQL ni crees otra base de datos o bucket. Actualiza OpoGC en todos los dispositivos para utilizar los mismos controles y reglas.
+
+Detalles técnicos y limitaciones: **docs/NOTAS-INFORME-V15.md**. Resultados ejecutados: **docs/RESULTADOS-V15.json**. La lista de archivos está en **ARCHIVOS-DEL-PARCHE.json**, en la raíz del ZIP.
+
+---
+
+Documentación de versiones anteriores:
+
 # OpoGC v14.3 — Imágenes en Material
 
 Ahora puedes insertar imágenes entre los bloques de texto de Material de estudio, sin cambiar las tarjetas ni tus documentos existentes.
