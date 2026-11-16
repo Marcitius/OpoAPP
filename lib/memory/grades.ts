@@ -77,6 +77,27 @@ export const validScore = (score: unknown): score is number =>
   Number.isFinite(score) &&
   score >= 1 &&
   score <= 10;
+// Objective tables can score 0..1; historical/manual 0 remains unscored.
+// Ordinary ratings, category values and their validation remain unchanged.
+export function validReviewScore(
+  review: Pick<Review, "score" | "scoreSource" | "answerEvidence">,
+): boolean {
+  const evidence = review.answerEvidence?.table;
+  return (
+    validScore(review.score) ||
+    (review.scoreSource === "table-objective" &&
+      typeof review.score === "number" &&
+      Number.isFinite(review.score) &&
+      review.score >= 0 &&
+      review.score < 1 &&
+      !!evidence &&
+      evidence.evaluated > 0 &&
+      evidence.correct >= 0 &&
+      evidence.correct <= evidence.evaluated &&
+      evidence.score === review.score &&
+      (10 * evidence.correct) / evidence.evaluated === review.score)
+  );
+}
 export function scoreRating(score: number): Rating {
   if (!validScore(score)) throw new Error("La nota debe estar entre 1 y 10.");
   return score < 5 ? "again" : score < 7 ? "hard" : score < 9 ? "good" : "easy";
@@ -110,8 +131,8 @@ export function gradeIndex(reviews: Review[]): GradeIndex {
       lastAttemptAt: -Infinity,
     };
     const at = Date.parse(r.reviewedAt);
-    if (validScore(r.score)) {
-      s.latest = r.score;
+    if (validReviewScore(r)) {
+      s.latest = r.score!;
       // Recompute rather than trusting v15's elapsed-time classification. This
       // also repairs old first attempts incorrectly flagged as reinforcement.
       const hasSession =
@@ -121,10 +142,10 @@ export function gradeIndex(reviews: Review[]): GradeIndex {
         : r.scoreKind === "recall";
       if (hasSession) s.recallSessions.add(r.cardSessionId!);
       if (first) {
-        s.recallScores.push(r.score);
+        s.recallScores.push(r.score!);
         s.recallIds.add(r.id);
         s.recallCount++;
-        s.latestRecall = r.score;
+        s.latestRecall = r.score!;
         s.average = s.recallScores.reduce((a, b) => a + b, 0) / s.recallCount;
       }
     }

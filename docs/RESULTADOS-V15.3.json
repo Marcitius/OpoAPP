@@ -1,0 +1,1242 @@
+{
+  "version": "15.3.0",
+  "baseVersion": "15.2.0",
+  "generatedAt": "2026-11-16T17:42:28.291685+00:00",
+  "commands": {
+    "typecheck": {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    "unit": {
+      "command": "npm test",
+      "exitCode": 0,
+      "passed": 154,
+      "failed": 0,
+      "skipped": 0,
+      "newTableCases": 23,
+      "groups": [
+        7,
+        9,
+        12,
+        7,
+        11,
+        5,
+        13,
+        4,
+        10,
+        7,
+        6,
+        4,
+        27,
+        9,
+        23
+      ]
+    },
+    "build": {
+      "command": "npm run build",
+      "exitCode": 0,
+      "output": "out"
+    },
+    "browser": {
+      "command": "CHROMIUM_EXECUTABLE=/tmp/opogc-v153-chromium npm run test:ui -- --workers=2 --max-failures=1",
+      "exitCode": 0,
+      "browser": "Chromium 138 headless",
+      "newTableCases": 23,
+      "stats": {
+        "startTime": "2026-11-16T17:38:46.212Z",
+        "duration": 210826.74300000002,
+        "expected": 164,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "results": [
+        {
+          "file": "card-editor-cache.spec.ts",
+          "title": "Producción: el editor se carga bajo demanda y su código está disponible offline en la PWA",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1026
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Tarjetas 360x800: crear, pegar, guardar, reabrir y estudiar con formato",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2784
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Tarjetas 390x844: crear, pegar, guardar, reabrir y estudiar con formato",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2665
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Tarjetas 430x932: crear, pegar, guardar, reabrir y estudiar con formato",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2067
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Tarjetas 768x1024: crear, pegar, guardar, reabrir y estudiar con formato",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2117
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Tarjetas 1024x768: crear, pegar, guardar, reabrir y estudiar con formato",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2282
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Tarjetas 1366x768: crear, pegar, guardar, reabrir y estudiar con formato",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2519
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Tarjetas 1920x1080: crear, pegar, guardar, reabrir y estudiar con formato",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2138
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "La barra aplica títulos, listas, énfasis, subrayado, colores, sangría, tablas y deshacer sin enviar el formulario",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2113
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Controles táctiles: formato sin teclado automático y listas anidadas editables",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1866
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "El pegado HTML conserva celdas combinadas, fuente y listas alfabéticas; un fragmento subrayado mantiene su estilo",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1740
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Cursor estable: retroceso y saltos de línea en ambas caras 390",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1691
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Cursor estable: retroceso y saltos de línea en ambas caras 1366",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1647
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Hojas de Markdown y enlaces no abren el teclado, y pegar no guarda ni cierra la tarjeta",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1919
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Edición offline en repaso guarda formato sin cambiar notas, historial, sesión ni adjuntos; copia portable conserva el HTML",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2027
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Editar contenido con formato conserva el comportamiento de choice",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1177
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Editar contenido con formato conserva el comportamiento de test",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1134
+        },
+        {
+          "file": "card-editor.spec.ts",
+          "title": "Editar contenido con formato conserva el comportamiento de written",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1332
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Cuatro grupos: Suficiente aprueba, no reaparece y se conserva al reabrir 360",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1519
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Cuatro grupos: Suficiente aprueba, no reaparece y se conserva al reabrir 390",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1548
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Cuatro grupos: Suficiente aprueba, no reaparece y se conserva al reabrir 430",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1166
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Cuatro grupos: Suficiente aprueba, no reaparece y se conserva al reabrir 768",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1081
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Cuatro grupos: Suficiente aprueba, no reaparece y se conserva al reabrir 1024",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1385
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Cuatro grupos: Suficiente aprueba, no reaparece y se conserva al reabrir 1366",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1231
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Cuatro grupos: Suficiente aprueba, no reaparece y se conserva al reabrir 1920",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1175
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Un fallo se puede reforzar explícitamente sin inflar la media ni crear notas al continuar",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2035
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Un test incorrecto registra selección y no permite aprobar por una nota alta",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1025
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Respuesta escrita conserva texto y rúbrica junto a la nota elegida",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 993
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Filtrar por media selecciona solo suspendidas y conserva Aprender, Aleatorio y el modo por nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1613
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Informe con contexto incluye pendientes y sesión abierta; fecha vacía de actividad no inventa resultados",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1057
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Finalizar varias seleccionadas, cancelar y finalizar todas conserva historial y cierres tras recarga",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2538
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Cierre múltiple offline y recepción en otro dispositivo conservan notas e informe sin duplicados",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3067
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "v15: 6 y 5 recuperan media 5,5; una sesión nueva baja la media y adelanta la tarjeta",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2238
+        },
+        {
+          "file": "grades-report.spec.ts",
+          "title": "Biblioteca agrupa las medias decimales en Suspendida, Suficiente, Notable y Sobresaliente",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 603
+        },
+        {
+          "file": "material-cursor.spec.ts",
+          "title": "Escritura y autoguardado no reconfiguran ni reemplazan el editor",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2796
+        },
+        {
+          "file": "material-cursor.spec.ts",
+          "title": "Retroceso en mitad de un párrafo y Enter/Shift+Enter 390",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1980
+        },
+        {
+          "file": "material-cursor.spec.ts",
+          "title": "Retroceso en mitad de un párrafo y Enter/Shift+Enter 1366",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2561
+        },
+        {
+          "file": "material-cursor.spec.ts",
+          "title": "Borrar junto a negrita, en lista y en celda mantiene posición y formato",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1907
+        },
+        {
+          "file": "material-cursor.spec.ts",
+          "title": "Deshacer y rehacer después de autoguardar conserva el texto y se puede reabrir",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2814
+        },
+        {
+          "file": "material-cursor.spec.ts",
+          "title": "Un guardado pendiente no roba foco ni permite cerrar con Escape; después vuelve a permitirlo",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 4807
+        },
+        {
+          "file": "material-images.spec.ts",
+          "title": "Imagen privada: insertar, editar tamaño y reabrir 390",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1783
+        },
+        {
+          "file": "material-images.spec.ts",
+          "title": "Imagen privada: insertar, editar tamaño y reabrir 768",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1881
+        },
+        {
+          "file": "material-images.spec.ts",
+          "title": "Imagen privada: insertar, editar tamaño y reabrir 1366",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2214
+        },
+        {
+          "file": "material-images.spec.ts",
+          "title": "Pegar captura y arrastrar archivo insertan imágenes sin escribir URLs temporales",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2348
+        },
+        {
+          "file": "material-images.spec.ts",
+          "title": "Descripción, quitar y deshacer conservan la imagen y el teclado no se abre al mostrar opciones",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2495
+        },
+        {
+          "file": "material-images.spec.ts",
+          "title": "Exportar HTML incluye los bytes y la imagen guardada se puede reabrir offline",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1648
+        },
+        {
+          "file": "material-images.spec.ts",
+          "title": "SVG se rechaza sin modificar el contenido y se pueden insertar dos archivos juntos",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1755
+        },
+        {
+          "file": "material-images.spec.ts",
+          "title": "Escribir durante la subida mantiene el texto y la posición de inserción",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2132
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Material 360x800: crear, Markdown, lectura, cierre y recarga",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3587
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Material 390x844: crear, Markdown, lectura, cierre y recarga",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2901
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Material 430x932: crear, Markdown, lectura, cierre y recarga",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3413
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Material 768x1024: crear, Markdown, lectura, cierre y recarga",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2736
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Material 1024x768: crear, Markdown, lectura, cierre y recarga",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3346
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Material 1366x768: crear, Markdown, lectura, cierre y recarga",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3392
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Material 1920x1080: crear, Markdown, lectura, cierre y recarga",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3659
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Formato real: negrita, color, fuente, tamaño, tablas, sangría y deshacer",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2478
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Copiar Biblioteca conserva tarjetas e IDs y permite organizar ramas de material",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3039
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Pegado HTML conserva formato y exporta; guardado offline permite reabrir",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2495
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Conflicto remoto conserva ambas versiones con guardar como copia",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2227
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Documento guardado se abre con el formato en otro dispositivo simulado",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2453
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Recarga brusca recupera un borrador local antes del autoguardado",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2514
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Borrador de un apartado eliminado remotamente se recupera como nuevo documento",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1720
+        },
+        {
+          "file": "material.spec.ts",
+          "title": "Un fallo de guardado conserva el texto local y permite reintentar",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2209
+        },
+        {
+          "file": "multi-session.spec.ts",
+          "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 360x800",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2935
+        },
+        {
+          "file": "multi-session.spec.ts",
+          "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 390x844",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3005
+        },
+        {
+          "file": "multi-session.spec.ts",
+          "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 430x932",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2732
+        },
+        {
+          "file": "multi-session.spec.ts",
+          "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 768x1024",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2595
+        },
+        {
+          "file": "multi-session.spec.ts",
+          "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 1024x768",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3111
+        },
+        {
+          "file": "multi-session.spec.ts",
+          "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 1366x768",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3003
+        },
+        {
+          "file": "multi-session.spec.ts",
+          "title": "Varias sesiones: crear, retomar, cerrar una y conservar otra 1920x1080",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2903
+        },
+        {
+          "file": "multi-session.spec.ts",
+          "title": "Dos sesiones offline conservan progreso y borrador después de reabrir",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1978
+        },
+        {
+          "file": "multi-session.spec.ts",
+          "title": "Dos dispositivos simulados: trabajar en otra sesión no interrumpe la abierta; cerrar una no cierra otra",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2915
+        },
+        {
+          "file": "performance.spec.ts",
+          "title": "2200 tarjetas y 4000 repasos: escribir no actualiza la cuenta ni recorre Biblioteca",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 5684
+        },
+        {
+          "file": "performance.spec.ts",
+          "title": "Recarga antes del checkpoint global recupera el último borrador local",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 865
+        },
+        {
+          "file": "performance.spec.ts",
+          "title": "Un fallo al guardar la valoración conserva respuesta y permite reintentar sin duplicar historial",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 4099
+        },
+        {
+          "file": "performance.spec.ts",
+          "title": "Elegir varias opciones y comprobar de inmediato utiliza la selección actual",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1044
+        },
+        {
+          "file": "performance.spec.ts",
+          "title": "Escribir durante un checkpoint lento conserva el texto posterior tras recargar",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 4688
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "iphone-pequeno: navegación, estudio, repaso, temario y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2453
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "iphone-grande: navegación, estudio, repaso, temario y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2053
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "android-pequeno: navegación, estudio, repaso, temario y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2505
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "android-grande: navegación, estudio, repaso, temario y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2297
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "ipad-vertical: navegación, estudio, repaso, temario y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2334
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "ipad-horizontal: navegación, estudio, repaso, temario y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2464
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "desktop: navegación, estudio, repaso, temario y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2308
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "desktop-grande: navegación, estudio, repaso, temario y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2256
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Varias tarjetas consecutivas, FSRS y registros individuales",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1667
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Bien, Regular y Mal con nota, siguiente automático y recarga IndexedDB",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2145
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Árbol: crear, editar, mover, reordenar y eliminar conservando IDs",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2831
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2378
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Tarjeta larga: scroll interior y valoración siempre accesible",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 835
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Psicotécnicos, nota e intento existentes",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1192
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Bottom sheet: arrastre, teclado reducido, foco y cuenta",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1584
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Production PWA: manifest, iconos, Service Worker y recarga offline",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 686
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "50 tarjetas consecutivas sin reconfigurar ni perder registros",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 16787
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Doce niveles, atrás y cambio de orientación sin overflow",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1278
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Altura visual del teclado con layout intacto",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 909
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Offline: valoración duradera y backup portable con IDs e historial",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 817
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Cuenta vacía: sin reinicio ni inserción de datos de ejemplo",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 495
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Editor e importación de tarjetas: pantalla completa móvil",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1499
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Imagen y PDF sobre un formulario: capas, foco y Escape",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 975
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Planificación v10: repasos existentes conservados y sin duplicar contadores",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 895
+        },
+        {
+          "file": "responsive.spec.ts",
+          "title": "Prioridad de estudio: continúa solo los elementos planificados como estudio",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 741
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tabla muda 360x800: completar, corregir y guardar una única nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1574
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tabla muda 390x844: completar, corregir y guardar una única nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1175
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tabla muda 430x932: completar, corregir y guardar una única nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1460
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tabla muda 768x1024: completar, corregir y guardar una única nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1352
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tabla muda 1024x768: completar, corregir y guardar una única nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1117
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tabla muda 1366x768: completar, corregir y guardar una única nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1281
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tabla muda 1920x1080: completar, corregir y guardar una única nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1401
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Creación visual, edición de celdas, columnas, alternativas, vista previa y exportación JSON",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3476
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Pegar Markdown crea una tabla editable; evaluar columna no obliga a escribir marcadores",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1506
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Ocultación 25/50/75/100, máscara estable, campos visibles y nueva combinación",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3213
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Mostrar soluciones en blanco guarda cero; reintentar no infla la primera nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1759
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Notas decimales en sesiones nuevas actualizan la media, sin cambiar las categorías de tarjetas normales",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2504
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Salir y recargar conserva respuestas y porcentaje; volver tras comprobar no duplica la nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3878
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tabla y flashcard normal conviven en filtros y en una misma sesión; porcentaje antes de empezar",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2408
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Importación real de tabla y JSON antiguo conserva rutas profundas, formato y tipos",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1414
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Offline: comprobación y guardado duran, y la copia portable conserva tabla e historial",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1770
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Dos dispositivos simulados reanudan la misma máscara y respuestas y conservan una única nota",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3159
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tabla ancha, rotación y altura reducida conservan el ejercicio sin desbordar la pantalla",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1239
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Un fallo al guardar permite reintentar sin perder respuestas ni duplicar calificaciones",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 4313
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Tablas amplias con 2200 tarjetas: escribir conserva foco y no actualiza la cuenta por tecla",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 6943
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Controles táctiles y ajustes no abren el teclado; la celda solo toma foco al tocarla",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1876
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "La flashcard normal con una tabla y llaves sigue siendo tradicional; HTML de tablas mudas se sanea",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1927
+        },
+        {
+          "file": "table-card.spec.ts",
+          "title": "Reforzar una tabla suspendida conserva el porcentaje elegido y no altera la primera media de la sesión",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2366
+        },
+        {
+          "file": "v12.spec.ts",
+          "title": "Aprendizaje nuevo: separación por tarjetas, Bien termina y checkpoint tras recarga",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1973
+        },
+        {
+          "file": "v12.spec.ts",
+          "title": "Plan rápido: mover Hoy ↔ Después conserva el ID y permite nota sin fecha",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1889
+        },
+        {
+          "file": "v12.spec.ts",
+          "title": "Biblioteca → temario: editar, cambiar jerarquía, previsualizar, enlazar y reimportar",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3249
+        },
+        {
+          "file": "v12.spec.ts",
+          "title": "Mover y reordenar tarjetas y ramas mantiene relaciones y datos después de recargar",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3122
+        },
+        {
+          "file": "v12.spec.ts",
+          "title": "Creación de tarjetas y formularios no enfocan campos al abrirse",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2048
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Guardar antes de responder, valorar, cerrar y retirar conservando memoria",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2488
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Crear colección durante una tarjeta no abre el teclado ni avanza",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1344
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Biblioteca: padre e hijo y tarjeta seleccionados se mueven entre ramas sin perder datos",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 4412
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Mover tarjeta a raíz mantiene pertenencia y el filtro por subtema responde al cambio",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 5265
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Temario: selección entre niveles mueve la rama conservando planificación e IDs",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1759
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Filtros y colecciones 360x800: niveles, búsqueda, foco y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1653
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Filtros y colecciones 430x932: niveles, búsqueda, foco y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1290
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Filtros y colecciones 768x1024: niveles, búsqueda, foco y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1466
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Filtros y colecciones 1024x768: niveles, búsqueda, foco y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1529
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Filtros y colecciones 1366x768: niveles, búsqueda, foco y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1673
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Filtros y colecciones 1920x1080: niveles, búsqueda, foco y capas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2006
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Renombrar y eliminar colección persiste después de volver a abrir",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1575
+        },
+        {
+          "file": "v13.spec.ts",
+          "title": "Varias tarjetas filtradas se mueven juntas sin modificar FSRS",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1471
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Editar en directo sin valorar ni avanzar, persistir y continuar 390",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2303
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Editar en directo sin valorar ni avanzar, persistir y continuar 1366",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2734
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Cancelar edicion conserva la tarjeta y permite seguir valorando",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1437
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Quitar en sesion elimina solo la pertenencia y finaliza, incluso offline",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3007
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Coleccion de origen sigue disponible al reabrir y quitar en la lista",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2620
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Biblioteca multiseleccion permite modo Aprender",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1135
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Biblioteca multiseleccion permite modo Aleatorio",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1239
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Biblioteca multiseleccion permite modo En orden",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1150
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Biblioteca multiseleccion permite modo Más falladas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2121
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Biblioteca multiseleccion permite modo Repasos pendientes",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1002
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Selector desde Estudiar, cancelar, y modo en coleccion conserva contexto",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2674
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Retirar una tarjeta fallada avanza a la siguiente de la coleccion sin borrar su intento",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1656
+        },
+        {
+          "file": "v131.spec.ts",
+          "title": "Seleccion mixta permite elegir ortografia sin mezclar tarjetas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 946
+        },
+        {
+          "file": "v132.spec.ts",
+          "title": "Biblioteca está a una pulsación y el temario sigue en Más",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 587
+        },
+        {
+          "file": "v132.spec.ts",
+          "title": "69 seleccionadas: una pausa larga no devuelve Bien ni bloquea las nuevas",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 25241
+        },
+        {
+          "file": "v132.spec.ts",
+          "title": "Salir conserva tarjeta y cara; recargar y continuar desde Biblioteca no reinicia",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1493
+        },
+        {
+          "file": "v132.spec.ts",
+          "title": "Borrador y selección se conservan: Respuesta escrita:",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1115
+        },
+        {
+          "file": "v132.spec.ts",
+          "title": "Borrador y selección se conservan: Test múltiple:",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1074
+        },
+        {
+          "file": "v132.spec.ts",
+          "title": "Empezar otra selección conserva ambas sesiones y permite retomar la anterior",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1278
+        },
+        {
+          "file": "v132.spec.ts",
+          "title": "Una vuelta completada permanece hasta Finalizar; una débil no se presenta como aprendida",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1410
+        },
+        {
+          "file": "v132.spec.ts",
+          "title": "Dos dispositivos simulados: traspaso exacto y cierre remoto sin duplicar la valoración",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2167
+        }
+      ]
+    }
+  },
+  "additionalChecks": {
+    "documentedJsonExample": "Parsed with real parseCardImport: one table, five evaluable cells, bold formatting retained.",
+    "lazyChunks": {
+      "tableEditor": {
+        "underDemand": true,
+        "precached": true,
+        "path": "/_next/static/chunks/668.5494c2afd4f4ffd2.js"
+      },
+      "tableReview": {
+        "underDemand": true,
+        "precached": true,
+        "path": "/_next/static/chunks/736.c0538644d583bdc7.js"
+      }
+    },
+    "visualInspection": [
+      "table-study-390.png",
+      "table-editor-390.png",
+      "table-study-1366.png"
+    ],
+    "integrity": "35 critical files byte-identical to v15.2; dependencies and SQL migrations unchanged. See INTEGRIDAD-V15.3.json.",
+    "screenSizes": [
+      "360x800",
+      "390x844",
+      "430x932",
+      "768x1024",
+      "1024x768",
+      "1366x768",
+      "1920x1080"
+    ]
+  },
+  "limits": [
+    "No tests against the real user Supabase project or credentials.",
+    "Device handoff simulated with two isolated Chromium contexts and existing local/projection paths.",
+    "RLS and schema tests use local PostgreSQL via PGlite and the actual unchanged migrations.",
+    "No physical iPhone/iPad/Android, Safari standalone or native keyboard test. Chromium touch, resize and offline were exercised.",
+    "Pasted tables must be rectangular without merged cells; the first pasted table is used."
+  ]
+}

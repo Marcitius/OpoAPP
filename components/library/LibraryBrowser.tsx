@@ -172,6 +172,7 @@ export default function LibraryBrowser({
             {(
               [
                 "basic",
+                "table",
                 "choice",
                 "test",
                 "orthography",
@@ -181,7 +182,8 @@ export default function LibraryBrowser({
               <option key={t} value={t}>
                 {
                   {
-                    basic: "Flashcards",
+                    basic: "Flashcards normales",
+                    table: "Tablas mudas",
                     choice: "Vocabulario",
                     test: "Test",
                     orthography: "Ortografía",

@@ -11,6 +11,7 @@ import {
 import GradeFilter from "./GradeFilter";
 import type { Review } from "../../lib/study/legacy";
 import BottomSheet from "../sheets/BottomSheet";
+import { tablePercentages, type TablePercentage } from "../../lib/tables/model";
 
 export default function StudyModeSheet({
   cards,
@@ -20,7 +21,12 @@ export default function StudyModeSheet({
 }: {
   cards: Card[];
   reviews: Review[];
-  onStart: (mode: StudyMode, ids: string[], metric?: Filter["metric"]) => void;
+  onStart: (
+    mode: StudyMode,
+    ids: string[],
+    metric?: Filter["metric"],
+    tablePercentage?: TablePercentage,
+  ) => void;
   onClose: () => void;
 }) {
   const ordinary = cards.filter(
@@ -29,6 +35,9 @@ export default function StudyModeSheet({
   const words = cards.filter(isOrthographyCard);
   const [orthography, setOrthography] = useState(!ordinary.length);
   const [filter, setFilter] = useState<Filter>(defaultGradeFilter);
+  const [tablePercentage, setTablePercentage] = useState<
+    TablePercentage | undefined
+  >(undefined);
   const grades = useMemo(() => gradeIndex(reviews), [reviews]);
   const pool = orthography ? words : filterByGrade(ordinary, grades, filter);
   return (
@@ -63,6 +72,29 @@ export default function StudyModeSheet({
         </>
       )}
       <div className="session-mode-list">
+        {!orthography && pool.some((card) => card.type === "table") && (
+          <label>
+            Ocultación de tablas mudas
+            <select
+              aria-label="Ocultación de tablas mudas"
+              value={tablePercentage ?? ""}
+              onChange={(event) =>
+                setTablePercentage(
+                  event.target.value
+                    ? (Number(event.target.value) as TablePercentage)
+                    : undefined,
+                )
+              }
+            >
+              <option value="">La de cada tabla</option>
+              {tablePercentages.map((value) => (
+                <option key={value} value={value}>
+                  {value}%
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {(
           [
             ...(!orthography
@@ -110,6 +142,7 @@ export default function StudyModeSheet({
                 mode,
                 pool.map((c) => c.id),
                 filter.metric,
+                tablePercentage,
               )
             }
           >

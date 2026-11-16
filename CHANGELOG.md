@@ -1,3 +1,30 @@
+# v15.3.0 — Tablas mudas
+
+- Nuevo tipo de tarjeta Tabla muda, integrado en Biblioteca, carpetas, filtros, selección mixta y sesiones. Las flashcards normales y el resto de tipos conservan su funcionamiento.
+- Editor visual propio: filas/columnas, celdas con formato, pegado de tablas, marcar respuestas individuales o por columna, alternativas explícitas y vista previa.
+- Ocultación 25/50/75/100 %, aleatoria y estable por intento; comprobar, revelar, reintentar y nueva combinación. Desplazamiento horizontal acotado en móvil.
+- Corrección estricta de contenido, flexible con mayúsculas, acentos y espacios. Nota objetiva exacta de 0 a 10 sobre los campos ocultos; una tabla equivale a una tarjeta y una nota.
+- Primer resultado preservado frente al refuerzo; guardado explícito sin duplicados. Media con decimales por primera nota de tarjeta/sesión; notas manuales normales intactas.
+- Borrador/checkpoint existentes conservan campos, máscara y resultado al salir/reanudar; metadatos opcionales compatibles con JSONB, offline y sincronización actuales.
+- Importación JSON compatible con archivos anteriores, nuevo tipo tabla_muda y estructura editable; exportación individual con rutas profundas y copias completas existentes. Informe diario con evidencia de la tabla.
+- Componentes propios cargados bajo demanda y contenido estático memorizado para no procesar toda la cuenta al escribir.
+- Sin dependencias nuevas, migraciones SQL, archivos eliminados ni cambios al transporte de Auth, sincronización, FSRS o PWA.
+
+---
+
+# v15.2.0 — Editor de tarjetas
+
+- Pregunta y respuesta comparten el editor Tiptap de Material, con una barra compacta y herramientas ampliadas en ···. Sustituye el antiguo contentEditable con execCommand.
+- Títulos 1–6, listas, marcas, fuentes, tamaños, colores, resaltado, alineación, sangría, interlineado, tablas, citas, enlaces y deshacer/rehacer en las tarjetas.
+- Pegado HTML enriquecido y conversión Markdown, incluyendo viñetas Unicode y fragmentos subrayados o en cursiva sin contenedor.
+- Política de formato y estilos de lectura unificados: se conservan al guardar/editar y se muestran correctamente durante el estudio. Las tablas se desplazan dentro del contenido cuando es necesario.
+- Sangría e interlineado se aplican a todos los párrafos y títulos seleccionados, también cuando se mezclan en la selección.
+- Editor estable durante la escritura: conserva la corrección de cursor/retroceso y no enfoca automáticamente campos al abrirse.
+- Carga del editor bajo demanda, sin incluir Tiptap en el arranque de las sesiones de estudio/repaso. El precache PWA existente conserva los chunks para editar offline.
+- Sin dependencias nuevas ni SQL. Se mantienen imágenes/adjuntos, tipos de tarjeta, rúbricas, notas, medias, sesiones, historial, FSRS, Auth y sincronización.
+
+---
+
 # v15.1.0 — Media por sesión y cuatro grupos
 
 - Corrige la media: primera valoración numérica por tarjeta y sesión guardada, sin la restricción de 12 horas. Continuar la misma sesión conserva el refuerzo; una sesión nueva aporta otra nota.

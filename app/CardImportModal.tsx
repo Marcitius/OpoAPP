@@ -2,10 +2,11 @@
 import BottomSheet from "../components/sheets/BottomSheet";
 import { useState } from "react";
 import {
-  buildCardPrompt,
-  cardPromptLabels,
-  type CardPromptKind,
-} from "../lib/chatgptPrompts";
+  parseStudyTable,
+  validateStudyTable,
+  type StudyTable,
+} from "../lib/tables/model";
+import { markdownToMaterial } from "../lib/material/format";
 export interface WrittenCriterion {
   id: string;
   esperado: string;
@@ -28,7 +29,14 @@ export interface WrittenEvaluation {
 }
 export interface ParsedImportItem {
   tipo:
-    "flashcard" | "test" | "vocabulario" | "ortografia" | "respuesta_escrita";
+    | "flashcard"
+    | "test"
+    | "vocabulario"
+    | "ortografia"
+    | "respuesta_escrita"
+    | "tabla_muda";
+  tabla?: StudyTable;
+  ruta?: string[];
   tema: string;
   subtema: string;
   pregunta: string;
@@ -49,10 +57,11 @@ export function parseCardImport(value: any): ParsedImportItem[] {
   if (!Array.isArray(raw))
     throw new Error("Usa un array JSON o un objeto con tarjetas.");
   return raw.map((x: any, i: number) => {
-    const type = x.tipo ?? "flashcard";
+    const type = x.tipo ?? (x.type === "table" ? "tabla_muda" : "flashcard");
     if (
       ![
         "flashcard",
+        "tabla_muda",
         "test",
         "vocabulario",
         "ortografia",
@@ -88,6 +97,23 @@ export function parseCardImport(value: any): ParsedImportItem[] {
       formaCorrecta: String(x.formaCorrecta ?? x.forma_correcta ?? ""),
       evaluacion: x.evaluacion ?? null,
     };
+    if (type === "tabla_muda") {
+      item.tabla = validateStudyTable(parseStudyTable(x.tabla ?? x.table));
+      item.pregunta = markdownToMaterial(
+        String(x.pregunta ?? x.enunciado ?? x.front ?? "Completa la tabla"),
+      );
+      if (x.ruta !== undefined) {
+        if (
+          !Array.isArray(x.ruta) ||
+          x.ruta.some(
+            (name: unknown) => typeof name !== "string" || !name.trim(),
+          )
+        )
+          throw Error("La ruta de la tabla debe ser una lista de nombres.");
+        item.ruta = x.ruta.map((name: string) => name.trim());
+        if (item.ruta?.length) item.tema = item.ruta[0];
+      }
+    }
     if (type === "ortografia") {
       if (
         !item.palabra ||
@@ -171,26 +197,9 @@ export default function CardImportModal({
   onClose: () => void;
   onImport: (items: ParsedImportItem[]) => void;
 }) {
-  const [text, setText] = useState("");
-  const [error, setError] = useState("");
+  const [text, setText] = useState(""),
+    [error, setError] = useState("");
   const [items, setItems] = useState<ParsedImportItem[] | null>(null);
-
-  const [promptType, setPromptType] =
-    useState<CardPromptKind>("flashcard");
-  const [promptCopied, setPromptCopied] = useState(false);
-
-  const generatedPrompt = buildCardPrompt(promptType);
-
-  async function copyPrompt() {
-    try {
-      await navigator.clipboard.writeText(generatedPrompt);
-      setPromptCopied(true);
-      window.setTimeout(() => setPromptCopied(false), 1800);
-    } catch {
-      setPromptCopied(false);
-    }
-  }
-
   function check() {
     try {
       setItems(
@@ -212,52 +221,9 @@ export default function CardImportModal({
       className="legacy-editor card-import-editor"
     >
       <p>
-        Admite flashcards, test, vocabulario, ortografía y respuestas escritas
-        con rúbrica.
+        Admite flashcards, tablas mudas, test, vocabulario, ortografía y
+        respuestas escritas con rúbrica.
       </p>
-
-      <section className="import-step">
-        <div className="import-step-head">
-          <span>AI</span>
-          <div>
-            <strong>Crear con ChatGPT</strong>
-            <small>
-              Copia el prompt, adjunta tu material en ChatGPT y pega aquí el
-              JSON generado.
-            </small>
-          </div>
-        </div>
-
-        <label>
-          ¿Qué quieres crear?
-          <select
-            value={promptType}
-            onChange={(event) => {
-              setPromptType(event.target.value as CardPromptKind);
-              setPromptCopied(false);
-            }}
-          >
-            {Object.entries(cardPromptLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <button
-          type="button"
-          className="secondary-button full-width"
-          onClick={copyPrompt}
-        >
-          {promptCopied ? "✓ Prompt copiado" : "Copiar prompt para ChatGPT"}
-        </button>
-
-        <details>
-          <summary>Ver prompt completo</summary>
-          <pre className="prompt-preview">{generatedPrompt}</pre>
-        </details>
-      </section>
       <details>
         <summary>Ver formato JSON</summary>
         <pre style={{ whiteSpace: "pre-wrap" }}>{example}</pre>

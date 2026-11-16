@@ -29,6 +29,7 @@ import "../../app/account.css";
 import "../../app/mobile-ux.css";
 import "../../app/material.css";
 import "../../app/card-editor.css";
+import "../../app/table-cards.css";
 const user = "ux-fixture-a",
   stamp = new Date().toISOString();
 const today = new Date().toLocaleDateString("en-CA");

@@ -92,6 +92,9 @@ import OrthographyStudy, {
 } from "./OrthographyStudy";
 import PdfAnnotator from "./PdfAnnotator";
 import { plainRichText, sanitizeRichHtml } from "./RichTextEditor";
+import type { TableAttempt, TableEvaluation } from "../lib/tables/learning";
+import type { TablePercentage } from "../lib/tables/model";
+import { parseStudyTable, tableHtml, tableKey } from "../lib/tables/model";
 import {
   applyFsrsReview,
   fsrsSnapshot,
@@ -276,13 +279,18 @@ export default function OpoApp() {
   const [studyMode, setStudyMode] = useState<StudyMode>("recommended");
   const [revealed, setRevealed] = useState(false);
   const [viewingStudyImage, setViewingStudyImage] = useState(false);
-  const reviewInput = useRef({
+  const reviewInput = useRef<{
+    selectedOption: number | null;
+    selectedOptions: number[];
+    writtenAnswer: string;
+    tableAttempt?: TableAttempt;
+  }>({
     selectedOption: null as number | null,
     selectedOptions: [] as number[],
     writtenAnswer: "",
   });
   const [inputVersion, refreshInput] = useState(0);
-  const { selectedOption, selectedOptions, writtenAnswer } =
+  const { selectedOption, selectedOptions, writtenAnswer, tableAttempt } =
     reviewInput.current;
   function setSelectedOption(value: number | null) {
     reviewInput.current.selectedOption = value;
@@ -1184,6 +1192,7 @@ export default function OpoApp() {
     selectedOptions,
     writtenAnswer,
     writtenResult,
+    ...(tableAttempt ? { tableAttempt } : {}),
     orthography: orthographySession,
     orthographySelected,
   };
@@ -1237,6 +1246,9 @@ export default function OpoApp() {
     index: number,
     restored?: SessionPresentation,
   ) {
+    const table = restored?.tableAttempt ?? queue[index]?.tableAttempt;
+    if (table) reviewInput.current.tableAttempt = table;
+    else delete reviewInput.current.tableAttempt;
     queueRef.current = queue;
     setReviewQueue(queue);
     setReviewIndex(index);
@@ -1687,6 +1699,7 @@ export default function OpoApp() {
     sourceNodeId?: string,
     sourceCollectionId?: string,
     scoreMetric: GradeFilter["metric"] = "average",
+    tablePercentage?: TablePercentage,
   ) {
     const current = stateRef.current;
     if (!current || reviewBusyRef.current) return;
@@ -1753,6 +1766,7 @@ export default function OpoApp() {
     const session = {
       ...createCardSession(pool, mode, uid(), +now),
       grading: "scores-v1" as const,
+      ...(tablePercentage ? { tablePercentage } : {}),
       label: sourceCollectionId
         ? reviewCollections(current.settings).find(
             (c) => c.id === sourceCollectionId,
@@ -1865,6 +1879,12 @@ export default function OpoApp() {
       displayQueue(reviewQueue, reviewIndex - 1);
   }
 
+  function withTableAttempt(item: ReviewQueueItem) {
+    return currentCard?.type === "table" && reviewInput.current.tableAttempt
+      ? { ...item, tableAttempt: reviewInput.current.tableAttempt }
+      : item;
+  }
+
   async function goToNextCard() {
     if (reviewBusyRef.current) return;
     if (currentQueueItem?.completed && reviewIndex < reviewQueue.length - 1) {
@@ -1880,11 +1900,26 @@ export default function OpoApp() {
       next = skipSessionCard(session, currentCard.id, Date.now());
       next = {
         ...next,
+        ...(currentCard.type === "table" && reviewInput.current.tableAttempt
+          ? {
+              items: next.items.map((item) =>
+                item.id === currentCard.id
+                  ? {
+                      ...item,
+                      tablePercentage:
+                        reviewInput.current.tableAttempt!.percentage,
+                    }
+                  : item,
+              ),
+            }
+          : {}),
         presentation: {
           ...view,
           ...reviewInput.current,
           queue: reviewQueue.map((item, i) =>
-            i === reviewIndex ? { ...item, completed: true } : item,
+            i === reviewIndex
+              ? { ...withTableAttempt(item), completed: true }
+              : item,
           ),
         },
       };
@@ -1899,12 +1934,14 @@ export default function OpoApp() {
       if (!saved) return;
       setReviewQueue((q) =>
         q.map((item, i) =>
-          i === reviewIndex ? { ...item, completed: true } : item,
+          i === reviewIndex
+            ? { ...withTableAttempt(item), completed: true }
+            : item,
         ),
       );
     }
     const queue = reviewQueue.map((item, i) =>
-      i === reviewIndex ? { ...item, completed: true } : item,
+      i === reviewIndex ? { ...withTableAttempt(item), completed: true } : item,
     );
     displayQueue(queue, queue.length);
     setSessionClock(Date.now());
@@ -1926,11 +1963,23 @@ export default function OpoApp() {
     recordCurrentReview(score, writtenEvaluation, true, "rated");
   }
 
+  function gradeCurrentTable(evaluation: TableEvaluation) {
+    if (reviewBusyRef.current || !currentCard) return;
+    void recordCurrentReview(
+      evaluation.score,
+      undefined,
+      true,
+      "rated",
+      evaluation,
+    );
+  }
+
   async function recordCurrentReview(
     requestedScore: number,
     writtenEvaluation: WrittenAnswerResult | null | undefined,
     advance: boolean,
     outcome: ReviewQueueOutcome,
+    tableEvaluation?: TableEvaluation,
   ) {
     const current = stateRef.current,
       session = displayedCardSession(current);
@@ -1947,14 +1996,30 @@ export default function OpoApp() {
     const card = current.cards.find((c) => c.id === currentCard.id);
     const item = session.items.find((i) => i.id === card?.id);
     if (!card || !item || !["new", "reinforce"].includes(item.status)) return;
+    if (card.type === "table") {
+      try {
+        if (
+          !tableEvaluation ||
+          tableEvaluation.tableKey !== tableKey(parseStudyTable(card.table))
+        )
+          return notify(
+            "La tabla ha cambiado. Reábrela y comprueba sus respuestas.",
+          );
+      } catch {
+        return notify("Revisa la tabla en el editor antes de guardar su nota.");
+      }
+    }
+    if (tableEvaluation && card.type !== "table") return;
     reviewBusyRef.current = true;
     setReviewSaving(true);
     const now = new Date();
-    const score =
-      isMultipleChoiceCard(card) && !currentSelectionIsCorrect(card)
+    const score = tableEvaluation
+      ? tableEvaluation.score
+      : isMultipleChoiceCard(card) && !currentSelectionIsCorrect(card)
         ? Math.min(4, requestedScore)
         : requestedScore;
-    const effective = scoreRating(score);
+    const effective =
+      tableEvaluation && score < 1 ? "again" : scoreRating(score);
     const kind = scoreKind(card, gradeIndex(current.reviews), session.id);
     const reinforcement = kind === "reinforcement";
     const scheduled = applyFsrsReview(card, effective, now, reinforcement);
@@ -1969,8 +2034,9 @@ export default function OpoApp() {
       score,
       scoreKind: kind,
       scoreGroup: scoreGroup(score),
-      scoreSource:
-        outcome === "unknown"
+      scoreSource: tableEvaluation
+        ? "table-objective"
+        : outcome === "unknown"
           ? "explicit-unknown"
           : score !== requestedScore
             ? "objective-cap"
@@ -1978,6 +2044,14 @@ export default function OpoApp() {
       cardSessionId: session.id,
       cardSnapshot: snapshotCard(current, card),
       answerEvidence: {
+        ...(tableEvaluation
+          ? {
+              table: tableEvaluation,
+              tablePracticeChecks:
+                reviewInput.current.tableAttempt?.practiceCount ?? 0,
+              objectiveCorrect: tableEvaluation.score >= 5,
+            }
+          : {}),
         ...(isWrittenCard(card)
           ? {
               text: reviewInput.current.writtenAnswer,
@@ -1997,7 +2071,11 @@ export default function OpoApp() {
           : {}),
       },
       correct: effective !== "again",
-      accuracy: outcome === "unknown" ? 0 : writtenEvaluation?.accuracy,
+      accuracy: tableEvaluation
+        ? tableEvaluation.score * 10
+        : outcome === "unknown"
+          ? 0
+          : writtenEvaluation?.accuracy,
       reviewedAt: now.toISOString(),
       responseMs: Math.max(0, +now - cardShownAtRef.current),
       sessionMode: session.mode,
@@ -2020,12 +2098,36 @@ export default function OpoApp() {
       review.id,
       +now,
       score,
+      !!tableEvaluation,
     );
     const completedQueue = reviewQueue.map((q, i) =>
-      i === reviewIndex ? { ...q, completed: true, outcome } : q,
+      i === reviewIndex
+        ? {
+            ...q,
+            completed: true,
+            outcome,
+            ...(tableEvaluation
+              ? { tableAttempt: reviewInput.current.tableAttempt }
+              : {}),
+          }
+        : q,
     );
     nextSession = {
       ...nextSession,
+      ...(tableEvaluation
+        ? {
+            items: nextSession.items.map((item) =>
+              item.id === card.id
+                ? {
+                    ...item,
+                    tablePercentage:
+                      reviewInput.current.tableAttempt?.percentage ??
+                      tableEvaluation.percentage,
+                  }
+                : item,
+            ),
+          }
+        : {}),
       presentation: {
         ...view,
         ...reviewInput.current,
@@ -2106,7 +2208,8 @@ export default function OpoApp() {
     let foldersCreated = 0;
 
     for (const item of items) {
-      const tema = item.tema.trim() || "Importado";
+      const route = item.tipo === "tabla_muda" ? item.ruta : undefined;
+      const tema = route?.[0] ?? (item.tema.trim() || "Importado");
       const temaKey = tema.toLocaleLowerCase("es");
       let theme = topLevelByName.get(temaKey);
       if (!theme) {
@@ -2123,7 +2226,7 @@ export default function OpoApp() {
       }
 
       let folder = theme;
-      const subtema = item.subtema.trim();
+      const subtema = route?.length ? "" : item.subtema.trim();
       if (subtema) {
         const childKey = `${theme.id}::${subtema.toLocaleLowerCase("es")}`;
         let child = childByParentAndName.get(childKey);
@@ -2142,16 +2245,39 @@ export default function OpoApp() {
         folder = child;
       }
 
+      if (route?.length) {
+        folder = theme;
+        for (const name of route.slice(1)) {
+          const key = `${folder.id}::${name.toLocaleLowerCase("es")}`;
+          let child = childByParentAndName.get(key);
+          if (!child) {
+            child = {
+              id: uid(),
+              name,
+              color: theme.color,
+              parentId: folder.id,
+              createdAt: nowIso(),
+            };
+            folders.push(child);
+            childByParentAndName.set(key, child);
+            foldersCreated++;
+          }
+          folder = child;
+        }
+      }
+
       const type: CardType =
-        item.tipo === "ortografia"
-          ? "orthography"
-          : item.tipo === "respuesta_escrita"
-            ? "written"
-            : item.tipo === "test"
-              ? "test"
-              : item.tipo === "vocabulario"
-                ? "choice"
-                : "basic";
+        item.tipo === "tabla_muda"
+          ? "table"
+          : item.tipo === "ortografia"
+            ? "orthography"
+            : item.tipo === "respuesta_escrita"
+              ? "written"
+              : item.tipo === "test"
+                ? "test"
+                : item.tipo === "vocabulario"
+                  ? "choice"
+                  : "basic";
       const correctOptions = isMultipleChoiceType(type)
         ? item.correctas
             .map((letter) => "ABCD".indexOf(letter))
@@ -2165,18 +2291,23 @@ export default function OpoApp() {
         id: uid(),
         folderId: folder.id,
         type,
+        ...(item.tabla ? { table: item.tabla } : {}),
         front: sanitizeRichHtml(
-          `<p>${escapeHtml(word).replaceAll("\n", "<br>")}</p>`,
+          item.tipo === "tabla_muda"
+            ? word
+            : `<p>${escapeHtml(word).replaceAll("\n", "<br>")}</p>`,
         ),
-        back: isOrthography
-          ? orthographyBackHtml(
-              item.palabra,
-              item.esCorrecta === true,
-              item.formaCorrecta,
-              item.explicacion,
-              item.fuente,
-            )
-          : importedBackHtml(item),
+        back: item.tabla
+          ? tableHtml(item.tabla)
+          : isOrthography
+            ? orthographyBackHtml(
+                item.palabra,
+                item.esCorrecta === true,
+                item.formaCorrecta,
+                item.explicacion,
+                item.fuente,
+              )
+            : importedBackHtml(item),
         options:
           isWritten && item.evaluacion
             ? [encodeWrittenRubric(item.evaluacion)]
@@ -3731,6 +3862,26 @@ export default function OpoApp() {
             selectedOptions={selectedOptions}
             writtenAnswer={writtenAnswer}
             writtenResult={displayedWrittenResult}
+            tableAttempt={tableAttempt}
+            tablePercentage={
+              currentCard.type === "table"
+                ? (savedCardSession?.items.find(
+                    (item) => item.id === currentCard.id,
+                  )?.tablePercentage ??
+                  [...reviewQueue]
+                    .reverse()
+                    .find(
+                      (item) =>
+                        item.cardId === currentCard.id && item.tableAttempt,
+                    )?.tableAttempt?.percentage ??
+                  savedCardSession?.tablePercentage)
+                : undefined
+            }
+            onTableChange={(attempt) => {
+              reviewInput.current.tableAttempt = attempt;
+              flushCheckpoint.stage({ tableAttempt: attempt });
+            }}
+            onTableGrade={gradeCurrentTable}
             onExit={pauseCardSession}
             onReveal={() => setRevealed(true)}
             onQuestion={() => {
@@ -3869,7 +4020,7 @@ export default function OpoApp() {
           cards={state.cards.filter((c) => modeSelection.ids.includes(c.id))}
           reviews={state.reviews}
           onClose={() => setModeSelection(null)}
-          onStart={(mode, ids, metric) => {
+          onStart={(mode, ids, metric, tablePercentage) => {
             const source = modeSelection.sourceCollectionId;
             setModeSelection(null);
             void startReview(
@@ -3880,6 +4031,7 @@ export default function OpoApp() {
               undefined,
               source,
               metric,
+              tablePercentage,
             );
           }}
         />

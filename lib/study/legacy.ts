@@ -16,7 +16,8 @@ import {
 
 export type Tab = "today" | "library" | "study" | "psych" | "progress";
 
-export type CardType = "basic" | "choice" | "test" | "orthography" | "written";
+export type CardType =
+  "basic" | "choice" | "test" | "orthography" | "written" | "table";
 
 export type Rating = "again" | "hard" | "good" | "easy";
 
@@ -26,6 +27,7 @@ export type StudyMode =
 export type ReviewQueueOutcome = "rated" | "unknown";
 
 export type ReviewQueueItem = {
+  tableAttempt?: import("../tables/learning").TableAttempt;
   cardId: string;
   reinforcement: boolean;
   reason: "scheduled" | "again" | "hard";
@@ -96,6 +98,7 @@ export type Folder = {
 };
 
 export type Card = {
+  table?: import("../tables/model").StudyTable;
   sortOrder?: number;
   fsrsState?: import("ts-fsrs").State;
   fsrsLearningSteps?: number;
@@ -131,7 +134,11 @@ export type Card = {
 export type Review = {
   score?: number;
   scoreGroup?: import("../memory/grades").ScoreGroup;
-  scoreSource?: "category-midpoint" | "explicit-unknown" | "objective-cap";
+  scoreSource?:
+    | "category-midpoint"
+    | "explicit-unknown"
+    | "objective-cap"
+    | "table-objective";
   scoreKind?: "recall" | "reinforcement";
   cardSessionId?: string;
   cardSnapshot?: {
@@ -143,6 +150,8 @@ export type Review = {
     correctOptions: number[];
   };
   answerEvidence?: {
+    table?: import("../tables/learning").TableEvaluation;
+    tablePracticeChecks?: number;
     text?: string;
     selectedOptions?: number[];
     objectiveCorrect?: boolean;
@@ -519,15 +528,17 @@ export const sameNumberSet = (a: number[], b: number[]) =>
     .every((value, index) => value === [...b].sort((x, y) => x - y)[index]);
 
 export const cardTypeLabel = (type: CardType) =>
-  type === "orthography"
-    ? "ORTO"
-    : type === "written"
-      ? "ESCRITA"
-      : type === "test"
-        ? "TEST"
-        : type === "choice"
-          ? "VOCAB"
-          : "FLASHCARD";
+  type === "table"
+    ? "TABLA MUDA"
+    : type === "orthography"
+      ? "ORTO"
+      : type === "written"
+        ? "ESCRITA"
+        : type === "test"
+          ? "TEST"
+          : type === "choice"
+            ? "VOCAB"
+            : "FLASHCARD";
 
 export function escapeHtml(value: string) {
   return value

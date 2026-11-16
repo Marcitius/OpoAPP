@@ -3,7 +3,7 @@ import { plainRichText } from "../../app/RichTextEditor";
 import {
   gradeIndex,
   uniqueReviews,
-  validScore,
+  validReviewScore,
   scoreGroup,
 } from "../memory/grades";
 import { savedCardSessions } from "../memory/checkpoint";
@@ -58,7 +58,7 @@ export function snapshotCard(state: AppState, card: Card) {
       : [card.correctOption],
   };
 }
-export const chatgptStudyInstructions = `Analiza este informe de OpoGC usando sus datos. Distingue el recuerdo inicial del refuerzo inmediato: aprobar después de repetir no demuestra retención entre días. No promedies todos los intentos ni confundas intentos con tarjetas distintas. La media toma la primera valoración de cada sesión nueva, aunque empiece poco después de otra; comprueba el tiempo entre sesiones para distinguir familiaridad reciente y retención. Las categorías aportan sus valores centrales y las notas numéricas antiguas conservan su valor exacto. Usa la nota media de recuerdo, la última nota inicial y el historial disponible para detectar debilidades y errores recurrentes. Distingue las notas de autoevaluación de la corrección objetiva de tests y respuestas escritas. No interpretes el tiempo con una tarjeta abierta como tiempo activo. Si contiene contexto de planificación, propón prioridades según los pendientes y las sesiones abiertas. Antes de asignar tiempos pregunta mi disponibilidad. Señala datos que faltan; no inventes actividad ni resultados.`;
+export const chatgptStudyInstructions = `Analiza este informe de OpoGC usando sus datos. Distingue el recuerdo inicial del refuerzo inmediato: aprobar después de repetir no demuestra retención entre días. No promedies todos los intentos ni confundas intentos con tarjetas distintas. La media toma la primera valoración de cada sesión nueva, aunque empiece poco después de otra; comprueba el tiempo entre sesiones para distinguir familiaridad reciente y retención. Las categorías aportan sus valores centrales y las notas numéricas antiguas conservan su valor exacto. Usa la nota media de recuerdo, la última nota inicial y el historial disponible para detectar debilidades y errores recurrentes. Distingue las notas de autoevaluación de la corrección objetiva de tests y respuestas escritas. En tablas mudas la nota es objetiva, de 0 a 10, y se calcula solo sobre las celdas ocultas. Considera su porcentaje de ocultación al comparar resultados; los reintentos guardados como práctica no sustituyen la primera nota. No interpretes el tiempo con una tarjeta abierta como tiempo activo. Si contiene contexto de planificación, propón prioridades según los pendientes y las sesiones abiertas. Antes de asignar tiempos pregunta mi disponibilidad. Señala datos que faltan; no inventes actividad ni resultados.`;
 export function dailyReport(
   state: AppState,
   date: string,
@@ -87,11 +87,11 @@ export function dailyReport(
       cardId: r.cardId,
       sessionId: r.cardSessionId ?? null,
       at: r.reviewedAt,
-      score: validScore(r.score) ? r.score : null,
-      scoreGroup: validScore(r.score) ? scoreGroup(r.score) : null,
+      score: validReviewScore(r) ? r.score : null,
+      scoreGroup: validReviewScore(r) ? scoreGroup(r.score!) : null,
       scoreSource:
-        r.scoreSource ?? (validScore(r.score) ? "numeric" : "unscored"),
-      scoreKind: validScore(r.score)
+        r.scoreSource ?? (validReviewScore(r) ? "numeric" : "unscored"),
+      scoreKind: validReviewScore(r)
         ? recall
           ? "recall"
           : "reinforcement"
@@ -100,7 +100,7 @@ export function dailyReport(
       correct: r.correct,
       objectiveCorrect: r.answerEvidence?.objectiveCorrect ?? null,
       accuracy: r.accuracy ?? null,
-      reinforcement: validScore(r.score) ? !recall : (r.reinforcement ?? false),
+      reinforcement: validReviewScore(r) ? !recall : (r.reinforcement ?? false),
       responseMs: r.responseMs ?? null,
       answerGiven: r.answerEvidence ?? null,
       content: r.cardSnapshot ?? (card ? snapshotCard(state, card) : null),
@@ -275,7 +275,7 @@ export function dailyReport(
         }
       : {}),
     methodology: {
-      scoreScale: "1–10; pass >=5",
+      scoreScale: "Manual 1–10; tabla muda objetiva 0–10; pass >=5",
       average:
         "Arithmetic mean of the first numeric evaluation of each card in each saved session. Same-session reinforcements are excluded. Historical numeric grades keep their exact values; categories contribute their midpoint (2.5, 5.5, 7.5, 9.5). No rounding in the calculation.",
       independentRecall:

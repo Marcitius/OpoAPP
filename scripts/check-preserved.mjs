@@ -83,6 +83,9 @@ const behavior = JSON.parse(
 );
 let count = 0;
 const authorizedFunctions = new Set([
+  // v15.3 adds the explicit tabla_muda JSON type and its nested folder route.
+  // Existing import types are exercised by old and new regression tests.
+  "importGeneratedCards",
   // v15 replaces ordinary card rating controls with numeric scores.
   "markCurrentUnknown",
   "rateCurrent",

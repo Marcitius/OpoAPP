@@ -10,6 +10,7 @@ export function mergeCardContent(current: Card, edited: Card): Card {
     ...current,
     folderId: edited.folderId,
     type: edited.type,
+    ...(edited.type === "table" && edited.table ? { table: edited.table } : {}),
     front: edited.front,
     back: edited.back,
     options: edited.options,

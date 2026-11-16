@@ -1,0 +1,53 @@
+{
+  "tarjetas": [
+    {
+      "tipo": "tabla_muda",
+      "tema": "Material de ejemplo",
+      "subtema": "Órgano ficticio",
+      "ruta": ["Material de ejemplo", "Órgano ficticio"],
+      "pregunta": "Completa los datos del **órgano ficticio de ejemplo**.",
+      "tabla": {
+        "columnas": ["Concepto", "Respuesta"],
+        "filas": [
+          [
+            "Número de miembros",
+            {
+              "contenido": "**18**",
+              "evaluable": true,
+              "alternativas": ["Dieciocho", "18 miembros"]
+            }
+          ],
+          [
+            "Duración del mandato",
+            {
+              "contenido": "4 años",
+              "evaluable": true,
+              "alternativas": ["4", "Cuatro años"]
+            }
+          ],
+          [
+            "Reelección",
+            { "contenido": "Sí", "evaluable": true, "alternativas": [] }
+          ],
+          [
+            "Quórum",
+            {
+              "contenido": "12 miembros",
+              "evaluable": true,
+              "alternativas": ["12"]
+            }
+          ],
+          [
+            "Periodos de sesiones",
+            {
+              "contenido": "3 al año",
+              "evaluable": true,
+              "alternativas": ["Tres al año"]
+            }
+          ]
+        ],
+        "porcentajeOculto": 100
+      }
+    }
+  ]
+}

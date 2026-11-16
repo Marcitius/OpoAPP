@@ -1,0 +1,345 @@
+.card-type-selector.segmented.five-types {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.study-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid #ced9d0;
+  border-radius: 12px;
+  background: white;
+  -webkit-overflow-scrolling: touch;
+}
+.study-table-scroll:focus-visible {
+  outline: 2px solid #548169;
+  outline-offset: 3px;
+}
+.interactive-study-table,
+.table-grid-editor > table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.interactive-study-table {
+  min-width: 320px;
+}
+.interactive-study-table th,
+.interactive-study-table td,
+.table-grid-editor th,
+.table-grid-editor td {
+  padding: 12px;
+  border-right: 1px solid #d7e0d8;
+  border-bottom: 1px solid #d7e0d8;
+  vertical-align: top;
+}
+.interactive-study-table tr > :last-child,
+.table-grid-editor tr > :last-child {
+  border-right: 0;
+}
+.interactive-study-table tbody > tr:last-child > *,
+.table-grid-editor tbody > tr:last-child > * {
+  border-bottom: 0;
+}
+.interactive-study-table th {
+  background: #edf3e9;
+  font-weight: 650;
+}
+.interactive-study-table tr > :first-child:not([data-evaluable]) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fcfdfb;
+  box-shadow: 1px 0 #d7e0d8;
+}
+.interactive-study-table thead tr > :first-child:not([data-evaluable]) {
+  background: #edf3e9;
+}
+.review-table .review-prompt {
+  font-size: 22px;
+  margin-bottom: 18px;
+}
+.review-table .review-context {
+  margin-bottom: 20px;
+}
+.review-table .review-controls {
+  max-height: 55dvh;
+  overflow-y: auto;
+}
+.interactive-study-table .rich-content {
+  min-width: 100px;
+}
+.interactive-study-table .rich-content > p:last-child {
+  margin-bottom: 0;
+}
+.table-answer-field {
+  min-width: 146px;
+  display: grid;
+  gap: 7px;
+}
+.table-answer-field input {
+  width: 100%;
+  min-width: 132px;
+  min-height: 48px;
+  margin: 0;
+  padding: 10px 11px;
+  border: 1.5px solid #a8bbaa;
+  border-radius: 9px;
+  font:
+    400 16px/1.4 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #243b2b;
+  background: #fff;
+}
+.table-answer-field input:focus {
+  outline: 2px solid #28594335;
+  outline-offset: 1px;
+}
+.table-answer-field.correct input {
+  border-color: #6f9d76;
+  background: #f0f8ed;
+}
+.table-answer-field.incorrect input {
+  border-color: #bb8974;
+  background: #fff5ee;
+}
+.table-cell-feedback {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.table-cell-feedback strong {
+  font-weight: 650;
+}
+.table-answer-field.correct .table-cell-feedback {
+  color: #32613a;
+}
+.table-answer-field.incorrect .table-cell-feedback {
+  color: #8b4b37;
+}
+.table-exercise {
+  min-width: 0;
+  width: 100%;
+}
+.table-exercise-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #607365;
+}
+.table-exercise-info button {
+  min-height: 44px;
+}
+.table-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 18px 0 8px;
+  padding: 15px 0;
+  border-bottom: 1px solid #e0e7dd;
+}
+.table-result > strong {
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #284632;
+}
+.table-result > span {
+  font-size: 14px;
+}
+.table-result > small {
+  font-size: 12px;
+  color: #607365;
+}
+.table-study-controls {
+  display: grid;
+  gap: 8px;
+}
+.table-study-controls > .primary-button {
+  min-height: 50px;
+}
+.table-secondary-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.table-secondary-controls button {
+  flex: 1;
+  min-height: 44px;
+  font-size: 13px;
+}
+.table-new-combination {
+  min-height: 44px;
+  width: 100%;
+}
+.table-percentage-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin: 12px 0 18px;
+}
+.table-percentage-options button {
+  min-height: 46px;
+  border: 1px solid #ced9d0;
+  background: white;
+  border-radius: 10px;
+  font-size: 16px;
+}
+.table-percentage-options button[aria-pressed="true"] {
+  background: #e8f1e5;
+  border-color: #548169;
+  color: #234d32;
+  font-weight: 700;
+}
+.table-full-solution {
+  margin-top: 14px;
+}
+.table-full-solution summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #355e40;
+}
+.table-card-editor {
+  min-width: 0;
+}
+.table-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+.table-editor-actions button {
+  min-height: 44px;
+  font-size: 13px;
+}
+.table-grid-editor > table {
+  table-layout: fixed;
+  min-width: 600px;
+}
+.table-grid-editor th {
+  background: #f1f5ef;
+  font-weight: 500;
+  font-size: 12px;
+  min-width: 160px;
+}
+.table-grid-editor tr > :first-child {
+  width: 94px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #f1f5ef;
+}
+.table-grid-editor th > span {
+  display: block;
+  margin: 0 0 7px;
+}
+.table-grid-editor th > div {
+  display: flex;
+  gap: 4px;
+}
+.table-grid-editor th button {
+  min-width: 40px;
+  min-height: 44px;
+  border: 1px solid #d3dfd2;
+  background: white;
+  border-radius: 8px;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+.table-grid-editor th button[aria-pressed="true"] {
+  background: #e0eddc;
+  border-color: #92b18f;
+}
+.table-grid-editor td {
+  padding: 8px;
+  min-width: 170px;
+  background: #fff;
+}
+.table-grid-editor td.evaluable {
+  background: #f0f7ec;
+}
+.table-edit-cell {
+  display: block;
+  min-height: 62px;
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.table-edit-cell:focus-visible {
+  outline: 2px solid #548169;
+}
+.table-cell-placeholder {
+  font-size: 13px;
+  color: #7c8a7d;
+}
+.table-evaluable-toggle,
+.table-header-toggle {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 12px !important;
+  cursor: pointer;
+}
+.table-evaluable-toggle input[type="checkbox"],
+.table-header-toggle input[type="checkbox"] {
+  width: 20px !important;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: #285943;
+}
+.table-percentage-default {
+  border: 0;
+  padding: 0;
+  margin: 8px 0;
+}
+.table-percentage-default legend {
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (max-width: 699px) {
+  .card-type-selector.segmented.five-types {
+    grid-template-columns: 1fr 1fr;
+  }
+  .card-type-selector.segmented.five-types button:last-child {
+    grid-column: auto;
+  }
+  .interactive-study-table th,
+  .interactive-study-table td {
+    padding: 10px;
+  }
+  .table-answer-field {
+    min-width: 140px;
+  }
+  .table-secondary-controls {
+    gap: 6px;
+  }
+  .table-editor-actions button {
+    flex: 1 1 40%;
+  }
+  .table-grid-editor > table {
+    min-width: 550px;
+  }
+}

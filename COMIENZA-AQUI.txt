@@ -1,27 +1,32 @@
-OpoGC v15.1 - MEDIA POR SESION Y CUATRO GRUPOS
+OpoGC v15.3 - TABLAS MUDAS
 
-PARCHE SOBRE v15.0. No es el proyecto completo.
+PARCHE SOBRE v15.2. No es el proyecto completo.
 
 1. Descomprime el ZIP y abre actualizar.
-2. Sube TODO SU CONTENIDO a la raiz del repositorio de v15.0,
+2. Sube TODO SU CONTENIDO a la raiz del repositorio de v15.2,
    conservando rutas y sustituyendo los archivos.
-   No subas otra carpeta llamada actualizar.
+   No subas otra carpeta contenedora llamada actualizar.
 3. Incluye juntos package.json y package-lock.json.
 4. Cloudflare Pages: npm run build; directorio de salida out.
-5. Mantén las variables actuales de Supabase. No ejecutes SQL.
+5. Manten las variables actuales de Supabase. No ejecutes SQL.
 6. Actualiza la PWA en todos los dispositivos.
 
-CORRECCIONES
-- La primera nota de una tarjeta en CADA SESION NUEVA cuenta para su media.
-- Las repeticiones dentro de esa misma sesion son refuerzo y no la inflan.
-- Se elimina la espera de 12 horas. Las notas anteriores se recalculan
-  por sus IDs de sesion, sin borrar historial.
-- Se conserva la media decimal: 6 y 5 dan 5,5.
-- Cuatro botones y filtros: Suspendida, Suficiente, Notable, Sobresaliente.
-- Cada grupo aporta su valor central: 2,5 / 5,5 / 7,5 / 9,5.
-  Las notas numericas antiguas mantienen su valor exacto.
+COMO USARLO
+- Biblioteca > Tarjeta > Tabla muda.
+- Escribe el enunciado y crea filas/columnas o usa Pegar tabla.
+- Toca celdas para editarlas y marca las respuestas evaluables.
+- Puedes evaluar una columna y configurar alternativas por celda.
+- Elige 25/50/75/100 % de ocultacion y usa Vista previa.
+- Estudia con tus otras tarjetas. Comprobar muestra errores y nota exacta.
+- Guardar y continuar registra una sola nota de la tabla completa.
+- Salir y reanudar conserva los campos escritos y la combinacion.
+- Las tarjetas normales mantienen su editor y funcionamiento.
 
 Sin dependencias nuevas, migraciones ni archivos que borrar.
-Detalles: actualizar/docs/MEDIAS-GRUPOS-V15.1.md
-Pruebas: actualizar/docs/RESULTADOS-V15.1.json
+FSRS, Auth y sincronizacion se conservan. Las tablas usan nota objetiva
+0-10 y la media existente por primera nota de cada tarjeta/sesion nueva.
+Reintentar sirve para practicar: no reemplaza la primera nota del intento.
+Detalles: actualizar/docs/TABLAS-MUDAS-V15.3.md
+JSON de ejemplo: actualizar/docs/ejemplos/tabla-muda.json
+Pruebas: actualizar/docs/RESULTADOS-V15.3.json
 Archivos: ARCHIVOS-DEL-PARCHE.json

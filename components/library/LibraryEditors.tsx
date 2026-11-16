@@ -1,6 +1,8 @@
 "use client";
 import HierarchyField from "../filters/HierarchyPicker";
-import { useState, type FormEvent } from "react";
+import { lazy, Suspense, useRef, useState, type FormEvent } from "react";
+import type { StudyTable } from "../../lib/tables/model";
+const TableEditor = lazy(() => import("../tables/TableEditor"));
 import { AnnotatedCardImage, ImageAnnotator } from "../../app/CardImage";
 import type {
   WrittenCriterion,
@@ -182,6 +184,7 @@ export function CardModal({
   lockType?: boolean;
 }) {
   const [saving, setSaving] = useState(false);
+  const submitBusy = useRef(false);
   const [saveError, setSaveError] = useState("");
   const [type, setType] = useState<CardType>(initialCard?.type ?? "basic");
   const [folderId, setFolderId] = useState(
@@ -189,6 +192,9 @@ export function CardModal({
   );
   const [front, setFront] = useState(initialCard?.front ?? "");
   const [back, setBack] = useState(initialCard?.back ?? "");
+  const [tableDraft, setTableDraft] = useState<StudyTable | undefined>(
+    initialCard?.table,
+  );
   const [options, setOptions] = useState(() => {
     const existing = initialCard?.options ?? [];
     return Array.from({ length: 4 }, (_, index) => existing[index] ?? "");
@@ -388,7 +394,25 @@ export function CardModal({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (saving) return;
+    if (saving || submitBusy.current) return;
+    let table: StudyTable | undefined,
+      tableBack = "";
+    if (type === "table") {
+      submitBusy.current = true;
+      setSaving(true);
+      try {
+        if (!tableDraft)
+          throw Error("Espera a que se abra el editor de la tabla.");
+        const model = await import("../../lib/tables/model");
+        table = model.validateStudyTable(tableDraft);
+        tableBack = model.tableHtml(table);
+      } catch (error) {
+        submitBusy.current = false;
+        setSaving(false);
+        setSaveError((error as Error).message);
+        return;
+      }
+    }
     const base: Card = initialCard ?? {
       id: uid(),
       folderId: "",
@@ -482,6 +506,7 @@ export function CardModal({
             encodeWrittenRubric(writtenEvaluation),
           ]
         : (initialCard?.options ?? []);
+    submitBusy.current = true;
     setSaving(true);
     setSaveError("");
     try {
@@ -489,20 +514,27 @@ export function CardModal({
         ...base,
         folderId,
         type,
+        ...(table ? { table } : {}),
         front:
-          type === "orthography"
-            ? sanitizeRichHtml(`<p>${escapeHtml(orthographyWord.trim())}</p>`)
-            : sanitizeRichHtml(front),
-        back:
-          type === "orthography"
-            ? orthographyBackHtml(
-                orthographyWord.trim(),
-                orthographyIsCorrect,
-                finalOrthographyForm,
-                orthographyExplanation.trim(),
-                orthographySource.trim(),
+          type === "table"
+            ? sanitizeRichHtml(
+                plainRichText(front) ? front : "<p>Completa la tabla</p>",
               )
-            : sanitizeRichHtml(back),
+            : type === "orthography"
+              ? sanitizeRichHtml(`<p>${escapeHtml(orthographyWord.trim())}</p>`)
+              : sanitizeRichHtml(front),
+        back:
+          type === "table"
+            ? tableBack
+            : type === "orthography"
+              ? orthographyBackHtml(
+                  orthographyWord.trim(),
+                  orthographyIsCorrect,
+                  finalOrthographyForm,
+                  orthographyExplanation.trim(),
+                  orthographySource.trim(),
+                )
+              : sanitizeRichHtml(back),
         options:
           type === "written"
             ? writtenOptions
@@ -542,6 +574,7 @@ export function CardModal({
         "No se han podido guardar los cambios. Puedes volver a intentarlo.",
       );
     } finally {
+      submitBusy.current = false;
       setSaving(false);
     }
   }
@@ -552,7 +585,7 @@ export function CardModal({
       subtitle={
         lockType
           ? "Corrige la tarjeta y continúa donde estabas."
-          : "Crea flashcards, vocabulario, tests u ortografía. Las respuestas escritas con rúbrica se crean desde ChatGPT / JSON y después pueden editarse aquí."
+          : "Crea flashcards normales, tablas mudas, vocabulario, tests u ortografía. Las respuestas escritas con rúbrica se crean desde ChatGPT / JSON y después pueden editarse aquí."
       }
       label={initialCard ? "EDITAR" : "NUEVO"}
       dismissible={!saving}
@@ -561,19 +594,29 @@ export function CardModal({
       <form onSubmit={submit}>
         <fieldset className="editor-fields" disabled={saving}>
           {!lockType && (
-            <div className="segmented five-types">
+            <div className="segmented five-types card-type-selector">
               <button
                 type="button"
                 className={type === "basic" ? "active" : ""}
-                disabled={lockType}
+                disabled={lockType || initialCard?.type === "table"}
                 onClick={() => setType("basic")}
               >
-                Flashcard
+                Flashcard normal
+              </button>
+              <button
+                type="button"
+                className={type === "table" ? "active" : ""}
+                disabled={
+                  lockType || (!!initialCard && initialCard.type !== "table")
+                }
+                onClick={() => setType("table")}
+              >
+                Tabla muda
               </button>
               <button
                 type="button"
                 className={type === "choice" ? "active" : ""}
-                disabled={lockType}
+                disabled={lockType || initialCard?.type === "table"}
                 onClick={() => setType("choice")}
               >
                 Vocabulario
@@ -581,7 +624,7 @@ export function CardModal({
               <button
                 type="button"
                 className={type === "test" ? "active" : ""}
-                disabled={lockType}
+                disabled={lockType || initialCard?.type === "table"}
                 onClick={() => setType("test")}
               >
                 Tipo test
@@ -589,7 +632,7 @@ export function CardModal({
               <button
                 type="button"
                 className={type === "orthography" ? "active" : ""}
-                disabled={lockType}
+                disabled={lockType || initialCard?.type === "table"}
                 onClick={() => setType("orthography")}
               >
                 Ortografía
@@ -634,7 +677,58 @@ export function CardModal({
               rootLabel="Sin carpeta"
             />
           </label>
-          {type === "orthography" ? (
+          {type === "table" ? (
+            <>
+              <label>Enunciado de la tabla</label>
+              <CardTextEditor
+                fieldName="Enunciado"
+                value={front}
+                onChange={setFront}
+                placeholder="Enunciado de la tabla"
+              />
+              <Suspense
+                fallback={<p role="status">Abriendo editor de tabla…</p>}
+              >
+                <TableEditor value={tableDraft} onChange={setTableDraft} />
+              </Suspense>
+              <button
+                type="button"
+                className="ux-link"
+                disabled={!tableDraft}
+                onClick={async () => {
+                  if (!tableDraft) return;
+                  try {
+                    const { tableTemplate } =
+                      await import("../../lib/tables/json");
+                    const data = tableTemplate(
+                      {
+                        front: plainRichText(front)
+                          ? front
+                          : "<p>Completa la tabla</p>",
+                        folderId,
+                        table: tableDraft,
+                      },
+                      folders,
+                    );
+                    const url = URL.createObjectURL(
+                      new Blob([JSON.stringify(data, null, 2)], {
+                        type: "application/json",
+                      }),
+                    );
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "OpoGC-tabla-muda.json";
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                  } catch (error) {
+                    setSaveError((error as Error).message);
+                  }
+                }}
+              >
+                Exportar esta tabla (JSON)
+              </button>
+            </>
+          ) : type === "orthography" ? (
             <div className="orthography-manual-editor">
               <span className="flashcard-side-label">
                 PALABRA · UNIDAD INDIVIDUAL DE ESTUDIO
@@ -1207,6 +1301,7 @@ export function CardModal({
             disabled={
               saving ||
               uploadingImage ||
+              (type === "table" && !tableDraft) ||
               (type === "orthography" &&
                 (!orthographyWord.trim() ||
                   (!orthographyIsCorrect && !orthographyCorrectForm.trim()))) ||

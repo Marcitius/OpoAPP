@@ -10,6 +10,7 @@ import type {
 } from "../study/legacy";
 
 export interface SessionItem {
+  tablePercentage?: import("../tables/model").TablePercentage;
   lastScore?: number;
   priorityScore?: number;
   id: string;
@@ -25,6 +26,7 @@ export interface SessionItem {
   status: "new" | "reinforce" | "remembered" | "weak" | "skipped";
 }
 export interface SessionPresentation {
+  tableAttempt?: import("../tables/learning").TableAttempt | null;
   queue: ReviewQueueItem[];
   index: number;
   revealed: boolean;
@@ -36,6 +38,7 @@ export interface SessionPresentation {
   orthographySelected: string[];
 }
 export interface CardSession {
+  tablePercentage?: import("../tables/model").TablePercentage;
   grading?: "scores-v1";
   version: 1;
   id: string;
@@ -177,8 +180,16 @@ export function answerSession(
   reviewId: string,
   now: number,
   score?: number,
+  objectiveTable = false,
 ): CardSession {
-  if (score !== undefined && !validScore(score))
+  const tableScore =
+    objectiveTable &&
+    card.type === "table" &&
+    typeof score === "number" &&
+    Number.isFinite(score) &&
+    score >= 0 &&
+    score <= 10;
+  if (score !== undefined && !validScore(score) && !tableScore)
     throw new Error("Nota inválida");
   if (session.history.some((r) => r.reviewId === reviewId)) return session;
   if (session.format === "orthography")
@@ -187,7 +198,7 @@ export function answerSession(
     item = s.items.find((i) => i.id === card.id);
   if (!item || !["new", "reinforce"].includes(item.status)) return session;
   const attempts = item.attempts + 1;
-  const graded = validScore(score);
+  const graded = validScore(score) || tableScore;
   const remembered = graded
     ? score >= 5
     : rating === "good" || rating === "easy";
