@@ -1,3 +1,28 @@
+# v15.2.0 — Editor de tarjetas
+
+- Pregunta y respuesta comparten el editor Tiptap de Material, con una barra compacta y herramientas ampliadas en ···. Sustituye el antiguo contentEditable con execCommand.
+- Títulos 1–6, listas, marcas, fuentes, tamaños, colores, resaltado, alineación, sangría, interlineado, tablas, citas, enlaces y deshacer/rehacer en las tarjetas.
+- Pegado HTML enriquecido y conversión Markdown, incluyendo viñetas Unicode y fragmentos subrayados o en cursiva sin contenedor.
+- Política de formato y estilos de lectura unificados: se conservan al guardar/editar y se muestran correctamente durante el estudio. Las tablas se desplazan dentro del contenido cuando es necesario.
+- Sangría e interlineado se aplican a todos los párrafos y títulos seleccionados, también cuando se mezclan en la selección.
+- Editor estable durante la escritura: conserva la corrección de cursor/retroceso y no enfoca automáticamente campos al abrirse.
+- Carga del editor bajo demanda, sin incluir Tiptap en el arranque de las sesiones de estudio/repaso. El precache PWA existente conserva los chunks para editar offline.
+- Sin dependencias nuevas ni SQL. Se mantienen imágenes/adjuntos, tipos de tarjeta, rúbricas, notas, medias, sesiones, historial, FSRS, Auth y sincronización.
+
+---
+
+# v15.1.0 — Media por sesión y cuatro grupos
+
+- Corrige la media: primera valoración numérica por tarjeta y sesión guardada, sin la restricción de 12 horas. Continuar la misma sesión conserva el refuerzo; una sesión nueva aporta otra nota.
+- Recupera las primeras notas de sesiones v15 que habían quedado excluidas por aquella restricción, usando los IDs del historial sin modificarlo.
+- Mantiene decimales completos para calcular, filtrar y ordenar; los muestra con formato español.
+- Sustituye diez botones por Suspendida, Suficiente, Notable y Sobresaliente. Los grupos aportan valores centrales 2,5/5,5/7,5/9,5; las notas numéricas antiguas se conservan.
+- Agrupa los filtros por esos cuatro niveles, incluyendo correctamente medias decimales.
+- Actualiza el informe para ChatGPT con la política por sesión y la procedencia de las notas.
+- Conserva sesiones, historial, FSRS, sincronización, offline, Material e imágenes. Sin SQL ni dependencias nuevas.
+
+---
+
 # v15.0.0 — Notas e informe diario
 
 - Notas 1–10 con aprobación desde 5 y refuerzos intercalados priorizados por menor nota. Aprobadas fuera de la cola de esa sesión.

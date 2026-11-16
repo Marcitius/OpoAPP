@@ -93,6 +93,14 @@ for (const [w, h] of [
       exact: true,
     });
     await expect(dialog).toBeVisible();
+    // This fixture has no Service Worker; wait for the on-demand editor before
+    // cutting its network. Production precaching is tested separately.
+    await expect(
+      dialog.getByRole("textbox", { name: "Escribe la pregunta", exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("textbox", { name: /Puedes escribir una respuesta/ }),
+    ).toBeVisible();
     await noKeyboard(page);
     await context.setOffline(true);
     await dialog
@@ -143,7 +151,7 @@ for (const [w, h] of [
       "Respuesta corregida sin perder memoria",
     );
     await page
-      .getByRole("button", { name: /^(Fácil|Nota 9)$/, exact: true })
+      .getByRole("button", { name: /^(Fácil|Sobresaliente)$/, exact: true })
       .click();
     await expect(page.locator(".review-prompt")).toContainText("Artículo 164");
     expect((await state(page)).reviews.length).toBe(before.reviews.length + 1);

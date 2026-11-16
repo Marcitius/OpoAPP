@@ -4,6 +4,7 @@ import "./globals.css";
 import "./account.css";
 import "./mobile-ux.css";
 import "./material.css";
+import "./card-editor.css";
 export const metadata: Metadata = {
   title: "OpoGC",
   description: "Organiza, estudia y repasa tu oposición",

@@ -176,8 +176,8 @@
 }
 .material-prose p {
   margin: 0 0 0.8em !important;
-  font-size: inherit !important;
-  line-height: inherit !important;
+  font-size: inherit;
+  line-height: inherit;
 }
 .material-prose h1,
 .material-prose h2,

@@ -36,7 +36,8 @@ parser.use({
 export function markdownToMaterial(text: string): string {
   const normalized = text
     .replace(/\r\n?/g, "\n")
-    .replace(/^(\s*)\\([-+*])\s/gm, "$1$2 ");
+    .replace(/^(\s*)\\([-+*])\s/gm, "$1$2 ")
+    .replace(/^([ \t]*)[•●▪]\s+/gm, "$1- ");
   return sanitizeMaterial(parser.parse(normalized, { async: false }) as string);
 }
 export function clipboardMaterial(html: string, text: string): string {
@@ -45,7 +46,9 @@ export function clipboardMaterial(html: string, text: string): string {
   if (
     html &&
     !/^\s*(?:<meta[^>]*>\s*)?<pre[\s>]/i.test(html) &&
-    /<(?:p|h[1-6]|ul|ol|table|strong|b|em|span|div|img)\b/i.test(html)
+    /<(?:p|h[1-6]|ul|ol|li|table|strong|b|em|i|u|s|del|mark|blockquote|a|sub|sup|hr|code|span|div|img)\b/i.test(
+      html,
+    )
   )
     return sanitizeMaterial(html);
   return markdownToMaterial(text);

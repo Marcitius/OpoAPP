@@ -1,27 +1,26 @@
-OpoGC v15 - NOTAS E INFORME DIARIO
+OpoGC v15.2 - EDITOR DE TARJETAS
 
-PARCHE SOBRE v14.3. No es el proyecto completo.
+PARCHE SOBRE v15.1. No es el proyecto completo.
 
 1. Descomprime el ZIP y abre actualizar.
-2. Sube TODO SU CONTENIDO a la raiz del repositorio de v14.3,
-   conservando rutas y sustituyendo archivos.
-   No subas una carpeta adicional llamada actualizar.
+2. Sube TODO SU CONTENIDO a la raiz del repositorio de v15.1,
+   conservando rutas y sustituyendo los archivos.
+   No subas otra carpeta contenedora llamada actualizar.
 3. Incluye juntos package.json y package-lock.json.
 4. Cloudflare Pages: npm run build; directorio de salida out.
-5. Conserva las variables actuales de Supabase. No ejecutes SQL.
-6. Actualiza la PWA en todos tus dispositivos.
+5. Manten las variables actuales de Supabase. No ejecutes SQL.
+6. Actualiza la PWA en todos los dispositivos.
 
-NOVEDADES
-- Tarjetas: notas 1 a 10; desde 5, no vuelve en esa sesion.
-- Biblioteca y Estudiar seleccion: filtros por nota y Peor nota primero.
-- Media de recuerdo: no incluye refuerzos inmediatos. Para un nuevo
-  recuerdo deben pasar 12 horas sin practicar esa tarjeta.
-- Progreso > Informe diario para ChatGPT > Exportar para ChatGPT.
-- Sesiones guardadas: finalizar una, varias seleccionadas o todas.
+COMO USARLO
+- Crea o edita una tarjeta: Pregunta y Respuesta tienen el editor de Material.
+- Selecciona texto y usa titulos, negrita, cursiva, subrayado o listas.
+- Pulsa ... para tablas, sangrias, colores, fuentes y mas herramientas.
+- Pega contenido con formato, o Markdown: se convierte en contenido editable.
+- El formato se conserva al guardar y al estudiar la tarjeta.
+- Las imagenes y la escritura manuscrita mantienen Respuesta visual.
 
-No hay dependencias nuevas, archivos que borrar ni migraciones.
-Se conserva el historial anterior sin inventar notas numericas.
-
-Detalles: actualizar/docs/NOTAS-INFORME-V15.md
-Pruebas: actualizar/docs/RESULTADOS-V15.json
-Lista completa: ARCHIVOS-DEL-PARCHE.json
+Sin dependencias nuevas, migraciones ni archivos que borrar.
+No cambian las notas, medias, sesiones, FSRS, datos ni sincronizacion.
+Detalles: actualizar/docs/EDITOR-TARJETAS-V15.2.md
+Pruebas: actualizar/docs/RESULTADOS-V15.2.json
+Archivos: ARCHIVOS-DEL-PARCHE.json

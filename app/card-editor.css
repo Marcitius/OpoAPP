@@ -1,0 +1,246 @@
+/* Compact editing uses the same document engine as Material de estudio. */
+.material-editor.card-rich-editor {
+  min-height: 0;
+  min-width: 0;
+  overflow: visible;
+  border: 1px solid #ced8d0;
+  border-radius: 14px;
+  background: white;
+}
+.card-rich-editor:focus-within {
+  border-color: #548169;
+  box-shadow: 0 0 0 2px #28594314;
+}
+.card-rich-editor[aria-busy="true"] {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+}
+.card-rich-editor .material-toolbar {
+  position: static;
+  border-radius: 14px 14px 0 0;
+  padding: 8px;
+  background: #f4f7f3;
+}
+.card-rich-editor .material-toolbar-primary {
+  gap: 5px;
+}
+.card-rich-editor .material-toolbar-primary > button {
+  min-width: 40px;
+  min-height: 44px;
+  font-size: 17px;
+}
+.card-rich-editor .material-toolbar-primary > button[aria-label="Negrita"] {
+  font-weight: 750;
+}
+.card-rich-editor .material-toolbar-primary > button[aria-label="Cursiva"] {
+  font-style: italic;
+}
+.card-rich-editor .material-toolbar-primary > button[aria-label="Subrayado"] {
+  text-decoration: underline;
+}
+.card-rich-editor .material-toolbar-extra {
+  max-height: 210px;
+  overscroll-behavior: contain;
+}
+.card-rich-editor .material-toolbar select,
+.card-rich-editor .material-toolbar input {
+  min-height: 44px;
+}
+.card-rich-editor .material-toolbar button {
+  min-height: 44px;
+}
+.card-rich-editor .material-toolbar input[type="color"] {
+  width: 40px;
+  min-width: 40px;
+  padding: 4px;
+  flex: 0 0 40px;
+}
+.material-editor.card-rich-editor .tiptap {
+  min-height: 168px;
+  max-width: none;
+  margin: 0;
+  padding: 16px;
+  box-shadow: none;
+  outline: none;
+  font-size: 16px;
+  line-height: 1.6;
+  border-radius: 0 0 14px 14px;
+}
+.card-rich-editor .tiptap > :first-child {
+  margin-top: 0;
+}
+.card-rich-editor .tiptap > :last-child {
+  margin-bottom: 0 !important;
+}
+.card-rich-editor
+  .tiptap:has(> p:only-child > br.ProseMirror-trailingBreak:only-child):before {
+  content: attr(data-placeholder);
+  color: #78857b;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.card-rich-editor .tiptap .tableWrapper {
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+
+/* Reader rules are deliberately independent of Tiptap and its editing UI. */
+.rich-content.rich-prose {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior-x: contain;
+}
+.rich-prose p {
+  margin: 0 0 0.7em;
+}
+.rich-prose > :first-child {
+  margin-top: 0;
+}
+.rich-prose > :last-child {
+  margin-bottom: 0;
+}
+.rich-prose h1,
+.rich-prose h2,
+.rich-prose h3,
+.rich-prose h4,
+.rich-prose h5,
+.rich-prose h6 {
+  margin: 1.1em 0 0.5em;
+  font-weight: 750;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+.rich-prose h1 {
+  font-size: 1.65em;
+}
+.rich-prose h2 {
+  font-size: 1.4em;
+}
+.rich-prose h3 {
+  font-size: 1.2em;
+}
+.rich-prose h4 {
+  font-size: 1.1em;
+}
+.rich-prose h5 {
+  font-size: 1.05em;
+}
+.rich-prose h6 {
+  font-size: 1em;
+}
+.rich-prose strong,
+.rich-prose b {
+  font-weight: 750;
+}
+.rich-prose em,
+.rich-prose i {
+  font-style: italic;
+}
+.rich-prose u {
+  text-decoration: underline;
+}
+.rich-prose s,
+.rich-prose del {
+  text-decoration: line-through;
+}
+.rich-content.rich-prose ul,
+.rich-content.rich-prose ol {
+  margin: 0.65em 0;
+  padding-left: 1.65em;
+}
+.rich-prose ul {
+  list-style-type: disc;
+}
+.rich-prose ul ul {
+  list-style-type: circle;
+}
+.rich-prose ul ul ul {
+  list-style-type: square;
+}
+.rich-prose ol {
+  list-style-type: decimal;
+}
+.rich-prose ol[type="a"] {
+  list-style-type: lower-alpha;
+}
+.rich-prose ol[type="A"] {
+  list-style-type: upper-alpha;
+}
+.rich-prose ol[type="i"] {
+  list-style-type: lower-roman;
+}
+.rich-prose ol[type="I"] {
+  list-style-type: upper-roman;
+}
+.rich-prose li {
+  display: list-item;
+  margin: 0.3em 0;
+}
+.rich-prose li p {
+  margin: 0;
+}
+.rich-prose blockquote {
+  margin: 1em 0;
+  padding: 0.2em 0.9em;
+  border-left: 3px solid #86a28d;
+  color: #48624f;
+}
+.rich-prose a {
+  text-decoration: underline;
+  color: #216143;
+}
+.rich-prose hr {
+  border: 0;
+  border-top: 1px solid #c3cfc5;
+  margin: 1.2em 0;
+}
+.rich-prose pre {
+  white-space: pre-wrap;
+  padding: 0.75em;
+  border-radius: 8px;
+  background: #f1f5ef;
+}
+.rich-prose code {
+  font-family: ui-monospace, monospace;
+}
+.rich-prose table {
+  width: 100%;
+  min-width: 280px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0.8em 0;
+}
+.rich-prose th,
+.rich-prose td {
+  border: 1px solid #bac9bd;
+  min-width: 60px;
+  padding: 8px;
+  vertical-align: top;
+}
+.rich-prose th {
+  font-weight: 750;
+  background: #edf3e9;
+}
+.rich-prose td > :last-child,
+.rich-prose th > :last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 699px) {
+  .card-rich-editor .material-toolbar-primary {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .card-rich-editor .material-toolbar-primary > button {
+    min-width: 0;
+  }
+  .material-editor.card-rich-editor .tiptap {
+    padding: 14px;
+    min-height: 150px;
+  }
+  .card-rich-editor .material-toolbar-extra {
+    max-height: 180px;
+  }
+}

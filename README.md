@@ -1,3 +1,69 @@
+# OpoGC v15.2 — Editor de tarjetas
+
+Las **preguntas y respuestas de las tarjetas** utilizan ahora el mismo editor que Material de estudio, adaptado a un cuadro compacto. Funciona al crear tarjetas en Biblioteca y al editarlas, también durante un repaso.
+
+- Negrita, cursiva, subrayado, tachado, títulos 1–6, listas con viñetas, numeradas y alfabéticas.
+- Sangría, fuente, tamaño, color, resaltado, alineación, interlineado, tablas editables, citas, enlaces, subíndices, superíndices y deshacer/rehacer.
+- Pegado con formato desde el portapapeles. Si copias Markdown, se convierte en títulos, listas, negritas y tablas; puedes usar también **··· → Pegar Markdown**.
+- El formato se conserva al guardar, reabrir y estudiar la tarjeta. No se abre el teclado al abrir el editor o sus hojas de opciones.
+
+Los controles habituales están a la vista; **···** reúne las herramientas adicionales. Las imágenes y respuestas manuscritas conservan su apartado actual de **Respuesta visual**.
+
+## Actualizar desde v15.1
+
+El ZIP contiene únicamente archivos nuevos o modificados **sobre v15.1**. Sube el **contenido de actualizar/** a la raíz de tu repositorio, conservando las rutas y sustituyendo archivos. No subas una carpeta contenedora llamada actualizar. Incluye juntos package.json y package-lock.json.
+
+Cloudflare Pages: **npm run build**, salida **out**. Conserva las variables actuales y actualiza la PWA en todos los dispositivos. No hay dependencias nuevas, migraciones SQL, archivos que borrar ni reinicio de datos. Las notas, medias, sesiones, FSRS, sincronización y adjuntos no cambian.
+
+Detalles: **docs/EDITOR-TARJETAS-V15.2.md**. Pruebas ejecutadas: **docs/RESULTADOS-V15.2.json**. Relación exacta y hashes de los archivos: **ARCHIVOS-DEL-PARCHE.json**, en el ZIP.
+
+## Validación de v15.2
+
+TypeScript y build correctos; **131 pruebas de lógica/datos y 141 de navegador aprobadas**, sin fallos ni pruebas omitidas en la ejecución final. Incluye formato, cursor, controles táctiles, edición offline, reapertura, copias y disponibilidad del editor en el precache PWA de producción. Pruebas locales con Chromium; no se ha probado contra tu cuenta real de Supabase ni en Safari físico.
+
+---
+
+Documentación de la versión anterior; sus reglas de notas siguen vigentes:
+
+# OpoGC v15.1 — Media por sesión y cuatro grupos
+
+Corrección sobre v15.0. La media se actualiza con la **primera valoración numérica de cada tarjeta en cada sesión nueva**, aunque la sesión anterior empezara hace pocos minutos. Las repeticiones de esa misma tarjeta dentro de la misma sesión se guardan, pero no modifican su media. Salir, reabrir, continuar otro día o cambiar de dispositivo conserva la identidad de la sesión.
+
+Se elimina la restricción de 12 horas de v15 para calcular la media. Las primeras valoraciones que esa regla había excluido se recuperan al recalcular con los IDs de sesión del historial, sin borrar ni reescribir respuestas anteriores.
+
+La media conserva sus decimales y se ordena con el valor completo: 6 y 5 en sesiones diferentes dan **5,5**. Si después recibes un 2, queda **4,333…**, se muestra **4,33** y la tarjeta gana prioridad en el siguiente estudio por nota. Los intentos de refuerzo no cambian ese resultado.
+
+## Cuatro botones para valorar
+
+| Grupo | Referencia | Valor que aporta a la media |
+| --- | --- | --- |
+| Suspendida | 1–4 | 2,5 |
+| Suficiente | 5–6 | 5,5 |
+| Notable | 7–8 | 7,5 |
+| Sobresaliente | 9–10 | 9,5 |
+
+Al elegir un grupo se usa su valor central, porque el botón agrupa varias notas. Las notas numéricas antiguas, por ejemplo 5 o 6, conservan exactamente su valor; no se convierten en valores centrales. El acceso No me la sé sigue registrando 1. Un test objetivamente incorrecto queda suspendido.
+
+Suficiente, Notable y Sobresaliente terminan la tarjeta en esa sesión. Suspendida conserva el refuerzo intercalado. FSRS y el resto del flujo de estudio se mantienen.
+
+## Elegir por grupo
+
+En Biblioteca y Estudiar selección puedes elegir Suspendidas, Suficiente, Notable, Sobresaliente, Sin nota o Todas. El criterio puede ser media o última nota de sesión. Las medias decimales no quedan fuera: por debajo de 5 es Suspendida; de 5 a menos de 7, Suficiente; de 7 a menos de 9, Notable; desde 9, Sobresaliente.
+
+El orden Peor nota primero utiliza la media real, sin redondearla para ordenar. Los modos Aprender, Aleatorio, En orden, Más falladas y Repasos pendientes se conservan. El informe de ChatGPT incluye la regla actual, el grupo y la procedencia de cada nota, para distinguir una nota numérica antigua de un valor central de categoría. El informe también advierte que varias sesiones muy próximas no prueban por sí solas retención a largo plazo.
+
+## Actualizar desde v15.0
+
+El ZIP contiene únicamente archivos nuevos o modificados **sobre v15.0**. Sube el **contenido de actualizar/** a la raíz de tu repositorio conservando rutas y sustituyendo archivos. Incluye package.json y package-lock.json juntos. No subas una carpeta contenedora llamada actualizar.
+
+Cloudflare Pages: **npm run build**, salida **out**. Conserva las variables actuales de Supabase y actualiza la PWA en todos los dispositivos. No hay dependencias nuevas, migraciones SQL, archivos que borrar ni reinicio de datos.
+
+Detalles y compatibilidad: **docs/MEDIAS-GRUPOS-V15.1.md**. Pruebas ejecutadas: **docs/RESULTADOS-V15.1.json**. Lista exacta de archivos: **ARCHIVOS-DEL-PARCHE.json**, en el ZIP.
+
+---
+
+Documentación histórica de v15.0 y anteriores (sus reglas se sustituyen por las descritas arriba):
+
 # OpoGC v15 — Notas e informe diario
 
 Actualización sobre **v14.3** con tres cambios: valorar tarjetas del 1 al 10, exportar el estudio diario para ChatGPT y finalizar sesiones individualmente o en grupo.

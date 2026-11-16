@@ -28,6 +28,7 @@ import "../../app/globals.css";
 import "../../app/account.css";
 import "../../app/mobile-ux.css";
 import "../../app/material.css";
+import "../../app/card-editor.css";
 const user = "ux-fixture-a",
   stamp = new Date().toISOString();
 const today = new Date().toLocaleDateString("en-CA");

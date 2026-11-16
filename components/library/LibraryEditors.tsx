@@ -6,10 +6,8 @@ import type {
   WrittenCriterion,
   WrittenEvaluation,
 } from "../../app/CardImportModal";
-import RichTextEditor, {
-  plainRichText,
-  sanitizeRichHtml,
-} from "../../app/RichTextEditor";
+import CardTextEditor from "../editor/CardTextEditor";
+import { plainRichText, sanitizeRichHtml } from "../../app/RichTextEditor";
 import { uploadAttachment } from "../../lib/data/files";
 import {
   Attachment,
@@ -715,7 +713,8 @@ export function CardModal({
               <div className="flashcard-side-editor question-editor">
                 <span className="flashcard-side-label">ANVERSO · PREGUNTA</span>
                 <label>Pregunta</label>
-                <RichTextEditor
+                <CardTextEditor
+                  fieldName="Pregunta"
                   value={front}
                   onChange={setFront}
                   placeholder="Escribe la pregunta"
@@ -820,7 +819,8 @@ export function CardModal({
                 <label>
                   Texto de la respuesta <small>(opcional)</small>
                 </label>
-                <RichTextEditor
+                <CardTextEditor
+                  fieldName="Respuesta"
                   value={back}
                   onChange={setBack}
                   placeholder="Puedes escribir una respuesta, añadir una imagen, escribir a mano o combinarlo"
