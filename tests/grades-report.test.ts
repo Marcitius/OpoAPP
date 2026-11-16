@@ -18,7 +18,9 @@ import {
   orderByGrade,
   filterByGrade,
   defaultGradeFilter,
-  RECALL_BREAK_MS,
+  scoreGroups,
+  scoreGroup,
+  formatScore,
 } from "../lib/memory/grades";
 import {
   answerSession,
@@ -116,7 +118,7 @@ test("Scores map to existing FSRS grades with five as pass; invalid scores rejec
       "easy",
     ],
   );
-  for (const score of [0, 11, 2.5, NaN, Infinity])
+  for (const score of [0, 11, 0.5, NaN, Infinity])
     assert.throws(() => scoreRating(score));
 });
 test("Every score 5–10 removes a card from this session, including Hard 5 and 6", () => {
@@ -146,48 +148,51 @@ test("Fail, fail, then pass records all attempts but the mean remains the initia
   assert.equal(stats.latestRecall, 2);
   assert.equal(stats.recallCount, 1);
 });
-test("Another session, reload, or device after five minutes cannot inflate recall", () => {
-  const rows = [review("first", 2)];
-  const index = gradeIndex(rows);
-  assert.equal(scoreKind(card(), index, t + 5 * 60_000), "reinforcement");
-  rows.push(review("new-session", 10, t + 5 * 60_000, "a", "recall"));
-  assert.equal(gradeIndex(rows).get("a")!.average, 2);
+test("A new session five minutes later updates the mean; resuming the same session never does", () => {
+  const rows = [{ ...review("first", 6), cardSessionId: "s1" }];
+  assert.equal(scoreKind(card(), gradeIndex(rows), "s1"), "reinforcement");
+  assert.equal(scoreKind(card(), gradeIndex(rows), "s2"), "recall");
+  rows.push({
+    ...review("next", 5, t + 5 * 60_000, "a", "reinforcement"),
+    cardSessionId: "s2",
+  });
+  assert.equal(gradeIndex(rows).get("a")!.average, 5.5);
+  rows.push({
+    ...review("practice", 10, t + 6 * 60_000, "a", "reinforcement"),
+    cardSessionId: "s2",
+  });
+  assert.equal(gradeIndex(rows).get("a")!.average, 5.5);
 });
-test("A later independent recall contributes once and a recent reinforcement restarts the break", () => {
+test("Same saved session after two days is still reinforcement; a new session lowers the average", () => {
   const rows = [
-    review("a", 2),
-    review("b", 8, t + 60_000, "a", "reinforcement"),
+    { ...review("a", 6), cardSessionId: "s1" },
+    {
+      ...review("b", 9, t + 60_000, "a", "reinforcement"),
+      cardSessionId: "s1",
+    },
   ];
-  assert.equal(
-    scoreKind(card(), gradeIndex(rows), t + RECALL_BREAK_MS),
-    "reinforcement",
-  );
-  const at = t + 2 * 86400_000;
-  assert.equal(scoreKind(card(), gradeIndex(rows), at), "recall");
-  rows.push(review("c", 4, at));
-  assert.equal(gradeIndex(rows).get("a")!.average, 3);
+  assert.equal(scoreKind(card(), gradeIndex(rows), "s1"), "reinforcement");
+  rows.push({ ...review("c", 4, t + 2 * 86400_000), cardSessionId: "s2" });
+  assert.equal(gradeIndex(rows).get("a")!.average, 5);
 });
-test("Midnight alone never creates new recall evidence", () => {
+test("Midnight does not change the session identity or count another initial grade", () => {
   const before = Date.parse("2026-11-15T22:59:00Z"),
-    rows = [review("a", 2, before)];
+    rows = [{ ...review("a", 2, before), cardSessionId: "s1" }];
   assert.notEqual(
     dayInZone(before, "Europe/Madrid"),
     dayInZone(before + 120_000, "Europe/Madrid"),
   );
-  assert.equal(
-    scoreKind(card(), gradeIndex(rows), before + 120_000),
-    "reinforcement",
-  );
+  assert.equal(scoreKind(card(), gradeIndex(rows), "s1"), "reinforcement");
 });
-test("Concurrent independent submissions, duplicate IDs and event arrival order produce one mean contribution", () => {
-  const a = review("a", 2),
-    b = review("b", 10, t + 1);
+test("Concurrent submissions in one session, duplicate IDs and arrival order produce one contribution", () => {
+  const a = { ...review("a", 2), cardSessionId: "s1" },
+    b = { ...review("b", 10, t + 1), cardSessionId: "s1" };
   const result = gradeIndex([b, a, a]).get("a")!;
   assert.equal(result.average, 2);
   assert.equal(result.recallCount, 1);
   assert.equal(result.latest, 10);
 });
-test("Old ratings are retained without inventing a numeric grade", () => {
+test("Old unscored ratings are retained without inventing numeric grades or blocking a new session", () => {
   const legacy: Review = {
     id: "old",
     cardId: "a",
@@ -196,10 +201,7 @@ test("Old ratings are retained without inventing a numeric grade", () => {
     reviewedAt: new Date(t).toISOString(),
   };
   assert.equal(gradeIndex([legacy]).get("a")!.average, null);
-  assert.equal(
-    scoreKind(card(), gradeIndex([legacy]), t + 1000),
-    "reinforcement",
-  );
+  assert.equal(scoreKind(card(), gradeIndex([legacy]), "new"), "recall");
 });
 test("Grade filters use real decimals, latest independent score and unrated separately", () => {
   const cards = [card("a"), card("b"), card("c")],
@@ -500,7 +502,10 @@ test("Notes, original answers and bulk closures survive offline outbox, reload, 
 
 test("Daily report keeps canonical reinforcement consistent and never labels independent recall as immediate recovery", () => {
   const s = state();
-  s.reviews = [review("a", 2), review("b", 8, t + 1)];
+  s.reviews = [
+    { ...review("a", 2), cardSessionId: "same" },
+    { ...review("b", 8, t + 1), cardSessionId: "same" },
+  ];
   let report = dailyReport(s, "2026-11-15", "Europe/Madrid");
   assert.equal(report.attempts[1].scoreKind, "reinforcement");
   assert.equal(report.attempts[1].reinforcement, true);
@@ -510,4 +515,110 @@ test("Daily report keeps canonical reinforcement consistent and never labels ind
   assert.equal(report.summary.recallEvaluations, 2);
   assert.equal(report.summary.passedAfterReinforcement, 0);
   assert.equal(report.cards[0].averageRecall, 5);
+});
+
+test("6 then 5 in different sessions gives 5.5; a later 2 lowers priority without rounding the mean", () => {
+  const s = state(2);
+  s.reviews = [
+    { ...review("r1", 6), cardSessionId: "one" },
+    { ...review("r2", 5, t + 60_000), cardSessionId: "two" },
+    { ...review("other", 5, t, "c1"), cardSessionId: "other" },
+  ];
+  assert.equal(gradeIndex(s.reviews).get("a")!.average, 5.5);
+  assert.equal(formatScore(5.5), "5,5");
+  assert.deepEqual(
+    orderByGrade(s.cards, gradeIndex(s.reviews)).map((c) => c.id),
+    ["c1", "a"],
+  );
+  s.reviews.push({ ...review("r3", 2, t + 120_000), cardSessionId: "three" });
+  assert.equal(gradeIndex(s.reviews).get("a")!.average, 13 / 3);
+  assert.deepEqual(
+    orderByGrade(s.cards, gradeIndex(s.reviews)).map((c) => c.id),
+    ["a", "c1"],
+  );
+});
+test("Existing v15 first attempts incorrectly flagged by 12-hour rule are recovered by session ID", () => {
+  const rows = [
+    { ...review("a", 6), cardSessionId: "s1" },
+    { ...review("b", 5, t + 1000, "a", "reinforcement"), cardSessionId: "s2" },
+    { ...review("c", 10, t + 2000, "a", "reinforcement"), cardSessionId: "s2" },
+  ];
+  const before = JSON.stringify(rows),
+    stats = gradeIndex(rows).get("a")!;
+  assert.equal(stats.average, 5.5);
+  assert.equal(stats.recallCount, 2);
+  assert.equal(stats.latestRecall, 5);
+  assert.equal(JSON.stringify(rows), before);
+});
+test("Four groups have transparent midpoint values and correct FSRS mapping", () => {
+  assert.deepEqual(
+    scoreGroups.map((g) => g.value),
+    [2.5, 5.5, 7.5, 9.5],
+  );
+  assert.deepEqual(
+    scoreGroups.map((g) => scoreRating(g.value)),
+    ["again", "hard", "good", "easy"],
+  );
+  assert.equal(scoreGroup(4.9), "failed");
+  assert.equal(scoreGroup(5), "sufficient");
+  assert.equal(scoreGroup(6.9), "sufficient");
+  assert.equal(scoreGroup(7), "notable");
+  assert.equal(scoreGroup(8.9), "notable");
+  assert.equal(scoreGroup(9), "outstanding");
+});
+test("Group filters handle fractional averages at every boundary without gaps", () => {
+  const values = [4.5, 5, 6.5, 7, 8.5, 9, 10],
+    cards = values.map((_, i) => card("g" + i));
+  const idx = gradeIndex(
+    values.map((v, i) => ({
+      ...review("r" + i, v, t, "g" + i),
+      cardSessionId: "s" + i,
+    })),
+  );
+  const ids = (kind: any) =>
+    filterByGrade(cards, idx, { ...defaultGradeFilter, kind }).map((c) => c.id);
+  assert.deepEqual(ids("failed"), ["g0"]);
+  assert.deepEqual(ids("sufficient"), ["g1", "g2"]);
+  assert.deepEqual(ids("notable"), ["g3", "g4"]);
+  assert.deepEqual(ids("outstanding"), ["g5", "g6"]);
+});
+test("The same card in different simultaneous sessions contributes once per session", () => {
+  const rows = [
+    { ...review("a", 6), cardSessionId: "s1" },
+    { ...review("b", 5, t), cardSessionId: "s2" },
+  ];
+  assert.equal(gradeIndex(rows).get("a")!.average, 5.5);
+  assert.equal(gradeIndex(rows).get("a")!.recallCount, 2);
+});
+test("Updated policy, category provenance and decimal mean survive daily JSON and account projection", () => {
+  const s = state();
+  s.reviews = [
+    {
+      ...review("a", 5.5),
+      cardSessionId: "s1",
+      scoreGroup: "sufficient",
+      scoreSource: "category-midpoint",
+    },
+    {
+      ...review("b", 7.5, t + 1000),
+      cardSessionId: "s2",
+      scoreGroup: "notable",
+      scoreSource: "category-midpoint",
+    },
+  ];
+  const rows = Object.fromEntries(
+    Object.entries(flatten(s)).map(([key, r]) => [
+      key,
+      { ...r, revision: 1, deleted: false },
+    ]),
+  );
+  const projected = project(rows) as AppState;
+  const report = JSON.parse(
+    JSON.stringify(dailyReport(projected, "2026-11-15", "Europe/Madrid")),
+  );
+  assert.equal(report.cards[0].averageRecall, 6.5);
+  assert.equal(report.summary.recallEvaluations, 2);
+  assert.equal(report.attempts[1].scoreSource, "category-midpoint");
+  assert.equal(report.gradingPolicy, "first-per-card-session-v2");
+  assert.ok(!report.methodology.independentRecall.includes("12 hours"));
 });

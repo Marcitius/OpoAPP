@@ -1,3 +1,4 @@
+import packageInfo from "../../package.json";
 import Icon from "../shared/Icon";
 import type { AppTab } from "./AppNavigation";
 export default function MorePage({
@@ -82,7 +83,7 @@ export default function MorePage({
         </section>
       ))}
       <p className="ux-footnote">
-        OpoGC v15.0 · Notas e informe diario
+        OpoGC v{packageInfo.version} · Notas e informe diario
         <br />
         Organiza menos. Estudia más.
       </p>

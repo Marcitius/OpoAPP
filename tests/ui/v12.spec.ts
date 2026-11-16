@@ -34,10 +34,10 @@ async function grade(page: Page, label: string) {
       name:
         (
           {
-            Bien: "Nota 7",
-            Fácil: "Nota 9",
-            "Otra vez": "Nota 2",
-            Difícil: "Nota 5",
+            Bien: "Notable",
+            Fácil: "Sobresaliente",
+            "Otra vez": "Suspendida",
+            Difícil: "Suficiente",
           } as Record<string, string>
         )[label] ?? label,
       exact: true,

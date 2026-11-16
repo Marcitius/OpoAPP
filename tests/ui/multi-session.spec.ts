@@ -147,7 +147,7 @@ test("Dos sesiones offline conservan progreso y borrador después de reabrir", a
     .getByRole("button", { name: "Mostrar respuesta", exact: true })
     .click();
   await page
-    .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+    .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
     .click();
   await expect(page.locator(".review-prompt")).toContainText("Artículo 164");
   await pause(page);
@@ -208,7 +208,7 @@ test("Dos dispositivos simulados: trabajar en otra sesión no interrumpe la abie
     await expect(a.locator(".review-v11")).toBeVisible();
     await expect(a.locator(".review-prompt")).toContainText("Artículo 53");
     await a
-      .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+      .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
       .click();
     await expect(a.locator(".review-prompt")).toContainText("Artículo 164");
     await pause(a);

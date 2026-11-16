@@ -1,8 +1,46 @@
 import type { Card, Rating, Review } from "../study/legacy";
 
-// Product rule for evidence, not an FSRS interval: a new session, midnight or
-// another device never makes immediate practice an independent recall test.
-export const RECALL_BREAK_MS = 12 * 60 * 60 * 1000;
+// One first numeric evaluation per card and saved session. Reopening the same
+// session on any device cannot add another contribution to the arithmetic mean.
+export const scoreGroups = [
+  {
+    id: "failed",
+    label: "Suspendida",
+    range: "1–4",
+    value: 2.5,
+    rating: "again",
+  },
+  {
+    id: "sufficient",
+    label: "Suficiente",
+    range: "5–6",
+    value: 5.5,
+    rating: "hard",
+  },
+  { id: "notable", label: "Notable", range: "7–8", value: 7.5, rating: "good" },
+  {
+    id: "outstanding",
+    label: "Sobresaliente",
+    range: "9–10",
+    value: 9.5,
+    rating: "easy",
+  },
+] as const;
+export type ScoreGroup = (typeof scoreGroups)[number]["id"];
+const scoreFormatter = new Intl.NumberFormat("es-ES", {
+  maximumFractionDigits: 2,
+});
+export const formatScore = (value: number | null | undefined) =>
+  value == null ? "—" : scoreFormatter.format(value);
+export function scoreGroup(value: number): ScoreGroup {
+  return value < 5
+    ? "failed"
+    : value < 7
+      ? "sufficient"
+      : value < 9
+        ? "notable"
+        : "outstanding";
+}
 export type ScoreKind = "recall" | "reinforcement";
 export interface GradeStats {
   average: number | null;
@@ -10,12 +48,20 @@ export interface GradeStats {
   latest: number | null;
   recallCount: number;
   recallIds: Set<string>;
+  recallSessions: Set<string>;
   recallScores: number[];
   lastAttemptAt: number;
 }
 export type GradeIndex = Map<string, GradeStats>;
 export interface GradeFilter {
-  kind: "all" | "failed" | "range" | "unrated";
+  kind:
+    | "all"
+    | "failed"
+    | "sufficient"
+    | "notable"
+    | "outstanding"
+    | "range"
+    | "unrated";
   metric: "average" | "latest";
   min: number;
   max: number;
@@ -28,12 +74,11 @@ export const defaultGradeFilter: GradeFilter = {
 };
 export const validScore = (score: unknown): score is number =>
   typeof score === "number" &&
-  Number.isInteger(score) &&
+  Number.isFinite(score) &&
   score >= 1 &&
   score <= 10;
 export function scoreRating(score: number): Rating {
-  if (!validScore(score))
-    throw new Error("La nota debe ser un entero del 1 al 10.");
+  if (!validScore(score)) throw new Error("La nota debe estar entre 1 y 10.");
   return score < 5 ? "again" : score < 7 ? "hard" : score < 9 ? "good" : "easy";
 }
 export function uniqueReviews(reviews: Review[]) {
@@ -60,15 +105,22 @@ export function gradeIndex(reviews: Review[]): GradeIndex {
       latest: null,
       recallCount: 0,
       recallIds: new Set<string>(),
+      recallSessions: new Set<string>(),
       recallScores: [],
       lastAttemptAt: -Infinity,
     };
     const at = Date.parse(r.reviewedAt);
     if (validScore(r.score)) {
       s.latest = r.score;
-      // Recompute from immutable events: simultaneous offline first attempts
-      // cannot contribute twice to the mean after the devices synchronize.
-      if (r.scoreKind === "recall" && at - s.lastAttemptAt >= RECALL_BREAK_MS) {
+      // Recompute rather than trusting v15's elapsed-time classification. This
+      // also repairs old first attempts incorrectly flagged as reinforcement.
+      const hasSession =
+        typeof r.cardSessionId === "string" && r.cardSessionId.length > 0;
+      const first = hasSession
+        ? !s.recallSessions.has(r.cardSessionId!)
+        : r.scoreKind === "recall";
+      if (hasSession) s.recallSessions.add(r.cardSessionId!);
+      if (first) {
         s.recallScores.push(r.score);
         s.recallIds.add(r.id);
         s.recallCount++;
@@ -84,15 +136,11 @@ export function gradeIndex(reviews: Review[]): GradeIndex {
 export function scoreKind(
   card: Card,
   index: GradeIndex,
-  now: number,
+  sessionId: string,
 ): ScoreKind {
-  const last = Math.max(
-    index.get(card.id)?.lastAttemptAt ?? -Infinity,
-    card.lastReviewedAt
-      ? Date.parse(card.lastReviewedAt) || -Infinity
-      : -Infinity,
-  );
-  return now - last >= RECALL_BREAK_MS ? "recall" : "reinforcement";
+  return index.get(card.id)?.recallSessions.has(sessionId)
+    ? "reinforcement"
+    : "recall";
 }
 export function gradeValue(
   index: GradeIndex,
@@ -109,8 +157,8 @@ export function recallTrend(index: GradeIndex, id: string) {
   return change === 0
     ? "sin cambio"
     : change > 0
-      ? `↑ +${change} desde el último recuerdo`
-      : `↓ ${change} desde el último recuerdo`;
+      ? `↑ +${formatScore(change)} desde el último recuerdo`
+      : `↓ ${formatScore(change)} desde el último recuerdo`;
 }
 export function filterByGrade(
   cards: Card[],
@@ -125,9 +173,9 @@ export function filterByGrade(
       (filter.kind === "unrated"
         ? value === null
         : value !== null &&
-          (filter.kind === "failed"
-            ? value < 5
-            : value >= filter.min && value <= filter.max))
+          (filter.kind === "range"
+            ? value >= filter.min && value <= filter.max
+            : scoreGroup(value) === filter.kind))
     );
   });
 }

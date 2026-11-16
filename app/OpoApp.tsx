@@ -197,6 +197,7 @@ import {
   gradeIndex,
   scoreKind,
   scoreRating,
+  scoreGroup,
   orderByGrade,
   type GradeFilter,
 } from "../lib/memory/grades";
@@ -1954,7 +1955,7 @@ export default function OpoApp() {
         ? Math.min(4, requestedScore)
         : requestedScore;
     const effective = scoreRating(score);
-    const kind = scoreKind(card, gradeIndex(current.reviews), +now);
+    const kind = scoreKind(card, gradeIndex(current.reviews), session.id);
     const reinforcement = kind === "reinforcement";
     const scheduled = applyFsrsReview(card, effective, now, reinforcement);
     const updated =
@@ -1967,6 +1968,13 @@ export default function OpoApp() {
       rating: effective,
       score,
       scoreKind: kind,
+      scoreGroup: scoreGroup(score),
+      scoreSource:
+        outcome === "unknown"
+          ? "explicit-unknown"
+          : score !== requestedScore
+            ? "objective-cap"
+            : "category-midpoint",
       cardSessionId: session.id,
       cardSnapshot: snapshotCard(current, card),
       answerEvidence: {
@@ -3747,7 +3755,8 @@ export default function OpoApp() {
             averageScore={grades.get(currentCard.id)?.average ?? null}
             latestScore={grades.get(currentCard.id)?.latestRecall ?? null}
             gradeHint={
-              scoreKind(currentCard, grades, Date.now()) === "recall"
+              scoreKind(currentCard, grades, savedCardSession?.id ?? "") ===
+              "recall"
                 ? "Este primer intento contará para tu nota media de recuerdo."
                 : "Refuerzo: esta nota no modifica tu media de recuerdo."
             }

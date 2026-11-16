@@ -130,6 +130,8 @@ export type Card = {
 
 export type Review = {
   score?: number;
+  scoreGroup?: import("../memory/grades").ScoreGroup;
+  scoreSource?: "category-midpoint" | "explicit-unknown" | "objective-cap";
   scoreKind?: "recall" | "reinforcement";
   cardSessionId?: string;
   cardSnapshot?: {

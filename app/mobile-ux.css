@@ -3572,7 +3572,7 @@ select {
 /* v15: one-tap scores, scoped grade selection and daily exports. */
 .review-rating-buttons.score-buttons {
   display: grid;
-  grid-template-columns: repeat(5, minmax(44px, 1fr));
+  grid-template-columns: repeat(2, minmax(44px, 1fr));
   gap: 8px;
 }
 .review-rating-buttons.score-buttons button {
@@ -3709,7 +3709,7 @@ select {
 }
 @media (min-width: 768px) {
   .review-rating-buttons.score-buttons {
-    grid-template-columns: repeat(10, minmax(44px, 1fr));
+    grid-template-columns: repeat(4, minmax(100px, 1fr));
   }
 }
 .review-context > span {
@@ -3724,4 +3724,13 @@ select {
 }
 .review-context > button {
   flex-shrink: 0;
+}
+
+.review-rating-buttons.score-buttons strong {
+  font-size: 1rem;
+}
+.review-rating-buttons.score-buttons small {
+  display: block;
+  font-size: 0.75rem;
+  margin-top: 3px;
 }

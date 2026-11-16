@@ -1,6 +1,11 @@
 import type { AppState, Card, Review } from "../study/legacy";
 import { plainRichText } from "../../app/RichTextEditor";
-import { gradeIndex, uniqueReviews, validScore } from "../memory/grades";
+import {
+  gradeIndex,
+  uniqueReviews,
+  validScore,
+  scoreGroup,
+} from "../memory/grades";
 import { savedCardSessions } from "../memory/checkpoint";
 import { sessionSummary } from "../memory/session";
 
@@ -53,7 +58,7 @@ export function snapshotCard(state: AppState, card: Card) {
       : [card.correctOption],
   };
 }
-export const chatgptStudyInstructions = `Analiza este informe de OpoGC usando sus datos. Distingue el recuerdo inicial del refuerzo inmediato: aprobar después de repetir no demuestra retención entre días. No promedies todos los intentos ni confundas intentos con tarjetas distintas. Usa la nota media de recuerdo, la última nota inicial y el historial disponible para detectar debilidades y errores recurrentes. Distingue las notas de autoevaluación de la corrección objetiva de tests y respuestas escritas. No interpretes el tiempo con una tarjeta abierta como tiempo activo. Si contiene contexto de planificación, propón prioridades según los pendientes y las sesiones abiertas. Antes de asignar tiempos pregunta mi disponibilidad. Señala datos que faltan; no inventes actividad ni resultados.`;
+export const chatgptStudyInstructions = `Analiza este informe de OpoGC usando sus datos. Distingue el recuerdo inicial del refuerzo inmediato: aprobar después de repetir no demuestra retención entre días. No promedies todos los intentos ni confundas intentos con tarjetas distintas. La media toma la primera valoración de cada sesión nueva, aunque empiece poco después de otra; comprueba el tiempo entre sesiones para distinguir familiaridad reciente y retención. Las categorías aportan sus valores centrales y las notas numéricas antiguas conservan su valor exacto. Usa la nota media de recuerdo, la última nota inicial y el historial disponible para detectar debilidades y errores recurrentes. Distingue las notas de autoevaluación de la corrección objetiva de tests y respuestas escritas. No interpretes el tiempo con una tarjeta abierta como tiempo activo. Si contiene contexto de planificación, propón prioridades según los pendientes y las sesiones abiertas. Antes de asignar tiempos pregunta mi disponibilidad. Señala datos que faltan; no inventes actividad ni resultados.`;
 export function dailyReport(
   state: AppState,
   date: string,
@@ -83,6 +88,9 @@ export function dailyReport(
       sessionId: r.cardSessionId ?? null,
       at: r.reviewedAt,
       score: validScore(r.score) ? r.score : null,
+      scoreGroup: validScore(r.score) ? scoreGroup(r.score) : null,
+      scoreSource:
+        r.scoreSource ?? (validScore(r.score) ? "numeric" : "unscored"),
       scoreKind: validScore(r.score)
         ? recall
           ? "recall"
@@ -179,7 +187,8 @@ export function dailyReport(
   return {
     format: "opogc-daily-study",
     version: 1,
-    appVersion: "15.0.0",
+    gradingPolicy: "first-per-card-session-v2",
+    appVersion: "15.1.0",
     date,
     timeZone,
     dayBoundary: "00:00 inclusive to next local 00:00 exclusive",
@@ -268,9 +277,9 @@ export function dailyReport(
     methodology: {
       scoreScale: "1–10; pass >=5",
       average:
-        "Arithmetic mean of independent recall evaluations only; no invented conversion of legacy ratings.",
+        "Arithmetic mean of the first numeric evaluation of each card in each saved session. Same-session reinforcements are excluded. Historical numeric grades keep their exact values; categories contribute their midpoint (2.5, 5.5, 7.5, 9.5). No rounding in the calculation.",
       independentRecall:
-        "At least 12 hours since the previous attempt on this card; a product rule, not a guarantee of long-term retention. Concurrent attempts are deduplicated by event ID and nearby recall evaluations are counted once.",
+        "One first numeric evaluation per cardSessionId, with no elapsed-time restriction. Resuming the same session on another day/device remains reinforcement. A new session counts even a few minutes later. Duplicate submissions in the same session count once. Old numeric records without a session ID retain their original explicit recall classification.",
       time: "responseMs measures elapsed time and can include idle time. Active study time is not measured.",
       historicalContent:
         "New scored attempts snapshot question, answer and folder path. Legacy attempts use current content if available; deleted content and unrecorded answers cannot be reconstructed.",

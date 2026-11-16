@@ -93,14 +93,6 @@ for (const [w, h] of [
       exact: true,
     });
     await expect(dialog).toBeVisible();
-    // This fixture has no Service Worker; wait for the on-demand editor before
-    // cutting its network. Production precaching is tested separately.
-    await expect(
-      dialog.getByRole("textbox", { name: "Escribe la pregunta", exact: true }),
-    ).toBeVisible();
-    await expect(
-      dialog.getByRole("textbox", { name: /Puedes escribir una respuesta/ }),
-    ).toBeVisible();
     await noKeyboard(page);
     await context.setOffline(true);
     await dialog

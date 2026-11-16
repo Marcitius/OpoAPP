@@ -19,6 +19,7 @@ import {
   defaultGradeFilter,
   filterByGrade,
   gradeIndex,
+  formatScore,
   recallTrend,
   type GradeFilter as Filter,
 } from "../../lib/memory/grades";
@@ -440,8 +441,9 @@ export default function LibraryBrowser({
                 <small>{plainRichText(c.back).slice(0, 140)}</small>
                 {grades.get(c.id)?.average != null && (
                   <small>
-                    Media {grades.get(c.id)!.average!.toFixed(1)} / 10 · Última{" "}
-                    {grades.get(c.id)!.latestRecall} {recallTrend(grades, c.id)}
+                    Media {formatScore(grades.get(c.id)!.average)} / 10 · Última{" "}
+                    {formatScore(grades.get(c.id)!.latestRecall)}{" "}
+                    {recallTrend(grades, c.id)}
                   </small>
                 )}
               </span>

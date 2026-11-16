@@ -1,3 +1,4 @@
+import packageInfo from "../../package.json";
 import Icon from "../shared/Icon";
 export type AppTab =
   | "today"
@@ -25,7 +26,9 @@ export default function AppNavigation({
   onNavigate: (tab: AppTab) => void;
   status: string;
 }) {
-  const active = ["organize", "study", "psych", "material"].includes(tab) ? "more" : tab;
+  const active = ["organize", "study", "psych", "material"].includes(tab)
+    ? "more"
+    : tab;
   const links = items.map((item) => (
     <button
       key={item.id}
@@ -51,7 +54,7 @@ export default function AppNavigation({
         <div className="ux-sidebar-foot">
           <span className="status-dot" />
           {status}
-          <small>OpoGC v13.2 · Sesiones a tu ritmo</small>
+          <small>OpoGC v{packageInfo.version} · Notas por sesión</small>
         </div>
       </aside>
       <nav className="ux-bottom-nav" aria-label="Navegación principal móvil">

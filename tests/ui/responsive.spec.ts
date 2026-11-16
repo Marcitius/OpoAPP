@@ -88,7 +88,7 @@ for (const [label, width, height] of sizes) {
     const footer = await page.locator(".review-controls").boundingBox();
     expect(footer!.y + footer!.height).toBeLessThanOrEqual(height + 1);
     await page
-      .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+      .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
       .click();
     await expect(page.locator(".review-prompt")).toBeVisible();
     await page
@@ -113,7 +113,7 @@ for (const [label, width, height] of sizes) {
     ).toBeVisible();
     await noOverflow(page);
     await page
-      .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+      .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
       .click();
     await page
       .getByRole("textbox", { name: /Nota/ })
@@ -195,7 +195,7 @@ test("Varias tarjetas consecutivas, FSRS y registros individuales", async ({
       .getByRole("button", { name: "Mostrar respuesta", exact: true })
       .click();
     await page
-      .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+      .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
       .click();
   }
   await expect
@@ -375,7 +375,7 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
   await page.locator(".review-options button").first().click();
   await page.getByRole("button", { name: "Comprobar", exact: true }).click();
   await page
-    .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+    .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
     .click();
   await page
     .getByRole("button", { name: "Finalizar sesión", exact: true })
@@ -388,7 +388,7 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
   await page.getByRole("button", { name: "Comprobar", exact: true }).click();
   await expect(page.getByText("✓ Correcto", { exact: true })).toBeVisible();
   await page
-    .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+    .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
     .click();
   await page
     .getByRole("button", { name: "Finalizar sesión", exact: true })
@@ -405,7 +405,7 @@ test("Biblioteca: búsqueda, tipos, test, vocabulario, escrita y ortografía", a
   await expect(page.getByText("100%", { exact: true })).toBeVisible();
   await page
     .getByRole("button", {
-      name: /^(Guardar y continuar|Nota 7)$/,
+      name: /^(Guardar y continuar|Notable)$/,
       exact: true,
     })
     .click();
@@ -441,11 +441,11 @@ test("Tarjeta larga: scroll interior y valoración siempre accesible", async ({
     .locator(".review-stage")
     .evaluate((el) => (el.scrollTop = el.scrollHeight));
   await expect(
-    page.getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true }),
+    page.getByRole("button", { name: /^(Bien|Notable)$/, exact: true }),
   ).toBeInViewport();
   await noOverflow(page);
   await page
-    .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+    .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
     .click();
 });
 test("Psicotécnicos, nota e intento existentes", async ({ page }) => {
@@ -548,7 +548,7 @@ test("50 tarjetas consecutivas sin reconfigurar ni perder registros", async ({
       .getByRole("button", { name: "Mostrar respuesta", exact: true })
       .click();
     await page
-      .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+      .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
       .click();
   }
   await expect(
@@ -780,7 +780,7 @@ test("Prioridad de estudio: continúa solo los elementos planificados como estud
     .getByRole("button", { name: "Terminar estudio", exact: true })
     .click();
   await page
-    .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+    .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
     .click();
   await page
     .getByRole("button", { name: "Guardar y siguiente", exact: true })

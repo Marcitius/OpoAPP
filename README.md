@@ -1,30 +1,3 @@
-# OpoGC v15.2 — Editor de tarjetas
-
-Las **preguntas y respuestas de las tarjetas** utilizan ahora el mismo editor que Material de estudio, adaptado a un cuadro compacto. Funciona al crear tarjetas en Biblioteca y al editarlas, también durante un repaso.
-
-- Negrita, cursiva, subrayado, tachado, títulos 1–6, listas con viñetas, numeradas y alfabéticas.
-- Sangría, fuente, tamaño, color, resaltado, alineación, interlineado, tablas editables, citas, enlaces, subíndices, superíndices y deshacer/rehacer.
-- Pegado con formato desde el portapapeles. Si copias Markdown, se convierte en títulos, listas, negritas y tablas; puedes usar también **··· → Pegar Markdown**.
-- El formato se conserva al guardar, reabrir y estudiar la tarjeta. No se abre el teclado al abrir el editor o sus hojas de opciones.
-
-Los controles habituales están a la vista; **···** reúne las herramientas adicionales. Las imágenes y respuestas manuscritas conservan su apartado actual de **Respuesta visual**.
-
-## Actualizar desde v15.1
-
-El ZIP contiene únicamente archivos nuevos o modificados **sobre v15.1**. Sube el **contenido de actualizar/** a la raíz de tu repositorio, conservando las rutas y sustituyendo archivos. No subas una carpeta contenedora llamada actualizar. Incluye juntos package.json y package-lock.json.
-
-Cloudflare Pages: **npm run build**, salida **out**. Conserva las variables actuales y actualiza la PWA en todos los dispositivos. No hay dependencias nuevas, migraciones SQL, archivos que borrar ni reinicio de datos. Las notas, medias, sesiones, FSRS, sincronización y adjuntos no cambian.
-
-Detalles: **docs/EDITOR-TARJETAS-V15.2.md**. Pruebas ejecutadas: **docs/RESULTADOS-V15.2.json**. Relación exacta y hashes de los archivos: **ARCHIVOS-DEL-PARCHE.json**, en el ZIP.
-
-## Validación de v15.2
-
-TypeScript y build correctos; **131 pruebas de lógica/datos y 141 de navegador aprobadas**, sin fallos ni pruebas omitidas en la ejecución final. Incluye formato, cursor, controles táctiles, edición offline, reapertura, copias y disponibilidad del editor en el precache PWA de producción. Pruebas locales con Chromium; no se ha probado contra tu cuenta real de Supabase ni en Safari físico.
-
----
-
-Documentación de la versión anterior; sus reglas de notas siguen vigentes:
-
 # OpoGC v15.1 — Media por sesión y cuatro grupos
 
 Corrección sobre v15.0. La media se actualiza con la **primera valoración numérica de cada tarjeta en cada sesión nueva**, aunque la sesión anterior empezara hace pocos minutos. Las repeticiones de esa misma tarjeta dentro de la misma sesión se guardan, pero no modifican su media. Salir, reabrir, continuar otro día o cambiar de dispositivo conserva la identidad de la sesión.

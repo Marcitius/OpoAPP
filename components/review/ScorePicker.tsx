@@ -1,3 +1,4 @@
+import { scoreGroups } from "../../lib/memory/grades";
 export default function ScorePicker({
   onScore,
   disabled,
@@ -11,38 +12,32 @@ export default function ScorePicker({
 }) {
   return (
     <>
-      <p className="rating-prompt">¿Qué nota le das a tu recuerdo?</p>
+      <p className="rating-prompt">¿Cómo la llevas?</p>
       <div
         className="review-rating-buttons score-buttons"
         role="group"
-        aria-label="Nota del 1 al 10"
+        aria-label="Valoración del recuerdo"
       >
-        {Array.from({ length: 10 }, (_, i) => i + 1).map((score) => (
+        {scoreGroups.map((group) => (
           <button
-            key={score}
-            aria-label={`Nota ${score}`}
-            className={
-              score < 5
-                ? "again"
-                : score < 7
-                  ? "hard"
-                  : score < 9
-                    ? "good"
-                    : "easy"
-            }
-            disabled={disabled || (incorrect && score >= 5)}
-            onClick={() => onScore(score)}
+            key={group.id}
+            aria-label={group.label}
+            className={group.rating}
+            title={`Aporta ${group.value.toLocaleString("es-ES")} a la media en el primer intento de esta sesión`}
+            disabled={disabled || (incorrect && group.value >= 5)}
+            onClick={() => onScore(group.value)}
           >
-            <strong>{score}</strong>
+            <strong>{group.label}</strong>
+            <small>{group.range}</small>
           </button>
         ))}
       </div>
       <small className="score-help">
-        1–4: vuelve después · 5–10: terminada en esta sesión
+        Suspendida: vuelve después · Aprobada: terminada en esta sesión
       </small>
       {incorrect && (
         <small className="score-help">
-          La respuesta del test es incorrecta. Valora del 1 al 4.
+          La respuesta del test es incorrecta. Queda suspendida.
         </small>
       )}
       <small className="score-help">{hint}</small>

@@ -101,7 +101,7 @@ test("Guardar antes de responder, valorar, cerrar y retirar conservando memoria"
     .getByRole("button", { name: "Mostrar respuesta", exact: true })
     .click();
   await page
-    .getByRole("button", { name: /^(Fácil|Nota 9)$/, exact: true })
+    .getByRole("button", { name: /^(Fácil|Sobresaliente)$/, exact: true })
     .click();
   await page.getByRole("button", { name: "Salir", exact: true }).click();
   await context.setOffline(false);

@@ -10,6 +10,7 @@ import {
 import { RichContent, plainRichText } from "../../app/RichTextEditor";
 import { AnnotatedCardImage } from "../../app/CardImage";
 import Icon from "../shared/Icon";
+import { formatScore } from "../../lib/memory/grades";
 import ScorePicker from "./ScorePicker";
 import BottomSheet from "../sheets/BottomSheet";
 const CardContent = memo(RichContent);
@@ -107,8 +108,8 @@ export default function ReviewSession(props: Props) {
           <span>
             {p.folder}
             <small className="recall-score">
-              Media {p.averageScore === null ? "—" : p.averageScore.toFixed(1)}{" "}
-              · Última {p.latestScore ?? "—"}
+              Media {formatScore(p.averageScore)} · Última{" "}
+              {formatScore(p.latestScore)}
             </small>
           </span>
           {p.weakCount > 0 && <small>{p.weakCount} por reforzar</small>}

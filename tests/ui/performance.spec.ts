@@ -61,7 +61,7 @@ test("2200 tarjetas y 4000 repasos: escribir no actualiza la cuenta ni recorre B
   await expect(page.locator(".written-result-summary")).toContainText("100%");
   await page
     .getByRole("button", {
-      name: /^(Guardar y continuar|Nota 7)$/,
+      name: /^(Guardar y continuar|Notable)$/,
       exact: true,
     })
     .click();
@@ -101,7 +101,7 @@ test("Un fallo al guardar la valoración conserva respuesta y permite reintentar
   await page.evaluate(() => (window as any).__opogcQA.failReviewSaveOnce());
   await page
     .getByRole("button", {
-      name: /^(Guardar y continuar|Nota 7)$/,
+      name: /^(Guardar y continuar|Notable)$/,
       exact: true,
     })
     .click();
@@ -109,7 +109,7 @@ test("Un fallo al guardar la valoración conserva respuesta y permite reintentar
   expect((await state(page)).reviews).toHaveLength(0);
   await page
     .getByRole("button", {
-      name: /^(Guardar y continuar|Nota 7)$/,
+      name: /^(Guardar y continuar|Notable)$/,
       exact: true,
     })
     .click();

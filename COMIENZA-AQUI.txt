@@ -1,26 +1,27 @@
-OpoGC v15.2 - EDITOR DE TARJETAS
+OpoGC v15.1 - MEDIA POR SESION Y CUATRO GRUPOS
 
-PARCHE SOBRE v15.1. No es el proyecto completo.
+PARCHE SOBRE v15.0. No es el proyecto completo.
 
 1. Descomprime el ZIP y abre actualizar.
-2. Sube TODO SU CONTENIDO a la raiz del repositorio de v15.1,
+2. Sube TODO SU CONTENIDO a la raiz del repositorio de v15.0,
    conservando rutas y sustituyendo los archivos.
-   No subas otra carpeta contenedora llamada actualizar.
+   No subas otra carpeta llamada actualizar.
 3. Incluye juntos package.json y package-lock.json.
 4. Cloudflare Pages: npm run build; directorio de salida out.
-5. Manten las variables actuales de Supabase. No ejecutes SQL.
+5. Mantén las variables actuales de Supabase. No ejecutes SQL.
 6. Actualiza la PWA en todos los dispositivos.
 
-COMO USARLO
-- Crea o edita una tarjeta: Pregunta y Respuesta tienen el editor de Material.
-- Selecciona texto y usa titulos, negrita, cursiva, subrayado o listas.
-- Pulsa ... para tablas, sangrias, colores, fuentes y mas herramientas.
-- Pega contenido con formato, o Markdown: se convierte en contenido editable.
-- El formato se conserva al guardar y al estudiar la tarjeta.
-- Las imagenes y la escritura manuscrita mantienen Respuesta visual.
+CORRECCIONES
+- La primera nota de una tarjeta en CADA SESION NUEVA cuenta para su media.
+- Las repeticiones dentro de esa misma sesion son refuerzo y no la inflan.
+- Se elimina la espera de 12 horas. Las notas anteriores se recalculan
+  por sus IDs de sesion, sin borrar historial.
+- Se conserva la media decimal: 6 y 5 dan 5,5.
+- Cuatro botones y filtros: Suspendida, Suficiente, Notable, Sobresaliente.
+- Cada grupo aporta su valor central: 2,5 / 5,5 / 7,5 / 9,5.
+  Las notas numericas antiguas mantienen su valor exacto.
 
 Sin dependencias nuevas, migraciones ni archivos que borrar.
-No cambian las notas, medias, sesiones, FSRS, datos ni sincronizacion.
-Detalles: actualizar/docs/EDITOR-TARJETAS-V15.2.md
-Pruebas: actualizar/docs/RESULTADOS-V15.2.json
+Detalles: actualizar/docs/MEDIAS-GRUPOS-V15.1.md
+Pruebas: actualizar/docs/RESULTADOS-V15.1.json
 Archivos: ARCHIVOS-DEL-PARCHE.json

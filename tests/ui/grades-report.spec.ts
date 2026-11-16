@@ -34,7 +34,19 @@ async function reveal(p: Page) {
 }
 async function score(p: Page, n: number) {
   const count = (await state(p)).reviews.length;
-  await p.getByRole("button", { name: `Nota ${n}`, exact: true }).click();
+  await p
+    .getByRole("button", {
+      name:
+        n < 5
+          ? "Suspendida"
+          : n < 7
+            ? "Suficiente"
+            : n < 9
+              ? "Notable"
+              : "Sobresaliente",
+      exact: true,
+    })
+    .click();
   await expect
     .poll(async () => (await state(p)).reviews.length)
     .toBe(count + 1);
@@ -59,21 +71,25 @@ for (const [w, h] of [
   [1366, 768],
   [1920, 1080],
 ])
-  test(`Notas 1–10: cinco aprueba, no reaparece y se conserva al reabrir ${w}`, async ({
+  test(`Cuatro grupos: Suficiente aprueba, no reaparece y se conserva al reabrir ${w}`, async ({
     page,
   }) => {
     await open(page, w, h);
+    if (w >= 1000)
+      await expect(page.locator(".ux-sidebar-foot")).toContainText(
+        "OpoGC v" + JSON.parse(fs.readFileSync("package.json", "utf8")).version,
+      );
     await card(page);
     await reveal(page);
-    await expect(page.locator(".score-buttons button")).toHaveCount(10);
+    await expect(page.locator(".score-buttons button")).toHaveCount(4);
     await noOverflow(page);
     await expect(
-      page.getByRole("button", { name: "Nota 5", exact: true }),
+      page.getByRole("button", { name: "Suficiente", exact: true }),
     ).toBeInViewport();
     await score(page, 5);
     await expect(page.locator(".session-result-v12")).toBeVisible();
     let s = await state(page);
-    expect(s.reviews.at(-1).score).toBe(5);
+    expect(s.reviews.at(-1).score).toBe(5.5);
     expect(s.reviews.at(-1).rating).toBe("hard");
     expect(s.reviews.at(-1).scoreKind).toBe("recall");
     expect(s.settings.activeCardSession.items[0].status).toBe("remembered");
@@ -109,14 +125,14 @@ test("Un fallo se puede reforzar explícitamente sin inflar la media ni crear no
   await exit(page);
   await card(page);
   await reveal(page);
-  await expect(page.locator(".recall-score")).toContainText("Media 2.0");
+  await expect(page.locator(".recall-score")).toContainText("Media 2,5");
   await score(page, 9);
   await exit(page);
   const rows = (await state(page)).reviews;
   expect(rows.map((r: any) => r.scoreKind)).toEqual([
     "recall",
     "reinforcement",
-    "reinforcement",
+    "recall",
   ]);
   await nav(page, "Progreso");
   await page
@@ -131,7 +147,7 @@ test("Un fallo se puede reforzar explícitamente sin inflar la media ni crear no
   );
   expect(json.summary.distinctCards).toBe(1);
   expect(json.summary.attempts).toBe(3);
-  expect(json.cards[0].averageRecall).toBe(2);
+  expect(json.cards[0].averageRecall).toBe(6);
   expect(json.attempts[0].content.question).toContain("Artículo 53");
   expect(json.planningContext).toBeUndefined();
 });
@@ -143,11 +159,11 @@ test("Un test incorrecto registra selección y no permite aprobar por una nota a
   await page.locator(".review-options button").nth(1).click();
   await page.getByRole("button", { name: "Comprobar", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Nota 7", exact: true }),
+    page.getByRole("button", { name: "Notable", exact: true }),
   ).toBeDisabled();
   await score(page, 3);
   const r = (await state(page)).reviews.at(-1);
-  expect(r.score).toBe(3);
+  expect(r.score).toBe(2.5);
   expect(r.correct).toBe(false);
   expect(r.answerEvidence.selectedOptions).toEqual([1]);
   expect(r.answerEvidence.objectiveCorrect).toBe(false);
@@ -166,7 +182,7 @@ test("Respuesta escrita conserva texto y rúbrica junto a la nota elegida", asyn
   await expect(page.locator(".written-result-summary")).toContainText("100%");
   await score(page, 6);
   const r = (await state(page)).reviews.at(-1);
-  expect(r.score).toBe(6);
+  expect(r.score).toBe(5.5);
   expect(r.answerEvidence.text).toBe("contenido esencial");
   expect(r.accuracy).toBe(100);
   expect(r.answerEvidence.writtenCriteria.length).toBeGreaterThan(0);
@@ -363,11 +379,139 @@ test("Cierre múltiple offline y recepción en otro dispositivo conservan notas 
     const json = JSON.parse(
       fs.readFileSync((await (await download).path())!, "utf8"),
     );
-    expect(json.cards[0].averageRecall).toBe(2);
+    expect(json.cards[0].averageRecall).toBe(2.5);
     expect(json.summary.attempts).toBe(1);
     expect(json.finishedSessions).toHaveLength(2);
   } finally {
     await ca.close();
     await cb.close();
   }
+});
+
+test("v15: 6 y 5 recuperan media 5,5; una sesión nueva baja la media y adelanta la tarjeta", async ({
+  page,
+}) => {
+  await open(page);
+  await page.evaluate(async () => {
+    const qa = (window as any).__opogcQA,
+      s = qa.state(),
+      at = Date.now() - 3000;
+    s.reviews = [
+      {
+        id: "old-six",
+        cardId: "basic1",
+        score: 6,
+        scoreKind: "recall",
+        cardSessionId: "old-one",
+        rating: "hard",
+        correct: true,
+        reviewedAt: new Date(at).toISOString(),
+      },
+      {
+        id: "old-five",
+        cardId: "basic1",
+        score: 5,
+        scoreKind: "reinforcement",
+        cardSessionId: "old-two",
+        rating: "hard",
+        correct: true,
+        reinforcement: true,
+        reviewedAt: new Date(at + 1000).toISOString(),
+      },
+      {
+        id: "other-five",
+        cardId: "basic2",
+        score: 5,
+        scoreKind: "recall",
+        cardSessionId: "other",
+        rating: "hard",
+        correct: true,
+        reviewedAt: new Date(at).toISOString(),
+      },
+    ];
+    await qa.receive(s);
+  });
+  await card(page);
+  await reveal(page);
+  await expect(page.locator(".recall-score")).toContainText("Media 5,5");
+  await score(page, 2);
+  await exit(page);
+  await nav(page, "Biblioteca");
+  await page
+    .getByRole("textbox", { name: "Buscar biblioteca" })
+    .fill("Artículo");
+  await page.getByRole("button", { name: "Seleccionar", exact: true }).click();
+  await page
+    .locator(".library-card-row")
+    .filter({ hasText: "Artículo 53 CE" })
+    .locator(".selection-check")
+    .click();
+  await page
+    .locator(".library-card-row")
+    .filter({ hasText: "Artículo 164 CE" })
+    .locator(".selection-check")
+    .click();
+  await page
+    .getByRole("button", { name: "Estudiar selección", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "¿Cómo quieres estudiar?", exact: true })
+    .getByRole("button", { name: /Peor nota primero/ })
+    .click();
+  await expect(page.locator(".review-prompt")).toContainText("Artículo 53");
+  await expect(page.locator(".recall-score")).toContainText("Media 4,5");
+  await exit(page);
+  await page.reload();
+  await card(page);
+  await expect(page.locator(".recall-score")).toContainText("Media 4,5");
+});
+
+test("Biblioteca agrupa las medias decimales en Suspendida, Suficiente, Notable y Sobresaliente", async ({
+  page,
+}) => {
+  await open(page);
+  await page.evaluate(async () => {
+    const qa = (window as any).__opogcQA,
+      s = qa.state();
+    s.reviews = [
+      ["basic1", 4.5],
+      ["basic2", 6.5],
+      ["vocab", 8.5],
+      ["long", 9.5],
+    ].map(([cardId, score], i) => ({
+      id: "group-review-" + i,
+      cardId,
+      score,
+      cardSessionId: "session-" + i,
+      scoreKind: "recall",
+      correct: Number(score) >= 5,
+      rating:
+        Number(score) < 5
+          ? "again"
+          : Number(score) < 7
+            ? "hard"
+            : Number(score) < 9
+              ? "good"
+              : "easy",
+      reviewedAt: new Date().toISOString(),
+    }));
+    await qa.receive(s);
+  });
+  await nav(page, "Biblioteca");
+  await page.getByText("Filtrar por nota", { exact: true }).click();
+  for (const [group, mean] of [
+    ["failed", "4,5"],
+    ["sufficient", "6,5"],
+    ["notable", "8,5"],
+    ["outstanding", "9,5"],
+  ]) {
+    await page
+      .getByLabel("Filtrar por nota", { exact: true })
+      .selectOption(group);
+    await expect(page.locator(".library-card-row")).toHaveCount(1);
+    await expect(page.locator(".library-card-row")).toContainText(
+      "Media " + mean,
+    );
+  }
+  await noOverflow(page);
 });

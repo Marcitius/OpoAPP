@@ -29,10 +29,10 @@ async function grade(page: Page, label: string) {
       name:
         (
           {
-            Bien: "Nota 7",
-            Fácil: "Nota 9",
-            "Otra vez": "Nota 2",
-            Difícil: "Nota 5",
+            Bien: "Notable",
+            Fácil: "Sobresaliente",
+            "Otra vez": "Suspendida",
+            Difícil: "Suficiente",
           } as Record<string, string>
         )[label] ?? label,
       exact: true,
@@ -155,7 +155,7 @@ test("Salir conserva tarjeta y cara; recargar y continuar desde Biblioteca no re
   await noKeyboard(page);
   expect((await state(page)).reviews).toEqual(before.reviews);
   await page
-    .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+    .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
     .click();
   await expect(page.locator(".review-prompt")).toContainText(
     "Concepto de repaso 3",
@@ -274,7 +274,7 @@ test("Dos dispositivos simulados: traspaso exacto y cierre remoto sin duplicar l
     await expect(b.locator(".review-answer-text")).toBeVisible();
     await noKeyboard(b);
     await b
-      .getByRole("button", { name: /^(Bien|Nota 7)$/, exact: true })
+      .getByRole("button", { name: /^(Bien|Notable)$/, exact: true })
       .click();
     await pause(b);
     const fromB = await state(b);
