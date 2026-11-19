@@ -1,4 +1,5 @@
 import type { CardSession } from "../../lib/memory/session";
+import type { ReactNode } from "react";
 import { sessionSummary } from "../../lib/memory/session";
 import Icon from "../shared/Icon";
 export default function SessionStatus({
@@ -9,6 +10,8 @@ export default function SessionStatus({
   onFinish,
   onRetry,
   busy,
+  queueControl,
+  queueOpen,
 }: {
   session: CardSession;
   readyAt?: number;
@@ -17,17 +20,22 @@ export default function SessionStatus({
   onFinish: () => void;
   onRetry?: () => void;
   busy?: boolean;
+  queueControl?: ReactNode;
+  queueOpen?: boolean;
 }) {
   const summary = sessionSummary(session),
     seconds = Math.max(1, Math.ceil(((readyAt ?? now) - now) / 1000));
   return (
-    <div className="review-overlay immersion session-result-v12">
+    <div
+      className={`review-overlay immersion session-result-v12 ${queueOpen ? "session-queue-open" : ""}`}
+    >
       <header className="immersion-header">
         <button disabled={busy} className="exit-session" onClick={onClose}>
           <Icon name="back" size={20} />
           Salir
         </button>
         <small>{busy ? "Guardando…" : "Progreso guardado"}</small>
+        {queueControl}
       </header>
       <div className="session-result-content">
         <span className="completion-mark">

@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 export interface OrthographyStudyCard {
   id: string;
   word: string;
@@ -14,6 +15,8 @@ export interface OrthographyStudyResult {
   correct: boolean;
 }
 interface Props {
+  queueControl?: ReactNode;
+  queueOpen?: boolean;
   cards: OrthographyStudyCard[];
   selectedIds: string[];
   results: OrthographyStudyResult[] | null;
@@ -29,7 +32,9 @@ interface Props {
 }
 export default function OrthographyStudy(p: Props) {
   return (
-    <div className="review-overlay orthography-overlay">
+    <div
+      className={`review-overlay orthography-overlay ${p.queueOpen ? "session-queue-open" : ""}`}
+    >
       <header className="review-top orthography-top">
         <button onClick={p.onClose} disabled={p.busy} aria-label="Cerrar">
           ×
@@ -38,6 +43,7 @@ export default function OrthographyStudy(p: Props) {
         <span>Grupo {p.groupNumber}</span>
       </header>
       <div className="review-stage orthography-stage">
+        {p.queueControl}
         <section className="orthography-question-card">
           <span className="eyebrow">ORTOGRAFÍA</span>
           <h2>Marca las palabras incorrectas</h2>

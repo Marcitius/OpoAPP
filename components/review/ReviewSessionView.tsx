@@ -15,6 +15,8 @@ import ScorePicker from "./ScorePicker";
 import BottomSheet from "../sheets/BottomSheet";
 const CardContent = memo(RichContent);
 export interface ReviewSessionProps {
+  queueControl?: ReactNode;
+  queueOpen?: boolean;
   tableAttempt?: import("../../lib/tables/learning").TableAttempt | null;
   tablePercentage?: import("../../lib/tables/model").TablePercentage;
   onTableChange?: (
@@ -84,6 +86,7 @@ export default function ReviewSessionView(props: ReviewSessionProps) {
     <div
       className={
         "review-overlay review-v11 immersion" +
+        (p.queueOpen ? " session-queue-open" : "") +
         (p.card.type === "table" ? " review-table" : "")
       }
     >
@@ -121,6 +124,7 @@ export default function ReviewSessionView(props: ReviewSessionProps) {
         key={p.card.id + ":" + p.position + ":" + p.revealed}
       >
         <div className="review-context">
+          {p.queueControl}
           <span>
             {p.folder}
             <small className="recall-score">

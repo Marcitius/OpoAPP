@@ -1,30 +1,32 @@
-OpoGC v15.3.1 - PROMPTS DE IMPORTACION
+OpoGC v15.4 - COLA VISIBLE Y BUSCADOR
 
-PARCHE SOBRE v15.3. Contiene solo archivos nuevos/modificados.
+PARCHE SOBRE v15.3.1. Contiene solo archivos nuevos/modificados.
 
 1. Descomprime el ZIP y abre actualizar.
-2. Sube TODO SU CONTENIDO a la raiz del repositorio de v15.3,
-   conservando rutas y sustituyendo los archivos.
+2. Copia TODO SU CONTENIDO a la raiz del repositorio de v15.3.1,
+   conservando rutas y sustituyendo archivos.
    No subas otra carpeta contenedora llamada actualizar.
-3. Incluye juntos package.json y package-lock.json.
+3. Incluye package.json y package-lock.json juntos.
 4. Cloudflare Pages: npm run build; directorio de salida out.
-5. Manten las variables actuales de Supabase. No ejecutes SQL.
-6. Actualiza la PWA en todos los dispositivos.
+5. Conserva las variables de Supabase. No ejecutes SQL.
+6. Actualiza la PWA en tus dispositivos.
 
-DONDE ESTAN LOS PROMPTS
-Biblioteca > Opciones de la biblioteca > Importar tarjetas JSON.
+COLA DE LA SESION
+- Durante el estudio, pulsa el boton de tres lineas Cola.
+- En iPad/PC queda a un lado y puedes seguir respondiendo.
+- En movil abre una hoja que puedes cerrar para seguir estudiando.
+- Veras la tarjeta actual, las proximas, pendientes y aprobadas.
+- El orden es una prevision y cambia con tus valoraciones reales.
+- Abrir la cola no cambia el algoritmo ni escribe notas.
 
-- Elige Flashcard normal, Test, Tabla muda, Vocabulario, Ortografia
-  o Respuesta escrita en Tipo de tarjetas para el prompt.
-- Pulsa Copiar prompt y pegalo en ChatGPT.
-- Sustituye [TEMA] y [SUBTEMA] y anade tu material al final.
-- Ver prompt permite consultar y copiar el texto manualmente.
-- Ver formato JSON muestra un ejemplo del tipo elegido.
-- Despues pega o carga el JSON y valida/importa como siempre.
+BUSCADOR
+- En Hoy, pulsa la lupa de la cabecera.
+- Busca por palabras de la pregunta o la respuesta de cualquier tema.
+- Toca un resultado para consultar, estudiar o editar la tarjeta.
+- Buscar y consultar no registra una valoracion.
 
-Sin dependencias nuevas, migraciones ni archivos que borrar.
-Cambiar el tipo de prompt no borra tu JSON ni limita los tipos importables.
-No modifica notas, medias, sesiones, FSRS ni sincronizacion.
-Detalles: actualizar/docs/IMPORTAR-PROMPTS-V15.3.1.md
-Pruebas: actualizar/docs/RESULTADOS-V15.3.1.json
+Se conservan los seis tipos, prompts de importacion, medias, sesiones,
+FSRS, datos y sincronizacion. Sin dependencias nuevas ni archivos que borrar.
+Detalles: actualizar/docs/COLA-BUSCADOR-V15.4.md
+Pruebas: actualizar/docs/RESULTADOS-V15.4.json
 Archivos: ARCHIVOS-DEL-PARCHE.json

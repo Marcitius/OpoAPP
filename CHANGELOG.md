@@ -1,3 +1,14 @@
+# v15.4.0 — Cola visible y buscador
+
+- Botón de tres líneas Cola dentro de las sesiones, incluidas las tablas mudas y los grupos de ortografía. Panel lateral desde 768 px y hoja móvil por debajo; la sesión conserva su contenido y borrador al abrirlo.
+- Vista del orden previsto mediante el selector de la sesión existente: tarjeta actual, próximas, pendientes de refuerzo y aprobadas. Se recalcula con las valoraciones y señala movimientos de posición; no cambia el scheduler ni escribe valoraciones de la previsión.
+- Previsión progresiva de 30 tarjetas por bloque y listado de aprobadas bajo demanda, evitando procesar o dibujar una sesión completa al abrir el panel.
+- Lupa en Hoy con búsqueda global por pregunta/respuesta, lectura completa, comienzo de estudio y acceso al editor existente. Incluye soluciones correctas de test/vocabulario, respuestas escritas, ortografía y respuestas/alternativas de tablas mudas.
+- Índice local de texto, normalización de mayúsculas/acentos y resultados por bloques. Estado de escritura aislado de la aplicación; apertura sin enfocar automáticamente campos.
+- Componentes cargados bajo demanda y estilos propios. Se conservan los prompts, tipos, medias, sesiones, FSRS, Auth, RLS, Realtime, cola offline y PWA. Sin SQL ni dependencias nuevas.
+
+---
+
 # v15.3.1 — Prompts de importación
 
 - Restaura la elección de tipo y Copiar prompt en Importar tarjetas JSON, con los seis tipos actuales, incluida Tabla muda.

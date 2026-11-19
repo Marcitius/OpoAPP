@@ -148,6 +148,12 @@ import { saveMaterial } from "../lib/material/model";
 import { sanitizeMaterial } from "../lib/material/sanitize";
 import ProgressPage from "../components/progress/ProgressPage";
 import ReviewSession from "../components/review/ReviewSession";
+const SessionQueuePanel = lazy(
+  () => import("../components/review/SessionQueuePanel"),
+);
+const GlobalCardSearch = lazy(
+  () => import("../components/library/GlobalCardSearch"),
+);
 import ReviewStartPage from "../components/review/ReviewStartPage";
 import Icon from "../components/shared/Icon";
 import useAppViewport from "../components/shared/useAppViewport";
@@ -313,6 +319,8 @@ export default function OpoApp() {
     useState<WrittenAnswerResult | null>(null);
   const [sessionDone, setSessionDone] = useState(0);
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [queueSessionId, setQueueSessionId] = useState<string | null>(null);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [sessionClock, setSessionClock] = useState(Date.now());
   const [reviewSaving, setReviewSaving] = useState(false);
   const reviewBusyRef = useRef(false);
@@ -2703,6 +2711,25 @@ export default function OpoApp() {
     })),
   ].slice(0, 3);
 
+  const queueIsOpen =
+    sessionOpen && !!savedCardSession && queueSessionId === savedCardSession.id;
+  const queueControl =
+    savedCardSession && sessionOpen ? (
+      <button
+        type="button"
+        className="queue-toggle"
+        aria-label="Ver cola de la sesión"
+        aria-expanded={queueIsOpen}
+        aria-controls={queueIsOpen ? "live-session-queue" : undefined}
+        onClick={() =>
+          setQueueSessionId(queueIsOpen ? null : savedCardSession.id)
+        }
+      >
+        <Icon name="queue" size={22} />
+        <span>Cola</span>
+      </button>
+    ) : undefined;
+
   return (
     <div
       className={`app-shell app-v11 app-v12 app-v13 ${sessionOpen || orthographySession || studyFlow ? "session-active" : ""}`}
@@ -2742,13 +2769,25 @@ export default function OpoApp() {
                 </h1>
               )}
             </div>
-            <span
-              className={`ux-save-status ${!online ? "offline" : ""}`}
-              role="status"
-            >
-              <span className="status-dot" />
-              {saveStatus}
-            </span>
+            <div className="today-header-actions">
+              {tab === "today" && (
+                <button
+                  type="button"
+                  className="icon-button today-search-button"
+                  aria-label="Buscar tarjetas"
+                  onClick={() => setGlobalSearchOpen(true)}
+                >
+                  <Icon name="search" />
+                </button>
+              )}
+              <span
+                className={`ux-save-status ${!online ? "offline" : ""}`}
+                role="status"
+              >
+                <span className="status-dot" />
+                {saveStatus}
+              </span>
+            </div>
           </header>
           {savedSessions.length > 0 &&
             ["today", "library", "study", "review"].includes(tab) && (
@@ -3810,6 +3849,8 @@ export default function OpoApp() {
 
       {orthographySession && (
         <OrthographyStudy
+          queueControl={queueControl}
+          queueOpen={queueIsOpen}
           cards={orthographySession.groupIds
             .map((id) => state.cards.find((card) => card.id === id))
             .filter((card): card is Card =>
@@ -3836,6 +3877,8 @@ export default function OpoApp() {
         currentCard &&
         currentQueueItem && (
           <ReviewSession
+            queueControl={queueControl}
+            queueOpen={queueIsOpen}
             key={savedCardSession?.id + ":" + reviewIndex + ":" + inputVersion}
             card={currentCard}
             folder={
@@ -3967,6 +4010,8 @@ export default function OpoApp() {
         reviewIndex >= reviewQueue.length &&
         sessionNext.kind !== "card" && (
           <SessionStatus
+            queueControl={queueControl}
+            queueOpen={queueIsOpen}
             busy={reviewSaving}
             onRetry={retrySessionPending}
             session={savedCardSession}
@@ -3980,6 +4025,62 @@ export default function OpoApp() {
             }}
           />
         )}
+
+      {queueIsOpen && savedCardSession && (
+        <Suspense fallback={null}>
+          <SessionQueuePanel
+            key={savedCardSession.id}
+            session={savedCardSession}
+            cards={state.cards}
+            folders={state.folders}
+            now={sessionClock}
+            currentIds={
+              // Inspecting the queue never becomes part of the saved presentation.
+              orthographySession?.groupIds ??
+              (currentCard ? [currentCard.id] : [])
+            }
+            activeIds={
+              orthographySession
+                ? orthographySession.results
+                  ? []
+                  : orthographySession.groupIds
+                : currentCard && !currentQueueItem?.completed
+                  ? [currentCard.id]
+                  : []
+            }
+            onClose={() => setQueueSessionId(null)}
+            busy={reviewSaving}
+          />
+        </Suspense>
+      )}
+      {globalSearchOpen && (
+        <Suspense
+          fallback={
+            <BottomSheet
+              title="Buscar tarjetas"
+              fullScreen
+              onClose={() => setGlobalSearchOpen(false)}
+            >
+              <p role="status">Preparando búsqueda…</p>
+            </BottomSheet>
+          }
+        >
+          <GlobalCardSearch
+            key={engine.user}
+            cards={state.cards}
+            folders={state.folders}
+            onClose={() => setGlobalSearchOpen(false)}
+            onStudy={(id) => {
+              setGlobalSearchOpen(false);
+              startReview(undefined, "learn", [id]);
+            }}
+            onEdit={(id) => {
+              setEditingCard(id);
+              setModal("card");
+            }}
+          />
+        </Suspense>
+      )}
 
       {movingFolder && (
         <MoveFolderModal

@@ -1,3 +1,26 @@
+# OpoGC v15.4 — Cola visible y buscador
+
+- **Cola de la sesión:** pulsa el botón de tres líneas **Cola** junto al apartado de la tarjeta. En iPad/ordenador se abre un panel lateral para seguir respondiendo mientras ves el orden previsto; en móvil se abre una hoja desplegable. Se actualiza al valorar, muestra movimientos, pendientes de refuerzo y aprobadas.
+- **Buscar tarjetas desde Hoy:** pulsa la lupa superior. Busca en preguntas y respuestas de todos los temas, consulta una tarjeta completa y usa **Estudiar tarjeta** o **Editar tarjeta**. La búsqueda ignora mayúsculas y acentos y contempla soluciones de tests y alternativas de tablas mudas.
+
+La cola es una vista de lectura del algoritmo actual. Las posiciones futuras suponen que vas aprobando y cambian con las respuestas reales; abrirla no programa repasos ni añade notas. La búsqueda tampoco registra una valoración por consultar una tarjeta. Los prompts recuperados en v15.3.1 se conservan.
+
+## Actualizar desde v15.3.1
+
+El ZIP contiene **solo archivos nuevos/modificados sobre v15.3.1**. Copia el **contenido de actualizar/** a la raíz del proyecto, conservando rutas y sustituyendo archivos, incluidos `package.json` y `package-lock.json` juntos. No subas una carpeta contenedora llamada `actualizar`.
+
+Cloudflare Pages: **npm run build**, salida **out**. Conserva tus variables de Supabase y actualiza la PWA en los dispositivos. No hay dependencias nuevas, migraciones SQL, archivos que borrar ni cambios en los datos existentes.
+
+Guía y alcance: **docs/COLA-BUSCADOR-V15.4.md**. Pruebas ejecutadas: **docs/RESULTADOS-V15.4.json**. Archivos y hashes: **ARCHIVOS-DEL-PARCHE.json**, dentro del ZIP.
+
+## Validación de v15.4
+
+TypeScript y build correctos; **172 pruebas de lógica/datos y 189 de navegador aprobadas**, sin fallos ni pruebas omitidas en la ejecución final. Incluyen doce casos nuevos de lógica y catorce de interfaz, cola de 137 tarjetas, búsqueda en 2.200, reanudación, edición, tablas mudas, ortografía y conservación del borrador. Pruebas locales con Chromium; no se ha probado tu Supabase real ni Safari físico.
+
+---
+
+Documentación de versiones anteriores:
+
 # OpoGC v15.3.1 — Prompts de importación
 
 Vuelve el selector de tipo y **Copiar prompt** dentro de **Biblioteca → Opciones de la biblioteca → Importar tarjetas JSON**. Incluye Flashcard normal, Test, Tabla muda, Vocabulario, Ortografía y Respuesta escrita.

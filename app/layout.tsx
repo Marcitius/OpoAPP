@@ -6,6 +6,7 @@ import "./mobile-ux.css";
 import "./material.css";
 import "./card-editor.css";
 import "./table-cards.css";
+import "./study-tools.css";
 export const metadata: Metadata = {
   title: "OpoGC",
   description: "Organiza, estudia y repasa tu oposición",

@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 const paths: Record<string, string> = {
+  queue: "M4 6h16M4 12h16M4 18h16",
   today: "m3 10 9-7 9 7M5 9v11h5v-6h4v6h5V9",
   study: "M12 5C8 3 4 4 3 5v14c3-2 6-2 9 0 3-2 6-2 9 0V5c-3-2-6-2-9 0v14",
   review:
