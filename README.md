@@ -1,3 +1,25 @@
+# OpoGC v15.3.1 — Prompts de importación
+
+Vuelve el selector de tipo y **Copiar prompt** dentro de **Biblioteca → Opciones de la biblioteca → Importar tarjetas JSON**. Incluye Flashcard normal, Test, Tabla muda, Vocabulario, Ortografía y Respuesta escrita.
+
+El prompt y **Ver formato JSON** corresponden al tipo elegido. **Ver prompt** permite leer y copiar el texto manualmente si el navegador no permite usar el portapapeles. Cambiar de tipo o copiar no borra el JSON pegado ni su validación; puedes seguir importando archivos con tipos mezclados. Abrir estas opciones no enfoca campos de texto automáticamente.
+
+## Actualizar desde v15.3
+
+Este ZIP contiene **solo archivos nuevos/modificados sobre v15.3**. Sube el **contenido de actualizar/** a la raíz del repositorio, conservando las rutas y sustituyendo archivos. Incluye `package.json` y `package-lock.json` juntos. No subas otra carpeta contenedora llamada `actualizar`.
+
+Cloudflare Pages: **npm run build**, salida **out**. Conserva las variables existentes y actualiza la PWA en tus dispositivos. No hay dependencias nuevas, SQL ni archivos que borrar. Se conserva el importador de v15.3 y su integración con todos los tipos.
+
+Guía y alcance: **docs/IMPORTAR-PROMPTS-V15.3.1.md**. Pruebas ejecutadas: **docs/RESULTADOS-V15.3.1.json**. Relación completa y hashes: **ARCHIVOS-DEL-PARCHE.json**, en el ZIP.
+
+## Validación de v15.3.1
+
+TypeScript y build correctos; **160 pruebas de lógica/datos y 175 de navegador aprobadas**, sin fallos ni pruebas omitidas en la ejecución final. Incluyen los seis esquemas, copia real al portapapeles, copia manual, siete tamaños de pantalla y conservación del JSON/importación mixta. Pruebas locales con Chromium; no se ha probado Safari físico ni tu cuenta real de Supabase.
+
+---
+
+Documentación de versiones anteriores:
+
 # OpoGC v15.3 — Tablas mudas
 
 **Tabla muda** es un nuevo tipo de flashcard dentro de Biblioteca. Comparte temas, filtros, selecciones, historial y sesiones con las tarjetas normales, y tiene editor visual y corrección propios.

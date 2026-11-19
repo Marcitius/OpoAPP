@@ -1,3 +1,13 @@
+# v15.3.1 — Prompts de importación
+
+- Restaura la elección de tipo y Copiar prompt en Importar tarjetas JSON, con los seis tipos actuales, incluida Tabla muda.
+- Prompt completo y ejemplo JSON específico por tipo, con campos compatibles con el importador real. Las tablas priorizan datos concretos y respuestas breves; la respuesta escrita incluye rúbrica y alternativas.
+- Consulta del prompt y copia manual si el portapapeles está denegado o no está disponible. Mensaje de confirmación sin enfocar el texto ni abrir el teclado automáticamente.
+- Cambiar la selección o copiar conserva el borrador JSON y la validación; siguen admitiéndose importaciones de tipos mezclados.
+- Catálogo separado de la pantalla y estilos acotados. Sin cambios en el parser, persistencia, datos, calificaciones, sesiones, sincronización, FSRS o backend.
+
+---
+
 # v15.3.0 — Tablas mudas
 
 - Nuevo tipo de tarjeta Tabla muda, integrado en Biblioteca, carpetas, filtros, selección mixta y sesiones. Las flashcards normales y el resto de tipos conservan su funcionamiento.

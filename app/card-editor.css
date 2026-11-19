@@ -1,4 +1,52 @@
 /* Compact editing uses the same document engine as Material de estudio. */
+.card-import-prompts {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding-block: 16px;
+  margin-bottom: 16px;
+  border-block: 1px solid #dce4dc;
+}
+.card-import-prompts p {
+  margin: 0;
+}
+.card-import-prompts select {
+  width: 100%;
+  min-height: 48px;
+  font-size: 16px;
+}
+.card-import-prompts summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 10px;
+  box-sizing: border-box;
+  display: list-item;
+  list-style: revert;
+  list-style-position: inside;
+}
+.card-import-prompts pre,
+.card-import-prompts .import-prompt-text {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 8px 0 0;
+  padding: 12px;
+  border: 1px solid #ced8d0;
+  border-radius: 10px;
+  background: #f4f7f3;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.card-import-prompts .import-prompt-text {
+  display: block;
+  resize: vertical;
+  min-height: 160px;
+  max-height: 55dvh;
+}
+
 .material-editor.card-rich-editor {
   min-height: 0;
   min-width: 0;

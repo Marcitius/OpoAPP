@@ -1,5 +1,6 @@
 "use client";
 import BottomSheet from "../components/sheets/BottomSheet";
+import ImportPromptPicker from "../components/library/ImportPromptPicker";
 import { useState } from "react";
 import {
   parseStudyTable,
@@ -173,23 +174,6 @@ export function parseCardImport(value: any): ParsedImportItem[] {
     return item;
   });
 }
-const example = JSON.stringify(
-  {
-    tarjetas: [
-      {
-        tipo: "flashcard",
-        tema: "Mi tema",
-        subtema: "Mi apartado",
-        pregunta: "Pregunta",
-        respuesta: "Respuesta",
-        explicacion: "",
-        fuente: "",
-      },
-    ],
-  },
-  null,
-  2,
-);
 export default function CardImportModal({
   onClose,
   onImport,
@@ -224,15 +208,7 @@ export default function CardImportModal({
         Admite flashcards, tablas mudas, test, vocabulario, ortografía y
         respuestas escritas con rúbrica.
       </p>
-      <details>
-        <summary>Ver formato JSON</summary>
-        <pre style={{ whiteSpace: "pre-wrap" }}>{example}</pre>
-        <p>
-          Test/vocabulario: opciones (4 textos), correctas (letras A–D).
-          Ortografía: palabra, esCorrecta, formaCorrecta. Escrita: respuesta y
-          evaluacion con criterios, normalizacion y umbrales.
-        </p>
-      </details>
+      <ImportPromptPicker />
       <label>
         Archivo JSON
         <input
