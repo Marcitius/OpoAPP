@@ -198,7 +198,7 @@ export function dailyReport(
     format: "opogc-daily-study",
     version: 1,
     gradingPolicy: "first-per-card-session-v2",
-    appVersion: "15.5.0",
+    appVersion: "15.6.0",
     date,
     timeZone,
     dayBoundary: "00:00 inclusive to next local 00:00 exclusive",

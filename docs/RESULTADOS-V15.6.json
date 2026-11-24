@@ -1,0 +1,110 @@
+{
+  "version": "15.6.0",
+  "baseVersion": "15.5.0",
+  "validatedAt": "2026-11-24T06:55:01.713248+00:00",
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "output": "out"
+    },
+    {
+      "command": "npm test",
+      "exitCode": 0,
+      "tests": 199,
+      "passed": 199,
+      "skipped": 0,
+      "newTests": 9
+    },
+    {
+      "command": "CHROMIUM_EXECUTABLE=<Chromium 138> npm run test:ui",
+      "uniquePassed": 209,
+      "unresolved": 0,
+      "newTests": 2,
+      "runs": [
+        {
+          "args": "-- --workers=2 --max-failures=2",
+          "exitCode": 1,
+          "passed": 174,
+          "initialFailures": 2,
+          "interruptedOrNotRun": 33
+        },
+        {
+          "args": "-- --workers=2 --last-failed",
+          "exitCode": 0,
+          "passed": 34,
+          "skipped": 0
+        },
+        {
+          "args": "-- tests/ui/v13.spec.ts --grep \"Filtros y colecciones 768x1024\"",
+          "exitCode": 0,
+          "passed": 1,
+          "skipped": 0
+        }
+      ],
+      "note": "En la primera ejecución dos pruebas antiguas leían el estado antes de que terminara el guardado asíncrono (apertura del editor offline y entrega de una tabla entre dos dispositivos simulados). Se hicieron esperar la pantalla que confirma la operación, sin cambiar el código de producción. Se volvieron a ejecutar ambos casos y los 33 interrumpidos o aún no ejecutados. Identidades cotejadas entre los tres informes."
+    }
+  ],
+  "scope": [
+    "Regresión reproducida sobre v15.5: en 69 tarjetas 1,2,3,4,1; en tres tarjetas 1,2,3,1.",
+    "Primer y segundo reintentos separados por respuestas de tarjetas distintas; prueba real con 69: 14 y 18; tercer suspenso queda pendiente.",
+    "Tres tarjetas: elegir la vuelta extra es voluntario. Pasar, consultar la previsión y adelantar el reloj no adelantan el refuerzo.",
+    "Prioridad en empates, medias previas sin refuerzos, tarjeta sin nota, sesión anterior sin campos nuevos y borrador conservado.",
+    "Todas suspendidas: cobertura de las 69 y vuelta finita; coincidencia entre el panel de previsión y la decisión real.",
+    "Pruebas previas de FSRS, medias, SQL local, offline, datos por cuenta, biblioteca y sesiones reanudables."
+  ],
+  "testedViewports": [
+    [
+      360,
+      800
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      430,
+      932
+    ],
+    [
+      768,
+      1024
+    ],
+    [
+      1024,
+      768
+    ],
+    [
+      1366,
+      768
+    ],
+    [
+      1920,
+      1080
+    ]
+  ],
+  "unchangedCriticalSource": [
+    "app/fsrs.ts",
+    "app/memoryModel.ts",
+    "lib/memory/checkpoint.ts",
+    "lib/memory/draft.ts",
+    "lib/memory/orthographyQueue.ts",
+    "components/review/useSessionCheckpoint.ts",
+    "scripts/prepare-pwa.mjs",
+    "public/manifest.webmanifest",
+    "lib/data/local.ts",
+    "lib/data/files.ts",
+    "lib/data/projection.ts",
+    "lib/sync/engine.ts",
+    "lib/auth/client.ts",
+    "supabase/migrations/202609300001_core.sql",
+    "supabase/migrations/202609300002_storage.sql"
+  ],
+  "sqlMigrations": false,
+  "newDependencies": false,
+  "limits": "Pruebas locales con Chromium, almacenamiento y dispositivos simulados y PostgreSQL de pruebas. No se conectó al Supabase real del usuario, no hubo despliegue y no se probó en dispositivos físicos. Se verifica el orden de tarjetas; no se ha medido retención en estudiantes."
+}

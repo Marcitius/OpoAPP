@@ -60,7 +60,7 @@ async function search(p: Page) {
   ).toBeVisible();
   return sheet;
 }
-async function startPool(p: Page) {
+async function startPool(p: Page, mode = /En orden/, first = 1) {
   await nav(p, "Biblioteca");
   await p
     .getByRole("textbox", { name: "Buscar biblioteca" })
@@ -74,9 +74,9 @@ async function startPool(p: Page) {
     .click();
   await p
     .getByRole("dialog", { name: "¿Cómo quieres estudiar?" })
-    .getByRole("button", { name: /En orden/ })
+    .getByRole("button", { name: mode })
     .click();
-  await expect(p.locator(".review-prompt")).toHaveText("ColaVisible 1");
+  await expect(p.locator(".review-prompt")).toHaveText("ColaVisible " + first);
 }
 const queue = (p: Page) => p.locator("#live-session-queue");
 async function showQueue(p: Page) {
@@ -110,6 +110,111 @@ async function nextIds(p: Page) {
     );
 }
 
+test("Una sesión de tres de v15.5 conserva la tarjeta abierta; en la vuelta voluntaria el peor historial desempata los dos suspensos", async ({
+  page,
+}) => {
+  await open(page);
+  await seed(page, 3);
+  const s = await state(page),
+    past = new Date(Date.now() - 86400_000).toISOString();
+  for (const [id, score] of [
+    [1, 9],
+    [2, 2],
+  ]) {
+    s.reviews.push({
+      id: "old-" + id,
+      cardId: "queue-" + id,
+      cardSessionId: "older",
+      score,
+      scoreKind: "recall",
+      rating: score === 9 ? "easy" : "again",
+      correct: score >= 5,
+      reviewedAt: past,
+    });
+  }
+  await page.evaluate((v) => (window as any).__opogcQA.receive(v), s);
+  await startPool(page);
+  await grade(page, "Suspendida");
+  await expect(page.locator(".review-prompt")).toHaveText("ColaVisible 2");
+  await grade(page, "Suspendida");
+  await expect(page.locator(".review-prompt")).toHaveText("ColaVisible 3");
+  await page.getByRole("button", { name: "Salir", exact: true }).click();
+  await expect(page.locator(".review-v11")).toHaveCount(0);
+  const checkpoint = await state(page),
+    legacy = checkpoint.settings.activeCardSession;
+  delete legacy.priorityBasis;
+  for (const item of legacy.items) {
+    delete item.priorityScore;
+    if (item.status === "reinforce") item.gap = 2;
+  }
+  checkpoint.settings["cardSession:" + legacy.id] = legacy;
+  await page.evaluate((v) => (window as any).__opogcQA.receive(v), checkpoint);
+  await page.reload();
+  await page.getByRole("button", { name: /Continuar sesión/ }).click();
+  await expect(page.locator(".review-prompt")).toHaveText("ColaVisible 3");
+  await grade(page);
+  await expect(page.locator(".session-result-v12")).toContainText("A reforzar");
+  await expect(page.locator(".session-result-counts")).toContainText(
+    "2A reforzar",
+  );
+  const saved = (await state(page)).settings.activeCardSession;
+  expect(saved.id).toBe(legacy.id);
+  expect(saved.history).toHaveLength(3);
+  expect(saved.items.slice(0, 2).map((i: any) => i.priorityScore)).toEqual([
+    9, 2,
+  ]);
+  await page
+    .getByRole("button", { name: "Volver a intentar pendientes" })
+    .click();
+  await expect(page.locator(".review-prompt")).toHaveText("ColaVisible 2");
+  await grade(page);
+  await expect(page.locator(".review-prompt")).toHaveText("ColaVisible 1");
+  await grade(page);
+  await expect(page.locator(".session-result-v12")).toBeVisible();
+  const rows = (await state(page)).reviews.filter(
+    (r: any) => r.cardSessionId === legacy.id,
+  );
+  expect(rows.map((r: any) => r.scoreKind)).toEqual([
+    "recall",
+    "recall",
+    "recall",
+    "reinforcement",
+    "reinforcement",
+  ]);
+});
+
+test("Aprender empieza por la peor evolución al empatar las medias, sin cambiar el orden elegido en otros modos", async ({
+  page,
+}) => {
+  await open(page);
+  await seed(page, 3);
+  const s = await state(page),
+    past = Date.now() - 86400_000;
+  for (const [id, values] of [
+    [1, [2, 8]],
+    [2, [8, 2]],
+  ] as const) {
+    values.forEach((v, i) =>
+      s.reviews.push({
+        id: id + "-" + i,
+        cardId: "queue-" + id,
+        cardSessionId: "old-" + i,
+        score: v,
+        scoreKind: "recall",
+        rating: v < 5 ? "again" : "good",
+        correct: v >= 5,
+        reviewedAt: new Date(past + i * 1000).toISOString(),
+      }),
+    );
+  }
+  await page.evaluate((v) => (window as any).__opogcQA.receive(v), s);
+  await startPool(page, /Aprender/, 2);
+  await grade(page);
+  await expect(page.locator(".review-prompt")).toHaveText("ColaVisible 1");
+  await grade(page);
+  await expect(page.locator(".review-prompt")).toHaveText("ColaVisible 3");
+});
+
 for (const [w, h] of [
   [360, 800],
   [390, 844],
@@ -123,7 +228,7 @@ for (const [w, h] of [
     page,
   }) => {
     await open(page, w, h);
-    await seed(page);
+    await seed(page, 10);
     const initial = await state(page);
     const sheet = await search(page);
     await noKeyboard(page);
@@ -162,8 +267,18 @@ for (const [w, h] of [
     await expect(page.locator(".review-prompt")).toHaveText("ColaVisible 2");
     if (w < 768) await showQueue(page);
     await expect
-      .poll(async () => (await nextIds(page)).slice(0, 3))
-      .toEqual(["queue-3", "queue-4", "queue-1"]);
+      .poll(() => nextIds(page))
+      .toEqual([
+        "queue-3",
+        "queue-4",
+        "queue-5",
+        "queue-6",
+        "queue-7",
+        "queue-8",
+        "queue-9",
+        "queue-1",
+        "queue-10",
+      ]);
     await expect(
       queue(page).locator(
         '[data-queue-section="upcoming"] [data-queue-id="queue-1"]',

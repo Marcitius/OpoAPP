@@ -77,23 +77,21 @@ test("Queue preview uses the real next-card choice and preserves selected order 
     );
   }
 });
-test("A suspended card moves behind three distinct cards, and approving it removes it from the session forecast", () => {
-  const cards = pool();
+test("A suspended card in a set of ten moves behind eight distinct answers; a pass removes it from the forecast", () => {
+  const cards = pool(10);
   let s = {
     ...createCardSession(cards, "learn", "session", now),
     grading: "scores-v1" as const,
   };
   s = answerSession(s, cards[0], "again", "r1", now, 2.5) as typeof s;
   assert.deepEqual(
-    previewSessionQueue(s, cards, now, ["2"])
-      .upcoming.slice(0, 4)
-      .map((x) => x.id),
-    ["3", "4", "1", "5"],
+    previewSessionQueue(s, cards, now, ["2"]).upcoming.map((x) => x.id),
+    ["3", "4", "5", "6", "7", "8", "9", "1", "10"],
   );
-  for (const i of [1, 2, 3])
+  for (const i of [1, 2, 3, 4, 5, 6, 7, 8])
     s = answerSession(s, cards[i], "good", `r${i + 1}`, now, 7.5) as typeof s;
   assert.deepEqual(nextSessionCard(s, cards, now), { kind: "card", id: "1" });
-  s = answerSession(s, cards[0], "good", "r5", now, 7.5) as typeof s;
+  s = answerSession(s, cards[0], "good", "retry", now, 7.5) as typeof s;
   const result = previewSessionQueue(s, cards, now);
   assert.ok(!result.upcoming.some((x) => x.id === "1"));
   assert.ok(result.approved.some((x) => x.id === "1"));

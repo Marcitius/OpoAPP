@@ -55,7 +55,10 @@ export default function SessionStatus({
           {readyAt
             ? "Has terminado esta vuelta. Dejamos algo de tiempo antes de volver a preguntarte lo que necesita refuerzo."
             : summary.weak + summary.skipped > 0
-              ? "Hay tarjetas por reforzar en un próximo repaso. No las repetimos seguidas para que puedas comprobar lo que recuerdas de verdad. Tus respuestas y próximos repasos están guardados."
+              ? session.grading === "scores-v1" &&
+                session.format !== "orthography"
+                ? "Tus pendientes están guardadas. Una tarjeta queda para otra vuelta si falta espacio para repetirla o si ya la has suspendido tres veces. Puedes conservar la sesión o intentar las pendientes ahora."
+                : "Hay tarjetas por reforzar en un próximo repaso. Tus respuestas y próximos repasos están guardados."
               : "Has recordado las tarjetas de esta sesión. Tus próximos repasos están guardados."}
         </p>
         <div className="session-result-counts">

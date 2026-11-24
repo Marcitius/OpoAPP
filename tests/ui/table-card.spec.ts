@@ -682,6 +682,7 @@ test("Dos dispositivos simulados reanudan la misma máscara y respuestas y conse
     expect(resumed.answers).toEqual(attempt.answers);
     await check(other);
     await save(other);
+    await expect(other.locator(".session-result-v12")).toBeVisible();
     const finished = await state(other);
     await page.evaluate((s) => (window as any).__opogcQA.receive(s), finished);
     expect((await state(page)).reviews).toHaveLength(1);

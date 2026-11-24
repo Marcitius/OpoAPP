@@ -69,6 +69,10 @@ test("Aprendizaje nuevo: separación por tarjetas, Bien termina y checkpoint tra
     "Concepto de repaso 3",
   );
   await grade(page, "Fácil");
+  await expect(page.locator(".session-result-v12")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Volver a intentar pendientes" })
+    .click();
   await expect(page.locator(".review-prompt")).toContainText("Artículo 53");
   await page.getByRole("button", { name: "Salir", exact: true }).click();
   await expect(page.locator(".review-v11")).toHaveCount(0);

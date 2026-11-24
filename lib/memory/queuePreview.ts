@@ -1,4 +1,5 @@
 import type { Card } from "../study/legacy";
+import { comparePending } from "./reinforcement";
 import {
   answerSession,
   nextSessionCard,
@@ -69,9 +70,11 @@ export function previewSessionQueue(
           ["new", "reinforce"].includes(item.status)),
     )
     .sort(
-      (a, b) =>
-        (a.lastScore ?? a.priorityScore ?? 11) -
-        (b.lastScore ?? b.priorityScore ?? 11),
+      source.grading === "scores-v1" && source.format !== "orthography"
+        ? comparePending
+        : (a, b) =>
+            (a.lastScore ?? a.priorityScore ?? 11) -
+            (b.lastScore ?? b.priorityScore ?? 11),
     );
   return {
     upcoming,

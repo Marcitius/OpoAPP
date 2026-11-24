@@ -271,7 +271,7 @@ test("69 cards: failures are separated by distinct cards and cannot starve unsee
       assert.notEqual(s.trail?.at(-1), next.id);
       assert.ok(
         new Set(s.trail!.slice(item.lastStep).filter((id) => id !== next.id))
-          .size >= 3,
+          .size >= (item.failures >= 2 ? 18 : 14),
       );
     }
     seen.add(next.id);
@@ -291,12 +291,12 @@ test("69 cards: failures are separated by distinct cards and cannot starve unsee
   assert.equal(sessionSummary(s).weak, 1);
 });
 test("Eligible failed cards are prioritized by their lowest latest score", () => {
-  const cards = state(6).cards;
+  const cards = state(12).cards;
   let s = {
     ...createCardSession(cards, "learn", "s", t),
     grading: "scores-v1" as const,
   };
-  for (let i = 0; i < 5; i++)
+  for (let i = 0; i < 10; i++)
     s = answerSession(
       s,
       cards[i],

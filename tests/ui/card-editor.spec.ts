@@ -439,6 +439,7 @@ test("Edición offline en repaso guarda formato sin cambiar notas, historial, se
     .getByRole("button", { name: /Repasar ahora/ })
     .first()
     .click();
+  await expect(page.locator(".review-prompt")).toBeVisible();
   const before = await state(page);
   await page
     .getByRole("button", { name: "Opciones del repaso", exact: true })

@@ -1,13 +1,9 @@
-OpoGC v15.5 - NOTAS Y REFUERZO PERSONAL
-
-PARCHE SOBRE v15.4. Contiene solo archivos nuevos/modificados.
+OpoGC v15.6 — Repasos con distancia
+PARCHE SOBRE v15.5. Solo incluye archivos nuevos o modificados.
 
 1. Descomprime el ZIP y abre la carpeta actualizar.
-2. Copia TODO SU CONTENIDO a la raíz del repositorio v15.4, conservando rutas y sustituyendo archivos. No borres el proyecto ni subas la carpeta actualizar como contenedor.
-3. Actualiza package.json y package-lock.json juntos. No hay dependencias nuevas.
-4. Cloudflare Pages: npm run build; salida: out. Conserva las variables actuales. No uses npm run deploy.
-5. Tras el despliegue, acepta la actualización de la PWA cuando se ofrezca.
+2. Copia SU CONTENIDO a la raíz de tu proyecto v15.5 (donde está package.json). Conserva rutas; sustituye los archivos coincidentes. No subas la carpeta actualizar como contenedor ni borres el proyecto.
+3. En Cloudflare Pages conserva el comando npm run build y el directorio de salida out. No hay cambios en dependencias, variables de entorno ni configuración de Supabase.
+4. Tras el despliegue, acepta la actualización de la app en cada dispositivo. Puedes continuar tus sesiones abiertas.
 
-No hay SQL ni ajustes nuevos de Supabase. No hay archivos que eliminar.
-El ZIP no incluye node_modules, .next, out, secretos ni datos de usuarios.
-README.md explica los nuevos controles. docs/RESULTADOS-V15.5.json documenta las pruebas realmente ejecutadas y sus límites.
+No hay SQL ni archivos que eliminar. ARCHIVOS-DEL-PARCHE.json enumera los archivos entregados. README.md explica el nuevo orden y docs/RESULTADOS-V15.6.json documenta la validación real.

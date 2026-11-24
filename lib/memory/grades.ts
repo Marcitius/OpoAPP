@@ -209,7 +209,9 @@ export function orderByGrade(
     .filter((c) => gradeValue(index, c.id, metric) !== null)
     .sort(
       (a, b) =>
-        gradeValue(index, a.id, metric)! - gradeValue(index, b.id, metric)!,
+        gradeValue(index, a.id, metric)! - gradeValue(index, b.id, metric)! ||
+        gradeValue(index, a.id, metric === "average" ? "latest" : "average")! -
+          gradeValue(index, b.id, metric === "average" ? "latest" : "average")!,
     );
   const fresh = cards.filter((c) => gradeValue(index, c.id, metric) === null);
   const mixed: Card[] = [];

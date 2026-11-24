@@ -1,3 +1,23 @@
+# OpoGC v15.6 — Repasos con distancia
+
+En las sesiones con nota, suspender una tarjeta la deja pendiente. Antes de que pueda volver, tienes que **responder otras tarjetas distintas**. El tiempo con la app abierta, saltar preguntas o consultar la cola no acorta la separación.
+
+| Si estudias… | Tras el primer suspenso | Si vuelves a suspenderla |
+|---|---|---|
+| 3 tarjetas | Queda para otra vuelta voluntaria | No entra en bucle |
+| 10 tarjetas | Al menos 8 respuestas distintas | Necesita 12: queda pendiente si no hay suficientes |
+| 69 tarjetas | Al menos 14 respuestas distintas | Al menos 18 respuestas distintas |
+
+El número es un **mínimo**, no un turno reservado. Entre las suspendidas listas tiene prioridad la que peor acabas de responder. A igualdad de nota se compara la media de recuerdo anterior a esta sesión; después, la cantidad de fallos y la espera. Una tarjeta sin historial queda entre una debilidad documentada y una antes aprobada. Mientras haya tarjetas sin intentar, se reservan al menos tres primeras respuestas entre refuerzos automáticos. Tras el tercer suspenso, la tarjeta queda para otra vuelta. Aprobar con 5 o más la retira de la sesión.
+
+En **Aprender** y **Peor nota primero**, al ordenar por media, si dos medias coinciden empieza la de peor último recuerdo independiente. **En orden** y **Aleatorio** siguen respetando cómo quieres ver las tarjetas por primera vez. Si vuelves a una sesión guardada, conservas tu tarjeta abierta y tu borrador. Puedes ver la previsión con **Cola** y elegir **Volver a intentar pendientes** si quieres hacer una vuelta adicional. Los reintentos de esa sesión no suben tu media de recuerdo.
+
+**Actualizar desde v15.5:** descomprime el ZIP y copia el contenido de `actualizar/` a la raíz del proyecto, junto a `package.json`, respetando carpetas y sustituyendo los archivos. En Cloudflare Pages conserva el comando `npm run build` y la salida `out`. Acepta la actualización de la PWA en cada dispositivo. No hay migraciones SQL ni archivos que eliminar.
+
+La regla afecta al orden dentro de las sesiones con nota. FSRS sigue programando los repasos posteriores. Ortografía conserva su flujo propio por palabras. Pruebas ejecutadas y límites: `docs/RESULTADOS-V15.6.json`.
+
+---
+
 # OpoGC v15.5 — Notas y refuerzo personal
 
 Esta actualización añade notas opcionales por tarjeta, tarjetas derivadas y borrado durante el estudio. También permite crear respuestas escritas sin ChatGPT y aceptar explícitamente una respuesta escrita o tabla muda tras revisar la corrección.

@@ -1,3 +1,10 @@
+## 15.6.0 — 2026-11-24
+
+- Los suspensos con nota ya no vuelven después de dos o tres preguntas. El primer refuerzo exige entre 8 y 16 respuestas distintas según la selección; el segundo, cuatro más. Si falta separación o se acumulan tres fallos, la tarjeta queda pendiente hasta otra vuelta voluntaria o un repaso posterior.
+- La cola prioriza la nota del intento y utiliza la media anterior a la sesión para desempatar. Si dos medias iniciales son iguales, se utiliza la última nota independiente al ordenar por rendimiento. Los refuerzos dejan sitio a las tarjetas aún sin intentar.
+- Las sesiones guardadas en v15.5 adoptan la distancia nueva al elegir la siguiente tarjeta. La tarjeta en pantalla y los intentos guardados se conservan. Se reutilizan las notas históricas disponibles a la fecha de inicio. No cambian SQL, Supabase, el cálculo de las medias, FSRS ni Ortografía.
+- El panel de cola y el resumen explican cuándo se difiere un refuerzo. Las pruebas incluyen selecciones pequeñas, 69 suspensos, reanudación, previsión y desempate por historial.
+
 ## 15.5.0 — 2026-11-23
 
 - Notas opcionales por flashcard, con edición, resolución, acceso en estudio/Biblioteca/buscador y eventos diarios para ChatGPT incluso sin calificación.

@@ -115,6 +115,10 @@ import {
   interleaveNewCards,
 } from "../lib/memory/session";
 import {
+  capturePriorities,
+  restorePriorities,
+} from "../lib/memory/reinforcement";
+import {
   orderedChildren,
   appendRank,
   reorderItems,
@@ -1207,15 +1211,26 @@ export default function OpoApp() {
     [state?.reviews],
   );
   const savedSessions = state ? savedCardSessions(state.settings) : [];
-  const savedCardSession = state
+  const rawSavedSession = state
     ? sessionOpen && displayedSessionRef.current
       ? cardSessionById(state.settings, displayedSessionRef.current)
       : activeCardSession(state.settings)
     : null;
+  const savedCardSession = useMemo(
+    () =>
+      rawSavedSession && state
+        ? restorePriorities(rawSavedSession, state.reviews)
+        : null,
+    [rawSavedSession, state?.reviews],
+  );
   function displayedCardSession(current: AppState | null) {
-    return current && displayedSessionRef.current
-      ? cardSessionById(current.settings, displayedSessionRef.current)
-      : null;
+    const raw =
+      current && displayedSessionRef.current
+        ? cardSessionById(current.settings, displayedSessionRef.current)
+        : null;
+    if (raw === rawSavedSession && current?.reviews === state?.reviews)
+      return savedCardSession;
+    return raw && current ? restorePriorities(raw, current.reviews) : null;
   }
   const sessionNext = savedCardSession
     ? nextSessionCard(savedCardSession, state?.cards ?? [], sessionClock)
@@ -1746,11 +1761,12 @@ export default function OpoApp() {
 
   async function resumeCardSession(id?: string) {
     const current = stateRef.current,
-      session = current
+      raw = current
         ? id
           ? cardSessionById(current.settings, id)
           : activeCardSession(current.settings)
-        : null;
+        : null,
+      session = raw && current ? restorePriorities(raw, current.reviews) : null;
     if (!current || !session) return;
     const draft = await readReviewDraft(engine.user, session);
     const latest =
@@ -1849,8 +1865,10 @@ export default function OpoApp() {
         );
       pool = interleaveNewCards([...learning, ...ordinary, ...fresh]);
     }
+    const initialGrades =
+      current.reviews === state?.reviews ? grades : gradeIndex(current.reviews);
     if (mode === "grades" || mode === "learn" || mode === "recommended")
-      pool = orderByGrade(pool, gradeIndex(current.reviews), scoreMetric);
+      pool = orderByGrade(pool, initialGrades, scoreMetric);
     if (!pool.length)
       return notify(
         mode === "weakest"
@@ -1858,7 +1876,10 @@ export default function OpoApp() {
           : "Todo al día. Puedes iniciar un repaso libre.",
       );
     const session = {
-      ...createCardSession(pool, mode, uid(), +now),
+      ...capturePriorities(
+        createCardSession(pool, mode, uid(), +now),
+        initialGrades,
+      ),
       grading: "scores-v1" as const,
       ...(tablePercentage ? { tablePercentage } : {}),
       label: sourceCollectionId

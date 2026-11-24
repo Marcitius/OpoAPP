@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Card, Folder } from "../../lib/study/legacy";
 import type { CardSession, SessionItem } from "../../lib/memory/session";
 import { previewSessionQueue } from "../../lib/memory/queuePreview";
+import { failureGap } from "../../lib/memory/reinforcement";
 import { cardSearchText } from "../../lib/study/cardSearch";
 import { formatScore } from "../../lib/memory/grades";
 import BottomSheet from "../sheets/BottomSheet";
@@ -170,6 +171,15 @@ export default function SessionQueuePanel({
       <p className="queue-explanation">
         Orden previsto: cambia al responder. Las siguientes posiciones suponen
         que vas aprobando.
+        {session.grading === "scores-v1" &&
+          session.format !== "orthography" && (
+            <>
+              {" "}
+              Tras un primer suspenso deben mediar al menos{" "}
+              {failureGap(session.items.length, 1)} tarjetas distintas
+              contestadas. Entre las listas vuelve primero la de peor nota.
+            </>
+          )}
       </p>
       <p className="queue-counts" role="status">
         {model.approved.length} aprobadas ·{" "}
@@ -213,7 +223,7 @@ export default function SessionQueuePanel({
           <p>
             {model.waiting
               ? "Esperando para repetir."
-              : "Necesitan separación o una nueva vuelta. No vuelven a aparecer seguidas."}
+              : "Quedan para otra vuelta. Puedes retomarlas desde el resumen cuando tú decidas."}
           </p>
           <ul>{model.held.map((item) => row(item))}</ul>
         </details>

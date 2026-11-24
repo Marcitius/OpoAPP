@@ -91,7 +91,7 @@ test("69 seleccionadas: una pausa larga no devuelve Bien ni bloquea las nuevas",
     .click();
   await grade(page, "Otra vez");
   await page.clock.fastForward(300000);
-  for (let i = 2; i <= 4; i++) {
+  for (let i = 2; i <= 15; i++) {
     await expect(page.locator(".review-prompt")).toHaveText(
       "Repaso consecutivo " + i,
     );
@@ -101,10 +101,10 @@ test("69 seleccionadas: una pausa larga no devuelve Bien ni bloquea las nuevas",
     "Repaso consecutivo 1",
   );
   await expect(page.locator(".immersion-header")).toContainText(
-    "3 / 69 aprobadas · 4 vistas",
+    "14 / 69 aprobadas · 15 vistas",
   );
   await grade(page, "Bien");
-  for (let i = 5; i <= 69; i++) {
+  for (let i = 16; i <= 69; i++) {
     await expect(page.locator(".review-prompt")).toHaveText(
       "Repaso consecutivo " + i,
     );

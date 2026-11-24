@@ -1,4 +1,10 @@
 import { validScore } from "./grades";
+import {
+  automaticFailureLimit,
+  comparePending,
+  failureGap,
+  nextScoredItem,
+} from "./reinforcement";
 import { legacyNextSessionCard, legacyAnswerSession } from "./orthographyQueue";
 import type {
   Card,
@@ -41,6 +47,7 @@ export interface SessionPresentation {
 export interface CardSession {
   tablePercentage?: import("../tables/model").TablePercentage;
   grading?: "scores-v1";
+  priorityBasis?: "recall-at-start";
   version: 1;
   id: string;
   mode: StudyMode;
@@ -145,6 +152,11 @@ export function nextSessionCard(
   const s = upgradeCardSession(session);
   const existing = new Set(cards.map((c) => c.id));
   const available = s.items.filter((i) => existing.has(i.id));
+  if (s.grading === "scores-v1") {
+    const item = nextScoredItem(s, available);
+    return item ? { kind: "card", id: item.id } : { kind: "complete" };
+  }
+  // Qualitative (pre-score) sessions keep their original first-pass rules.
   const fresh = available.filter((i) => i.status === "new");
   const trail = s.trail ?? [];
   const repeat = available
@@ -157,9 +169,6 @@ export function nextSessionCard(
     })
     .sort(
       (a, b) =>
-        (s.grading === "scores-v1"
-          ? (a.lastScore ?? 4) - (b.lastScore ?? 4)
-          : 0) ||
         (a.lastStep ?? 0) - (b.lastStep ?? 0) ||
         s.items.indexOf(a) - s.items.indexOf(b),
     );
@@ -203,9 +212,17 @@ export function answerSession(
   const remembered = graded
     ? score >= 5
     : rating === "good" || rating === "easy";
+  const failures =
+    item.failures + Number(graded ? !remembered : rating === "again");
   const status: SessionItem["status"] = remembered
     ? "remembered"
-    : !graded && (rating === "hard" ? attempts >= 2 : attempts >= 3)
+    : (
+          graded
+            ? failures >= automaticFailureLimit
+            : rating === "hard"
+              ? attempts >= 2
+              : attempts >= 3
+        )
       ? "weak"
       : "reinforce";
   const trail = [...(s.trail ?? []), card.id];
@@ -238,14 +255,18 @@ export function answerSession(
             ...i,
             attempts,
             seen: true,
-            failures: i.failures + Number(rating === "again"),
+            failures,
             remembered: i.remembered + Number(remembered),
             lastRating: rating,
             ...(graded ? { lastScore: score } : {}),
             lastTurn: s.turn + 1,
             lastStep: trail.length,
             eligibleAt: now,
-            gap: Math.min(graded ? 3 : 8, Math.max(1, s.items.length - 1)),
+            gap: graded
+              ? remembered
+                ? 0
+                : failureGap(s.items.length, failures)
+              : Math.min(8, Math.max(1, s.items.length - 1)),
             status,
           }
         : i,
@@ -342,9 +363,11 @@ export function retryPendingSession(
           : i,
       )
       .sort(
-        (a, b) =>
-          (a.lastScore ?? a.priorityScore ?? 11) -
-          (b.lastScore ?? b.priorityScore ?? 11),
+        session.format !== "orthography"
+          ? comparePending
+          : (a, b) =>
+              (a.lastScore ?? a.priorityScore ?? 11) -
+              (b.lastScore ?? b.priorityScore ?? 11),
       ),
   };
 }
