@@ -8,6 +8,10 @@ import type {
   WrittenCriterion,
   WrittenEvaluation,
 } from "../../app/CardImportModal";
+import {
+  defaultWrittenRubric,
+  completeWrittenRubric,
+} from "../../lib/cards/written";
 import CardTextEditor from "../editor/CardTextEditor";
 import { plainRichText, sanitizeRichHtml } from "../../app/RichTextEditor";
 import { uploadAttachment } from "../../lib/data/files";
@@ -175,14 +179,17 @@ export function CardModal({
   onClose,
   onSave,
   lockType = false,
+  creation,
 }: {
   folders: Folder[];
   defaultFolder: string | null;
   initialCard: Card | null;
   onClose: () => void;
-  onSave: (card: Card) => Promise<boolean>;
+  onSave: (card: Card, practice?: boolean) => Promise<boolean>;
+  creation?: { source: Card; note?: string; canPractice: boolean };
   lockType?: boolean;
 }) {
+  const [practice, setPractice] = useState(false);
   const [saving, setSaving] = useState(false);
   const submitBusy = useRef(false);
   const [saveError, setSaveError] = useState("");
@@ -394,6 +401,11 @@ export function CardModal({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    const evaluation = completeWrittenRubric(
+      writtenEvaluation,
+      back,
+      !initialCard,
+    );
     if (saving || submitBusy.current) return;
     let table: StudyTable | undefined,
       tableBack = "";
@@ -449,14 +461,14 @@ export function CardModal({
     )
       return;
     if (type === "written") {
-      if (!writtenEvaluation || !writtenEvaluation.criterios.length) {
+      if (!evaluation || !evaluation.criterios.length) {
         setWrittenEditorError(
           "La respuesta escrita necesita al menos un criterio de corrección.",
         );
         return;
       }
       const ids = new Set<string>();
-      for (const criterion of writtenEvaluation.criterios) {
+      for (const criterion of evaluation.criterios) {
         if (!criterion.id.trim() || ids.has(criterion.id.trim())) {
           setWrittenEditorError("Cada criterio necesita un ID único.");
           return;
@@ -479,8 +491,7 @@ export function CardModal({
           return;
         }
       }
-      const { otraVezHasta, dificilHasta, bienHasta } =
-        writtenEvaluation.umbrales;
+      const { otraVezHasta, dificilHasta, bienHasta } = evaluation.umbrales;
       if (!(
         otraVezHasta >= 0 &&
         otraVezHasta < dificilHasta &&
@@ -498,73 +509,80 @@ export function CardModal({
       ? orthographyCorrectForm.trim() || orthographyWord.trim()
       : orthographyCorrectForm.trim();
     const writtenOptions =
-      type === "written" && writtenEvaluation
+      type === "written" && evaluation
         ? [
             ...(initialCard?.options ?? []).filter(
               (item) => !item.startsWith(WRITTEN_RUBRIC_PREFIX),
             ),
-            encodeWrittenRubric(writtenEvaluation),
+            encodeWrittenRubric(evaluation),
           ]
         : (initialCard?.options ?? []);
     submitBusy.current = true;
     setSaving(true);
     setSaveError("");
     try {
-      const saved = await onSave({
-        ...base,
-        folderId,
-        type,
-        ...(table ? { table } : {}),
-        front:
-          type === "table"
-            ? sanitizeRichHtml(
-                plainRichText(front) ? front : "<p>Completa la tabla</p>",
-              )
-            : type === "orthography"
-              ? sanitizeRichHtml(`<p>${escapeHtml(orthographyWord.trim())}</p>`)
-              : sanitizeRichHtml(front),
-        back:
-          type === "table"
-            ? tableBack
-            : type === "orthography"
-              ? orthographyBackHtml(
-                  orthographyWord.trim(),
-                  orthographyIsCorrect,
-                  finalOrthographyForm,
-                  orthographyExplanation.trim(),
-                  orthographySource.trim(),
+      const saved = await onSave(
+        {
+          ...base,
+          folderId,
+          type,
+          ...(table ? { table } : {}),
+          front:
+            type === "table"
+              ? sanitizeRichHtml(
+                  plainRichText(front) ? front : "<p>Completa la tabla</p>",
                 )
-              : sanitizeRichHtml(back),
-        options:
-          type === "written"
-            ? writtenOptions
-            : isMultipleChoiceType(type)
-              ? options.slice(0, 4).map((option) => option.trim())
-              : [],
-        correctOption: isMultipleChoiceType(type)
-          ? ((type === "test" && multipleAnswers
-              ? [...new Set(correctOptions)].sort((a, b) => a - b)[0]
-              : correctOption) ?? 0)
-          : 0,
-        correctOptions: isMultipleChoiceType(type)
-          ? type === "test" && multipleAnswers
-            ? [...new Set(correctOptions)].sort((a, b) => a - b).length
-              ? [...new Set(correctOptions)].sort((a, b) => a - b)
-              : [0]
-            : [Math.min(correctOption, 3)]
-          : [],
-        attachment: type === "orthography" ? null : attachment,
-        orthographyIsCorrect:
-          type === "orthography" ? orthographyIsCorrect : null,
-        orthographyCorrectForm:
-          type === "orthography" ? finalOrthographyForm : "",
-        orthographyExplanation:
-          type === "orthography" ? orthographyExplanation.trim() : "",
-        orthographySource:
-          type === "orthography" ? orthographySource.trim() : "",
-        orthographyStage:
-          type === "orthography" ? Math.max(1, base.orthographyStage || 1) : 1,
-      });
+              : type === "orthography"
+                ? sanitizeRichHtml(
+                    `<p>${escapeHtml(orthographyWord.trim())}</p>`,
+                  )
+                : sanitizeRichHtml(front),
+          back:
+            type === "table"
+              ? tableBack
+              : type === "orthography"
+                ? orthographyBackHtml(
+                    orthographyWord.trim(),
+                    orthographyIsCorrect,
+                    finalOrthographyForm,
+                    orthographyExplanation.trim(),
+                    orthographySource.trim(),
+                  )
+                : sanitizeRichHtml(back),
+          options:
+            type === "written"
+              ? writtenOptions
+              : isMultipleChoiceType(type)
+                ? options.slice(0, 4).map((option) => option.trim())
+                : [],
+          correctOption: isMultipleChoiceType(type)
+            ? ((type === "test" && multipleAnswers
+                ? [...new Set(correctOptions)].sort((a, b) => a - b)[0]
+                : correctOption) ?? 0)
+            : 0,
+          correctOptions: isMultipleChoiceType(type)
+            ? type === "test" && multipleAnswers
+              ? [...new Set(correctOptions)].sort((a, b) => a - b).length
+                ? [...new Set(correctOptions)].sort((a, b) => a - b)
+                : [0]
+              : [Math.min(correctOption, 3)]
+            : [],
+          attachment: type === "orthography" ? null : attachment,
+          orthographyIsCorrect:
+            type === "orthography" ? orthographyIsCorrect : null,
+          orthographyCorrectForm:
+            type === "orthography" ? finalOrthographyForm : "",
+          orthographyExplanation:
+            type === "orthography" ? orthographyExplanation.trim() : "",
+          orthographySource:
+            type === "orthography" ? orthographySource.trim() : "",
+          orthographyStage:
+            type === "orthography"
+              ? Math.max(1, base.orthographyStage || 1)
+              : 1,
+        },
+        Boolean(creation?.canPractice && practice && type !== "orthography"),
+      );
       if (!saved)
         setSaveError(
           "No se han podido guardar los cambios. Puedes volver a intentarlo.",
@@ -581,11 +599,17 @@ export function CardModal({
 
   return (
     <ModalShell
-      title={initialCard ? "Editar tarjeta" : "Crear tarjeta"}
+      title={
+        initialCard
+          ? "Editar tarjeta"
+          : creation
+            ? "Crear tarjeta derivada"
+            : "Crear tarjeta"
+      }
       subtitle={
         lockType
           ? "Corrige la tarjeta y continúa donde estabas."
-          : "Crea flashcards normales, tablas mudas, vocabulario, tests u ortografía. Las respuestas escritas con rúbrica se crean desde ChatGPT / JSON y después pueden editarse aquí."
+          : "Crea tarjetas de cualquier tipo y organízalas en tu temario."
       }
       label={initialCard ? "EDITAR" : "NUEVO"}
       dismissible={!saving}
@@ -593,6 +617,33 @@ export function CardModal({
     >
       <form onSubmit={submit}>
         <fieldset className="editor-fields" disabled={saving}>
+          {creation && (
+            <div className="derived-context">
+              <strong>Refuerzo de una parte concreta</strong>
+              <p>Origen: {plainRichText(creation.source.front)}</p>
+              {creation.note && (
+                <p className="note-text">Tu nota: {creation.note}</p>
+              )}
+              <details>
+                <summary>Consultar respuesta original</summary>
+                <div className="note-text">
+                  {plainRichText(creation.source.back)}
+                </div>
+                <button
+                  type="button"
+                  className="ux-link"
+                  onClick={() => setBack(creation.source.back)}
+                >
+                  Usar respuesta original
+                </button>
+              </details>
+              <p className="muted">
+                Escribe una pregunta más concreta y su respuesta. Se guardará
+                como otra tarjeta, con sus propias calificaciones.
+              </p>
+            </div>
+          )}
+
           {!lockType && (
             <div className="segmented five-types card-type-selector">
               <button
@@ -641,18 +692,13 @@ export function CardModal({
                 type="button"
                 className={type === "written" ? "active" : ""}
                 disabled={
-                  lockType || !initialCard || initialCard.type !== "written"
+                  lockType || (!!initialCard && initialCard.type !== "written")
                 }
-                title={
-                  !initialCard
-                    ? "Las respuestas escritas se crean desde ChatGPT / JSON"
-                    : initialCard.type !== "written"
-                      ? "No se convierte una tarjeta existente a respuesta escrita"
-                      : "Editar respuesta escrita"
-                }
-                onClick={() =>
-                  initialCard?.type === "written" && setType("written")
-                }
+                title="Crear o editar una respuesta escrita con criterios de corrección"
+                onClick={() => {
+                  setType("written");
+                  setWrittenEvaluation((v) => v ?? defaultWrittenRubric());
+                }}
               >
                 Respuesta escrita
               </button>
@@ -662,8 +708,9 @@ export function CardModal({
             <div className="written-import-note">
               <strong>Respuesta escrita</strong>
               <span>
-                Edita aquí la rúbrica importada. OpoGC seguirá usando estos
-                criterios para calcular la precisión.
+                Escribe tu pregunta y la respuesta modelo. Puedes definir
+                conceptos y alternativas para la corrección. Si dejas el único
+                criterio vacío, se utilizará tu respuesta modelo.
               </span>
             </div>
           )}
@@ -1296,6 +1343,37 @@ export function CardModal({
               )}
             </>
           )}
+          {creation && (
+            <div className="derived-save-choices">
+              <label>
+                <input
+                  type="radio"
+                  name="derived-save"
+                  checked={!practice || type === "orthography"}
+                  onChange={() => setPractice(false)}
+                />
+                Guardar y continuar
+              </label>
+              {creation.canPractice && type !== "orthography" && (
+                <label>
+                  <input
+                    type="radio"
+                    name="derived-save"
+                    checked={practice}
+                    onChange={() => setPractice(true)}
+                  />
+                  Guardar y practicar en esta sesión
+                </label>
+              )}
+              {practice && type !== "orthography" && (
+                <p className="muted">
+                  Aparecerá después de otras tarjetas si queda espacio para
+                  intercalarla. Esta práctica guiada no modifica su media de
+                  recuerdo.
+                </p>
+              )}
+            </div>
+          )}
           <button
             className="primary-button full"
             disabled={
@@ -1312,9 +1390,13 @@ export function CardModal({
               ? "Guardando…"
               : initialCard
                 ? "Guardar cambios"
-                : type === "orthography"
-                  ? "Guardar palabra"
-                  : "Guardar tarjeta"}
+                : creation
+                  ? practice && type !== "orthography"
+                    ? "Guardar y practicar en esta sesión"
+                    : "Guardar y continuar"
+                  : type === "orthography"
+                    ? "Guardar palabra"
+                    : "Guardar tarjeta"}
           </button>
           {saveError && (
             <p role="alert" className="form-error">

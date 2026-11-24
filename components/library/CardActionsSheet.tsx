@@ -13,6 +13,10 @@ export default function CardActionsSheet({
   onReorder,
   onSave,
   onDelete,
+  onNotes,
+  onDerive,
+  onConnections,
+  onEdit,
 }: {
   card: Card;
   folders: Folder[];
@@ -21,6 +25,10 @@ export default function CardActionsSheet({
   onReorder: (direction: -1 | 1) => void;
   onSave: () => void;
   onDelete: () => void;
+  onEdit?: () => void;
+  onNotes?: () => void;
+  onDerive?: () => void;
+  onConnections?: () => void;
 }) {
   const [destination, setDestination] = useState(card?.folderId ?? "");
   if (!card) return null;
@@ -30,6 +38,50 @@ export default function CardActionsSheet({
       title={plainRichText(card.front) || "Tarjeta"}
       onClose={onClose}
     >
+      {onEdit && (
+        <button
+          className="sheet-action"
+          onClick={() => {
+            onClose();
+            onEdit();
+          }}
+        >
+          Editar tarjeta
+        </button>
+      )}
+      {onNotes && (
+        <button
+          className="sheet-action"
+          onClick={() => {
+            onClose();
+            onNotes();
+          }}
+        >
+          Notas de la tarjeta
+        </button>
+      )}
+      {onDerive && (
+        <button
+          className="sheet-action"
+          onClick={() => {
+            onClose();
+            onDerive();
+          }}
+        >
+          Crear tarjeta derivada
+        </button>
+      )}
+      {onConnections && (
+        <button
+          className="sheet-action"
+          onClick={() => {
+            onClose();
+            onConnections();
+          }}
+        >
+          Tarjetas relacionadas
+        </button>
+      )}
       <button
         className="sheet-action"
         onClick={() => {

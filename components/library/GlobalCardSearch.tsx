@@ -21,12 +21,18 @@ export default function GlobalCardSearch({
   onClose,
   onStudy,
   onEdit,
+  onNotes,
+  onDerive,
+  onConnections,
 }: {
   cards: Card[];
   folders: Folder[];
   onClose: () => void;
   onStudy: (id: string) => void;
   onEdit: (id: string) => void;
+  onNotes?: (id: string) => void;
+  onDerive?: (id: string) => void;
+  onConnections?: (id: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const deferred = useDeferredValue(query);
@@ -112,6 +118,32 @@ export default function GlobalCardSearch({
                 </ul>
               )}
               <RichContent html={selected.back} />
+              <div className="card-context-actions">
+                {onNotes && (
+                  <button
+                    className="ux-link"
+                    onClick={() => onNotes(selected.id)}
+                  >
+                    Notas de la tarjeta
+                  </button>
+                )}
+                {onDerive && (
+                  <button
+                    className="ux-link"
+                    onClick={() => onDerive(selected.id)}
+                  >
+                    Crear tarjeta derivada
+                  </button>
+                )}
+                {onConnections && (
+                  <button
+                    className="ux-link"
+                    onClick={() => onConnections(selected.id)}
+                  >
+                    Tarjetas relacionadas
+                  </button>
+                )}
+              </div>
               <div className="search-preview-actions">
                 <button
                   className="primary-button full"

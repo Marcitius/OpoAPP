@@ -432,6 +432,7 @@ export default function LibraryBrowser({
               <span>
                 <small>
                   {cardTypeLabel(c.type)}
+                  {c.derivation ? " · Derivada" : ""}
                   {filtered
                     ? " · " +
                       hierarchyPath(state.folders, c.folderId)

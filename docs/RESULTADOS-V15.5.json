@@ -1,0 +1,610 @@
+{
+  "version": "15.5.0",
+  "baseVersion": "15.4.0",
+  "generatedAt": "2026-11-23T10:24:09.385365+00:00",
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    {
+      "command": "npm test",
+      "exitCode": 0,
+      "tests": 190,
+      "pass": 190,
+      "fail": 0,
+      "newTests": 18,
+      "previousTests": 172
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "output": "out",
+      "mode": "Next.js static export"
+    },
+    {
+      "command": "CHROMIUM_EXECUTABLE=<test Chromium 138> npm run test:ui -- --workers=2 --max-failures=1",
+      "exitCode": 0,
+      "expected": 207,
+      "unexpected": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "durationMs": 223850.55699999997,
+      "newTests": 18,
+      "previousTests": 189
+    }
+  ],
+  "testedViewports": [
+    [
+      360,
+      800
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      430,
+      932
+    ],
+    [
+      768,
+      1024
+    ],
+    [
+      1024,
+      768
+    ],
+    [
+      1366,
+      768
+    ],
+    [
+      1920,
+      1080
+    ]
+  ],
+  "behavior": [
+    "Notas opcionales sin calificar, edición/resolución, eventos históricos y exportación diaria incluso sin intentos.",
+    "Persistencia IndexedDB y aislamiento de cuentas; notas diferentes se fusionan como registros independientes.",
+    "Derivadas permanentes con carpeta/origen, historial propio y acceso desde Biblioteca/buscador/estudio.",
+    "Práctica guiada separada por tarjetas distintas, reanudación y exclusión de media/FSRS; sesiones posteriores independientes.",
+    "Aviso al cambiar el origen, revisión explícita y huella estable con orden de claves JSONB distinto.",
+    "Borrado confirmado durante estudio: cancelación, siguiente tarjeta, última tarjeta, limpieza de sesiones y conservación de notas/intentos/derivadas.",
+    "Validación y restauración de copias con referencias históricas a tarjetas eliminadas, ejecutada contra SQL real en PGlite sin migraciones.",
+    "Creación manual de respuesta escrita con rúbrica compatible; aceptación manual en escrita y tabla guarda 10/10 conservando evidencia automática.",
+    "Suite previa: import prompts, todos los tipos, editor, tablas, sesiones múltiples, promedios decimales, 50 tarjetas, offline simulado, RLS SQL local, PWA estática y búsqueda/cola con grandes bibliotecas."
+  ],
+  "integrity": {
+    "dependencyChanges": false,
+    "sqlMigrations": false,
+    "deletedFiles": [],
+    "existingRuntimeFilesChanged": [
+      "app/OpoApp.tsx",
+      "app/OrthographyStudy.tsx",
+      "app/layout.tsx",
+      "components/library/CardActionsSheet.tsx",
+      "components/library/GlobalCardSearch.tsx",
+      "components/library/LibraryBrowser.tsx",
+      "components/library/LibraryEditors.tsx",
+      "components/review/ReviewSessionView.tsx",
+      "components/tables/TableExercise.tsx",
+      "components/tables/TableReview.tsx",
+      "lib/data/legacy.ts",
+      "lib/data/projection.ts",
+      "lib/memory/grades.ts",
+      "lib/memory/session.ts",
+      "lib/reports/daily.ts",
+      "lib/study/legacy.ts"
+    ],
+    "newRuntimeFiles": [
+      "app/card-context.css",
+      "components/cards/CardConnections.tsx",
+      "components/cards/CardNotesSheet.tsx",
+      "components/cards/DeleteCardSheet.tsx",
+      "lib/cards/context.ts",
+      "lib/cards/delete.ts",
+      "lib/cards/derived.ts",
+      "lib/cards/notes.ts",
+      "lib/cards/selfReview.ts",
+      "lib/cards/written.ts"
+    ],
+    "existingOpoAppHandlers": {
+      "originalCount": 75,
+      "unchanged": [
+        "setSelectedOption",
+        "setSelectedOptions",
+        "setWrittenAnswer",
+        "updateState",
+        "navigate",
+        "startStudySession",
+        "finishStudyEntry",
+        "assignSavedReview",
+        "editReviewCollection",
+        "moveLibraryItems",
+        "moveStudyItems",
+        "reorderStudyNode",
+        "planStudyNode",
+        "moveStudyOut",
+        "startStudyWithContent",
+        "importLibraryToStudy",
+        "reorderFolder",
+        "moveFolderOut",
+        "moveCard",
+        "reorderCard",
+        "notify",
+        "openStudyImport",
+        "openStudyNodeEditor",
+        "saveStudyNode",
+        "toggleStudyNodeSelection",
+        "clearStudySelection",
+        "deleteStudyNodes",
+        "openStudyQuick",
+        "saveStudyTask",
+        "editStudyTask",
+        "saveStudyTaskEdits",
+        "reorderStudyTask",
+        "completeStudyTask",
+        "saveStudyCompletionNote",
+        "postponeStudyTask",
+        "deleteStudyTask",
+        "importStudyTree",
+        "exportStudyData",
+        "displayedCardSession",
+        "displayQueue",
+        "pauseCardSession",
+        "finishCardSession",
+        "finishManyCardSessions",
+        "retrySessionPending",
+        "matchesDisplayed",
+        "toggleCardSelection",
+        "moveSelectedCards",
+        "deleteSelectedCards",
+        "studySelectedCards",
+        "startOrthographySession",
+        "toggleOrthographyWord",
+        "correctOrthographyGroup",
+        "continueOrthographySession",
+        "closeOrthographySession",
+        "showSessionNext",
+        "resumeCardSession",
+        "startReview",
+        "removeCurrentFromCollection",
+        "currentSelectionIsCorrect",
+        "submitWrittenAnswer",
+        "goToPreviousCard",
+        "withTableAttempt",
+        "goToNextCard",
+        "markCurrentUnknown",
+        "rateCurrent",
+        "importGeneratedCards",
+        "openAttemptEditor",
+        "deleteAttempt",
+        "deletePsychTest",
+        "moveFolder",
+        "deleteFolder",
+        "startTodayReview"
+      ],
+      "changed": [
+        "removeLibraryCards",
+        "gradeCurrentTable",
+        "recordCurrentReview"
+      ],
+      "added": [
+        "openCardNotes",
+        "beginDerivedCard",
+        "deleteCardFromStudy"
+      ]
+    },
+    "protectedRuntimeUnchanged": [
+      "lib/auth/client.ts",
+      "lib/sync/engine.ts",
+      "lib/data/local.ts",
+      "lib/data/files.ts",
+      "app/fsrs.ts",
+      "app/memoryModel.ts",
+      "lib/memory/checkpoint.ts",
+      "lib/memory/draft.ts",
+      "components/review/useSessionCheckpoint.ts",
+      "lib/import/cardPrompts.ts",
+      "app/CardImportModal.tsx"
+    ],
+    "unchangedRuntimeFiles": [
+      {
+        "path": "app/CardImage.tsx",
+        "sha256": "de20b150f5397d308fed795f5c2621be1f1bc407a4ef9687d561914a359e8c6f"
+      },
+      {
+        "path": "app/CardImportModal.tsx",
+        "sha256": "aa560ee7da1a7b44d566dac4596b4df0203a925f50e96604e3061ab24ff96a86"
+      },
+      {
+        "path": "app/LocalDataManager.tsx",
+        "sha256": "a6c39e6fb94422d0e9fb37d7e8c5355c7f89d79483605a08ce3e5dbd7b59f8c6"
+      },
+      {
+        "path": "app/PdfAnnotator.tsx",
+        "sha256": "2440a139ed64d155a6e230c81c55e1132fdc6f5be7514ed26931e6ae2039737d"
+      },
+      {
+        "path": "app/RichTextEditor.tsx",
+        "sha256": "5c8ed874648fa42f8aacebb3fa6ea2c3380190704b655c2bd970393f516a488b"
+      },
+      {
+        "path": "app/account.css",
+        "sha256": "8d28b4727cbb49e7396fc92a8c21dd0738a29bf7123c03968ac51b2f852db574"
+      },
+      {
+        "path": "app/card-editor.css",
+        "sha256": "1f9f7d67d18cd10f3769e8b8b7fb6ced4fdd5669ab026e8ae93eccdfd8e8a549"
+      },
+      {
+        "path": "app/fsrs.ts",
+        "sha256": "7615da7f49642f95b5bea81a28eb1f0f362ec45c7987695adb6b204127c2ea4b"
+      },
+      {
+        "path": "app/globals.css",
+        "sha256": "91bf02cdd137cba6d85728257d178d0398b7561e3d3f17c332548f38ffff1222"
+      },
+      {
+        "path": "app/material.css",
+        "sha256": "a4c9f6e0de751ceaa7f5d68a8394567b0ed0a73abfbd79cf0398a52383a79d5b"
+      },
+      {
+        "path": "app/memoryModel.ts",
+        "sha256": "1ec5e032d2cfc659ca6874835edeef5cef5ebc2a75bd81d5af586dbee0d2b906"
+      },
+      {
+        "path": "app/mobile-ux.css",
+        "sha256": "109e3491946c5dd199fa96bd26804a5dda0eb49c39d67eea5ab40455bcffc604"
+      },
+      {
+        "path": "app/page.tsx",
+        "sha256": "92df1f0e491974503640dbe16cc218e789d93375acab603c30e7c7e8afb8e0b1"
+      },
+      {
+        "path": "app/study-tools.css",
+        "sha256": "6d536bc5f6a8ec05b5e50bff0ae998263cf3742c958ae270480ac4850df98ea3"
+      },
+      {
+        "path": "app/table-cards.css",
+        "sha256": "558e7d3f52de6ce9a44b2afd92de345b5d2ce4e6766f1202350be527e6dbb889"
+      },
+      {
+        "path": "components/AccountApp.tsx",
+        "sha256": "3f5548e07e80c01ed88ede9aee6a694bca7425ce3c650368802a75df912215e9"
+      },
+      {
+        "path": "components/PwaManager.tsx",
+        "sha256": "e7ca3963e9f9568bff2c63102aa74d563165e3ef38d913e6322f0b87d7a1b73b"
+      },
+      {
+        "path": "components/SyncContext.tsx",
+        "sha256": "133fe500d5885c76d97b38f5b94825aff57b0065b8e9cb7bdf763ef89c93f1d9"
+      },
+      {
+        "path": "components/account/AccountScreen.tsx",
+        "sha256": "c8ed056f8b16e0ffd8a30d1e23536b6cecc25b33aed4c33ebf93b6f66f1019a0"
+      },
+      {
+        "path": "components/account/StudyPreferences.tsx",
+        "sha256": "6c2914956b5dc4960828d6a65e51c8984c848b200569365a7f9df8ba926c2879"
+      },
+      {
+        "path": "components/editor/CardTextEditor.tsx",
+        "sha256": "5a258b30d59c8325634220379c91775bb6d3b58f3a299d0eac6804d42d0a7d15"
+      },
+      {
+        "path": "components/editor/RichEditor.tsx",
+        "sha256": "1f7bf9f60f4f23ddf8fe3d9b19740e8dbcacf2cf8a590b85aa007729da320eb4"
+      },
+      {
+        "path": "components/editor/blockFormat.ts",
+        "sha256": "600ea8fc0d0242ee801c17d8d1f10fdbf69967b7c53419ef53d84753ee3715eb"
+      },
+      {
+        "path": "components/filters/ContentScope.tsx",
+        "sha256": "71943bd0b2677afe320dc287de1228bac7e1dc07ea0907a1fe214fc5dc0d93e9"
+      },
+      {
+        "path": "components/filters/HierarchyPicker.tsx",
+        "sha256": "53d106aed6548779fd6ea33aacfaec1f9b247ed5b07a4582bf7692406cd8632f"
+      },
+      {
+        "path": "components/library/ImportPromptPicker.tsx",
+        "sha256": "15b4978ed2a90992bd84d2472279f8b4e884adebc95a2f321e9bada14f722eca"
+      },
+      {
+        "path": "components/library/LibraryActions.tsx",
+        "sha256": "f76ea182849ac285122840ccd78de4fdf00445ea426393cfe48294233f5857e5"
+      },
+      {
+        "path": "components/library/LibraryToStudySheet.tsx",
+        "sha256": "d05283a3d6e106616779c4618dc2540ffbaa754a734ab5069499b584c859dda4"
+      },
+      {
+        "path": "components/material/MaterialDocument.tsx",
+        "sha256": "fc14e9e1b81d2c995d392de24c3322bd00457a3ebe9a954780aa7addb7f66952"
+      },
+      {
+        "path": "components/material/MaterialEditor.tsx",
+        "sha256": "66621d31c8bfafca78234b537bbc8825d4a830af47ca20eda5ed91f885c189c0"
+      },
+      {
+        "path": "components/material/MaterialImage.tsx",
+        "sha256": "fd5fcbabd7b6b6cf8b8d0da5a8452ceb304ca2c52bfb7771381cb268a528e34f"
+      },
+      {
+        "path": "components/material/MaterialImageServices.tsx",
+        "sha256": "3c319f5e1556951d16369caf5baaeb90e74fb2c4f2056d5820fdc222906bcd93"
+      },
+      {
+        "path": "components/material/MaterialPage.tsx",
+        "sha256": "43060ffb08b9c3af1409264b104afb01bac5a5c828ff8a591fb9ec9db12e7b06"
+      },
+      {
+        "path": "components/material/extensions.ts",
+        "sha256": "2c8771954a990c78ba6ba9789a3e54b20e0797e40a7cae3cb20f3e42d2d9d53b"
+      },
+      {
+        "path": "components/material/useMaterialImages.ts",
+        "sha256": "ab5ef20342e76c4ff8bf251e6417a7437b775487445cceb4f8711922aec55d93"
+      },
+      {
+        "path": "components/navigation/AppNavigation.tsx",
+        "sha256": "85078db619e540ae1bbe122eee5c43d5887f47abaa85a4d0a1f9b8f8be3c2dc0"
+      },
+      {
+        "path": "components/navigation/MorePage.tsx",
+        "sha256": "e52ea04edfbc0cd3d74b8e07b3205ad54ebeeebff54116149e714b69a14b96c8"
+      },
+      {
+        "path": "components/progress/DailyReport.tsx",
+        "sha256": "53d66e2238cd8840fd923c1cf8a11336459c72bff8de9ba89725d2ad93cb8fbd"
+      },
+      {
+        "path": "components/progress/LegacyCharts.tsx",
+        "sha256": "55323f5fdf2f74da1215a3785d9129d7d5b22331c9f3905b2c5bc9d20c7ff7ed"
+      },
+      {
+        "path": "components/progress/OrthographyProgress.tsx",
+        "sha256": "f053cd11339092f76c191af0915f9dd1b1f91c7ad320cfdbd28a6843045da96d"
+      },
+      {
+        "path": "components/progress/ProgressPage.tsx",
+        "sha256": "899723d4faed7995cf65a4354ffbef29878dfa59a1a4e8f50e79457bad003557"
+      },
+      {
+        "path": "components/psych/PsychEditors.tsx",
+        "sha256": "bed09d81ca7c17f1a0b779d3bbb5e266775530d9853dda62282ed156e1291281"
+      },
+      {
+        "path": "components/review/GradeFilter.tsx",
+        "sha256": "074bb66a8405b1a14e4cd8e10e9e5886ac8daea805b3fdc02116f0175885e9ec"
+      },
+      {
+        "path": "components/review/ResumeSession.tsx",
+        "sha256": "5f713e6929292c097cf5e2c055cb1e028ae73816761d226676f2cdb3f37023e8"
+      },
+      {
+        "path": "components/review/ReviewCollections.tsx",
+        "sha256": "e1be1d623bc5fd18080814aabbad6b64573d0d6e2f8f992ad6af79adf581d2bd"
+      },
+      {
+        "path": "components/review/ReviewSession.tsx",
+        "sha256": "7ad869547778de15d8c2b9845748fa31787f14ed32d9b3352c602e833fc2a023"
+      },
+      {
+        "path": "components/review/ReviewStartPage.tsx",
+        "sha256": "9d555c8010b82877eb3f17ca83f792cc514f1fef1be965ea0f048c98b944804e"
+      },
+      {
+        "path": "components/review/SaveReviewSheet.tsx",
+        "sha256": "d42f9a9c800d1e083277a979b95f56b0afb9b9cc1aa230fd03e2fa897d75237e"
+      },
+      {
+        "path": "components/review/SavedSessions.tsx",
+        "sha256": "71fe9707cd6e560e95098fa3a54a6806367248990a0003708028700bf85a898e"
+      },
+      {
+        "path": "components/review/ScorePicker.tsx",
+        "sha256": "53e6574e5e5374c29450954fc72688996ae2ec7f6b2c82999955ff02ff4ad50d"
+      },
+      {
+        "path": "components/review/SessionQueuePanel.tsx",
+        "sha256": "be03c0511717f268f13332f9f8cd5dabd2bf3f9af2dd06d2225f12e8101bc4cd"
+      },
+      {
+        "path": "components/review/SessionStatus.tsx",
+        "sha256": "83ac247c7a49a24abd3a80ecf9973abc12db07b369b14337d6dc6aafeb4014cd"
+      },
+      {
+        "path": "components/review/StudyBackground.tsx",
+        "sha256": "bb24fefced74f713e15ac31b12e76a4a1acfaec0a9e50235cd2b05b56d9c488a"
+      },
+      {
+        "path": "components/review/StudyModeSheet.tsx",
+        "sha256": "95f35117279e1e1f6bdfcd9062abcc787561b9386d03071a383f15f1f44f1b9f"
+      },
+      {
+        "path": "components/review/useSessionCheckpoint.ts",
+        "sha256": "42ab63a0520471609569cbfb70532eea7d1d0c053b355d78319de4ab5ce44cd6"
+      },
+      {
+        "path": "components/shared/Icon.tsx",
+        "sha256": "23e07e1b8f988aa4caee0242a99d8b3bfd951f8a861328a95017becada92a293"
+      },
+      {
+        "path": "components/shared/LegacyWidgets.tsx",
+        "sha256": "a0a9b53b163d2dae5c34a3f840172576e3928dc068dec21042cecbb3477ceedb"
+      },
+      {
+        "path": "components/shared/OverlayPortal.tsx",
+        "sha256": "a27f994de1ab603355bc9df653e80e90d6b12c90acd452c75c0c7512f68bb6cb"
+      },
+      {
+        "path": "components/shared/overlayLayer.ts",
+        "sha256": "7cff6fc47bb65d4d4b060dda84ee272f7401aa8251da9f3866462157cadfe445"
+      },
+      {
+        "path": "components/shared/useAppViewport.ts",
+        "sha256": "e8f72c1a002a50fbdffbedfb4b22177b50e2cf50e2943c4299d1706b6754e2d8"
+      },
+      {
+        "path": "components/sheets/BottomSheet.tsx",
+        "sha256": "e69857e7442d0a93341bf24045c5e7b6817b90f5eca3c1d88bde03ac66daf330"
+      },
+      {
+        "path": "components/sheets/ModalShell.tsx",
+        "sha256": "2817a2dee937bb9356e8909797e1162aa6c859e1b01c582ac807b0e1dcb00fc3"
+      },
+      {
+        "path": "components/study/StudyManagement.tsx",
+        "sha256": "e3582a79c0ffedb98ee94c3cdbc5bd870fec961fa45e66f662a81cd71d5c0c4b"
+      },
+      {
+        "path": "components/study/StudyPlanPage.tsx",
+        "sha256": "0031a4c97a5268e91d26248436c70f7005f3653dcffd6ab51c080fd54062b2f7"
+      },
+      {
+        "path": "components/study/StudySession.tsx",
+        "sha256": "e83f0814d61eaedcaea4a1c49168aa37ac4c824f6cb5f2e0f19b5e61aefb09d2"
+      },
+      {
+        "path": "components/study/StudyStartPage.tsx",
+        "sha256": "17239639d999e3738926d27f52fe792a0287940c1b9fc491c7fc8e33622e3ce7"
+      },
+      {
+        "path": "components/study/TemarioBrowser.tsx",
+        "sha256": "cf9bce4cf85a1c8b96e4211dc918bc4e6913d7a376f82a44f292744cd053a868"
+      },
+      {
+        "path": "components/tables/TableContent.tsx",
+        "sha256": "d1c458dbe14e28deb527e965e0900e2981496459a7d9da23599ce41a0e653ac1"
+      },
+      {
+        "path": "components/tables/TableEditor.tsx",
+        "sha256": "77406c81722c5c56303f33231a86df328ba3d3dfafc00deff75439f6b3ccd9a9"
+      },
+      {
+        "path": "components/today/TodayPage.tsx",
+        "sha256": "5511f174f78a4b568f1d0db87214dab1012fdd77ab26c4013fa0bf8c60feccd2"
+      },
+      {
+        "path": "lib/auth/client.ts",
+        "sha256": "d1b35d6ac54efc4989104138255683d38b74badc76f7017f9f430c7ae242d66f"
+      },
+      {
+        "path": "lib/data/files.ts",
+        "sha256": "bb7e989b1923c20474dc8e5a8be33412762ad8aefb2cb2122ff9304f915dd06e"
+      },
+      {
+        "path": "lib/data/local.ts",
+        "sha256": "cd97edcb7b851ac9d779a972ddd7e2c4352b506a50d1f889525352e6cf8e94ce"
+      },
+      {
+        "path": "lib/data/models.ts",
+        "sha256": "564589b40425a192ca11f2de02f06a4a6586f49f7cc2822f1f8ebb4fd542fab8"
+      },
+      {
+        "path": "lib/import/cardPrompts.ts",
+        "sha256": "77f802270dd95cf24a7212d35f7fee04ff0ad4d0f8467ee77def10c30e958412"
+      },
+      {
+        "path": "lib/material/exportImages.ts",
+        "sha256": "312d2c9336187aa72d84d37cb97578db348f4191573c910c9e0e1a2f8c6c113f"
+      },
+      {
+        "path": "lib/material/format.ts",
+        "sha256": "67dd9ed2f6b3efaf3ca73b707d6ee264d2be837febb97ec6b737a39da83fe2c3"
+      },
+      {
+        "path": "lib/material/images.ts",
+        "sha256": "acf6877c02758bc52dc49924fe16952c9ce91e25d7077f2585a8bcbd71054bf7"
+      },
+      {
+        "path": "lib/material/model.ts",
+        "sha256": "0c2144eec5911321b88ca0256f33646df7a8cfeb7530de1cef54f45b34a36880"
+      },
+      {
+        "path": "lib/material/sanitize.ts",
+        "sha256": "dbc2185d72214934bcc2a3d60199bc7bb351a75fffc239e11ab2dbe680f90b11"
+      },
+      {
+        "path": "lib/memory/checkpoint.ts",
+        "sha256": "cc47412528e5990708b87d3cb3e57be9b66d9998042567c79c18229b16b1893e"
+      },
+      {
+        "path": "lib/memory/draft.ts",
+        "sha256": "3b60827b5432ccabcf0aff3e5aed2b27ed9d22444a50137672cab2c6ffbb9c71"
+      },
+      {
+        "path": "lib/memory/orthographyQueue.ts",
+        "sha256": "5febd3aaddf6337bdbacfb36943aaacf45fb09c9dd813553bea4a050a3fa8cb1"
+      },
+      {
+        "path": "lib/memory/performance.ts",
+        "sha256": "b86558451bc503d5710d8395bda9d92287f9f65fe5280bee74cbb8fb431c15cc"
+      },
+      {
+        "path": "lib/memory/queuePreview.ts",
+        "sha256": "818c68c678bb796fac10596a75a55567fdcc54c8ff376de83dbff57bdb930036"
+      },
+      {
+        "path": "lib/review/collections.ts",
+        "sha256": "7e4bf24cccc669e922583d88b5e40d27dddc44c28653c51a0d600c5cd8566cd5"
+      },
+      {
+        "path": "lib/review/sessionActions.ts",
+        "sha256": "68da05194f915a3dd0aaeaebd6e0b92983be8a70b201a9d3621585bc8a3edbce"
+      },
+      {
+        "path": "lib/study/cardSearch.ts",
+        "sha256": "f5d0d1b91bfa0ed2a6917eb1f60ad442e1742d8e6b603da6da710395de09f432"
+      },
+      {
+        "path": "lib/study/hierarchy.ts",
+        "sha256": "adadda6b0cdc9d8760695c64c01f78adfd221801016127a446348dff023806e8"
+      },
+      {
+        "path": "lib/study/libraryBridge.ts",
+        "sha256": "b307ff15186e5ecf2cca9136eb91c32c42e3ede9dca5ce4c548b57cbadf8595d"
+      },
+      {
+        "path": "lib/study/planning.ts",
+        "sha256": "79c79c8e253973718f0c15e2bdf676b12befeb3fa7cf7deca4ffb39d9c2e830d"
+      },
+      {
+        "path": "lib/study/selection.ts",
+        "sha256": "717b2b2b928199bf32a248765c31549ebcf8595b11c0b9d0a5d288d809b54f93"
+      },
+      {
+        "path": "lib/sync/engine.ts",
+        "sha256": "2c580ef8db530264bc48701b4c4efb063328d400b404a4c57c91b9da0b068e1e"
+      },
+      {
+        "path": "lib/tables/grading.ts",
+        "sha256": "8fee644f1709055cb70edfa6d79d96b5a089aeedd5ae5d05d3e2652eeb73a94f"
+      },
+      {
+        "path": "lib/tables/json.ts",
+        "sha256": "6f23ea3fa747b74383d0fba934e5d517b6260bc4890724696992d25eff572e20"
+      },
+      {
+        "path": "lib/tables/learning.ts",
+        "sha256": "779888ab6763827502821cae8a69fcf732d86002212d25dec9b28fa4e29bc257"
+      },
+      {
+        "path": "lib/tables/model.ts",
+        "sha256": "4547d1dd0659f6c87ec78c2030a76e7ee9d1e21a6fe34de2816602bf6fea611a"
+      }
+    ]
+  },
+  "limits": [
+    "No se ha desplegado el proyecto ni conectado con Supabase de producción.",
+    "Sincronización, offline y aislamiento se prueban con IndexedDB/proyección y SQL locales. No se ha probado PC↔iPhone real ni Realtime sobre dos dispositivos físicos.",
+    "Los tamaños de iPhone/iPad/Android se prueban en Chromium. No son pruebas físicas de Safari/teclado del sistema ni una PWA instalada en iOS.",
+    "Aceptar como correcta es una autoevaluación explícita del estudiante, no validación semántica mediante IA."
+  ],
+  "visualInspection": "Inspección interna de una captura del panel de notas en 390×844, además de verificaciones automatizadas de áreas, foco, scroll y overflow. No se adjuntan capturas a este parche."
+}

@@ -9,6 +9,9 @@ import {
 import { savedCardSessions } from "../memory/checkpoint";
 import { sessionSummary } from "../memory/session";
 
+import { snapshotCard } from "../cards/context";
+export { snapshotCard } from "../cards/context";
+import { cardNotes, noteEvents } from "../cards/notes";
 const dateFormatters = new Map<string, Intl.DateTimeFormat>();
 export function dayInZone(
   value: string | number | Date,
@@ -43,22 +46,7 @@ function path(
   }
   return names;
 }
-export function snapshotCard(state: AppState, card: Card) {
-  return {
-    type: card.type,
-    folderPath: path(state.folders, card.folderId),
-    question: plainRichText(card.front),
-    answer: plainRichText(card.back),
-    options:
-      card.type === "test" || card.type === "choice"
-        ? card.options.map(plainRichText)
-        : [],
-    correctOptions: card.correctOptions?.length
-      ? card.correctOptions
-      : [card.correctOption],
-  };
-}
-export const chatgptStudyInstructions = `Analiza este informe de OpoGC usando sus datos. Distingue el recuerdo inicial del refuerzo inmediato: aprobar después de repetir no demuestra retención entre días. No promedies todos los intentos ni confundas intentos con tarjetas distintas. La media toma la primera valoración de cada sesión nueva, aunque empiece poco después de otra; comprueba el tiempo entre sesiones para distinguir familiaridad reciente y retención. Las categorías aportan sus valores centrales y las notas numéricas antiguas conservan su valor exacto. Usa la nota media de recuerdo, la última nota inicial y el historial disponible para detectar debilidades y errores recurrentes. Distingue las notas de autoevaluación de la corrección objetiva de tests y respuestas escritas. En tablas mudas la nota es objetiva, de 0 a 10, y se calcula solo sobre las celdas ocultas. Considera su porcentaje de ocultación al comparar resultados; los reintentos guardados como práctica no sustituyen la primera nota. No interpretes el tiempo con una tarjeta abierta como tiempo activo. Si contiene contexto de planificación, propón prioridades según los pendientes y las sesiones abiertas. Antes de asignar tiempos pregunta mi disponibilidad. Señala datos que faltan; no inventes actividad ni resultados.`;
+export const chatgptStudyInstructions = `Analiza este informe de OpoGC usando sus datos. Distingue el recuerdo inicial del refuerzo inmediato: aprobar después de repetir no demuestra retención entre días. No promedies todos los intentos ni confundas intentos con tarjetas distintas. La media toma la primera valoración de cada sesión nueva, aunque empiece poco después de otra; comprueba el tiempo entre sesiones para distinguir familiaridad reciente y retención. Las categorías aportan sus valores centrales y las notas numéricas antiguas conservan su valor exacto. Usa la nota media de recuerdo, la última nota inicial y el historial disponible para detectar debilidades y errores recurrentes. Distingue las notas de autoevaluación de la corrección objetiva de tests y respuestas escritas. En tablas mudas la nota es objetiva, de 0 a 10, y se calcula solo sobre las celdas ocultas. Considera su porcentaje de ocultación al comparar resultados; los reintentos guardados como práctica no sustituyen la primera nota. No interpretes el tiempo con una tarjeta abierta como tiempo activo. Si contiene contexto de planificación, propón prioridades según los pendientes y las sesiones abiertas. Antes de asignar tiempos pregunta mi disponibilidad. Una nota con scoreSource self-reviewed fue aceptada explícitamente por el estudiante como 10/10; no es un acierto automático. Consulta answerGiven.selfReview y los criterios/celdas para conocer la corrección original. Las notas son observaciones opcionales del estudiante: no son respuestas evaluadas ni resultados. Considera las notas resueltas como antecedentes y las pendientes como dificultades declaradas. Las tarjetas derivadas trabajan una parte de la tarjeta de origen y tienen resultados independientes. La práctica guiada al crear una derivada no aporta nota media ni demuestra retención a largo plazo. Señala datos que faltan; no inventes actividad ni resultados.`;
 export function dailyReport(
   state: AppState,
   date: string,
@@ -77,6 +65,20 @@ export function dailyReport(
   const reviews = history.filter(
     (r) => dayInZone(r.reviewedAt, timeZone) === date,
   );
+  const notes = cardNotes(state.settings);
+  const notesActivity = noteEvents(state.settings).filter(
+    (e) =>
+      Number.isFinite(Date.parse(e.at)) && dayInZone(e.at, timeZone) === date,
+  );
+  const derivedCardsCreated = Object.entries(state.settings)
+    .filter(
+      ([k, v]) =>
+        k === "cardDerivation:" + v?.cardId &&
+        v?.version === 1 &&
+        Number.isFinite(Date.parse(v.createdAt)) &&
+        dayInZone(v.createdAt, timeZone) === date,
+    )
+    .map(([, v]) => v);
   const byCard = new Map(state.cards.map((c) => [c.id, c]));
   const attempts = reviews.map((r) => {
     const card = byCard.get(r.cardId),
@@ -104,12 +106,16 @@ export function dailyReport(
       responseMs: r.responseMs ?? null,
       answerGiven: r.answerEvidence ?? null,
       content: r.cardSnapshot ?? (card ? snapshotCard(state, card) : null),
+      learningContext: r.learningContext ?? null,
       contentSource: r.cardSnapshot
         ? "at-attempt"
         : card
           ? "current-card"
           : "unavailable",
-      nextReviewAt: r.fsrsAfter?.dueAt ?? null,
+      nextReviewAt:
+        r.learningContext === "derived-guided"
+          ? null
+          : (r.fsrsAfter?.dueAt ?? null),
     };
   });
   const cards = [...new Set(reviews.map((r) => r.cardId))].map((id) => {
@@ -120,6 +126,10 @@ export function dailyReport(
       last = numeric.at(-1);
     return {
       cardId: id,
+      currentNotes: notes
+        .filter((n) => n.cardId === id)
+        .map((n) => ({ ...n, scope: "current-state-at-export" })),
+      derivation: byCard.get(id)?.derivation ?? null,
       attempts: rows.length,
       firstScore: first?.score ?? null,
       finalScore: last?.score ?? null,
@@ -188,7 +198,7 @@ export function dailyReport(
     format: "opogc-daily-study",
     version: 1,
     gradingPolicy: "first-per-card-session-v2",
-    appVersion: "15.1.0",
+    appVersion: "15.5.0",
     date,
     timeZone,
     dayBoundary: "00:00 inclusive to next local 00:00 exclusive",
@@ -213,12 +223,18 @@ export function dailyReport(
       studyCompletions: study.length,
       psychAttempts: psych.length,
       activeStudyTimeMs: null,
+      notesWritten: notesActivity.filter(
+        (e) => e.action === "created" || e.action === "edited",
+      ).length,
+      derivedCardsCreated: derivedCardsCreated.length,
     },
     cards,
     attempts,
     study,
     psych,
     finishedSessions: finished,
+    notesActivity,
+    derivedCardsCreated,
     ...(planning
       ? {
           planningContext: {
@@ -277,9 +293,11 @@ export function dailyReport(
     methodology: {
       scoreScale: "Manual 1–10; tabla muda objetiva 0–10; pass >=5",
       average:
-        "Arithmetic mean of the first numeric evaluation of each card in each saved session. Same-session reinforcements are excluded. Historical numeric grades keep their exact values; categories contribute their midpoint (2.5, 5.5, 7.5, 9.5). No rounding in the calculation.",
+        "Arithmetic mean of the first numeric evaluation of each card in each saved session. Same-session reinforcements and explicitly identified guided derivative practice are excluded. Historical numeric grades keep their exact values; categories contribute their midpoint (2.5, 5.5, 7.5, 9.5). No rounding in the calculation.",
       independentRecall:
-        "One first numeric evaluation per cardSessionId, with no elapsed-time restriction. Resuming the same session on another day/device remains reinforcement. A new session counts even a few minutes later. Duplicate submissions in the same session count once. Old numeric records without a session ID retain their original explicit recall classification.",
+        "One first numeric evaluation per cardSessionId, with no elapsed-time restriction. Resuming the same session on another day/device remains reinforcement. A new session counts even a few minutes later. Duplicate submissions in the same session count once. Explicit guided derivative practice does not count as independent recall, including its first attempt. Old numeric records without a session ID retain their original explicit recall classification.",
+      notes:
+        "notesActivity is immutable activity on the requested local day, including unrated cards. currentNotes is explicitly current context, not historical state. Deleted-card notes/history remain available. Derived guided practice is excluded from averages and long-term scheduling.",
       time: "responseMs measures elapsed time and can include idle time. Active study time is not measured.",
       historicalContent:
         "New scored attempts snapshot question, answer and folder path. Legacy attempts use current content if available; deleted content and unrecorded answers cannot be reconstructed.",

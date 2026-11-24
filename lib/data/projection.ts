@@ -230,6 +230,35 @@ export function differences(
       ops.push(
         operation(old.kind, old.id, {}, account.rows[key]?.revision, true),
       );
+  // A portable copy retains reviews of deleted cards. Recreate only their
+  // tombstone (never a visible card), so the existing deferred SQL FK remains
+  // valid on an empty account too. Live deletions already emit this operation.
+  if (before.settings !== after.settings) {
+    for (const [key, value] of Object.entries(after.settings)) {
+      if (
+        !key.startsWith("deletedCard:") ||
+        value?.version !== 1 ||
+        key !== "deletedCard:" + value.card?.id ||
+        JSON.stringify(before.settings[key]) === JSON.stringify(value)
+      )
+        continue;
+      const id = value.card.id;
+      if (
+        after.cards.some((c) => c.id === id) ||
+        ops.some((o) => o.kind === "cards" && o.id === id)
+      )
+        continue;
+      ops.push(
+        operation(
+          "cards",
+          id,
+          { ...value.card, attachment: null },
+          account.rows[rowKey("cards", id)]?.revision,
+          true,
+        ),
+      );
+    }
+  }
   for (const op of [...ops]) {
     if (op.kind !== "studySessions" || !op.patch.taskId || op.deleted) continue;
     const taskId = op.patch.taskId;

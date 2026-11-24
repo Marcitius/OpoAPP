@@ -141,7 +141,7 @@ export function gradeIndex(reviews: Review[]): GradeIndex {
         ? !s.recallSessions.has(r.cardSessionId!)
         : r.scoreKind === "recall";
       if (hasSession) s.recallSessions.add(r.cardSessionId!);
-      if (first) {
+      if (first && r.learningContext !== "derived-guided") {
         s.recallScores.push(r.score!);
         s.recallIds.add(r.id);
         s.recallCount++;

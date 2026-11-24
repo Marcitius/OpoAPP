@@ -12,6 +12,8 @@ const files = JSON.parse(
 // v14.2 optimizes only pure projection/diff computation. Deterministic parity
 // tests compare it with the exact v14.1 implementation; transport/IDB stay protected.
 const authorizedFiles = new Set([
+  // v15.5 validates portable historical reviews against explicit card tombstones.
+  "lib/data/legacy.ts",
   "app/fsrs.ts",
   "app/memoryModel.ts",
   "lib/data/projection.ts",
@@ -83,6 +85,8 @@ const behavior = JSON.parse(
 );
 let count = 0;
 const authorizedFunctions = new Set([
+  // v15.5 shares safe deletion/portable tombstones between library and study.
+  "removeLibraryCards",
   // v15.3 adds the explicit tabla_muda JSON type and its nested folder route.
   // Existing import types are exercised by old and new regression tests.
   "importGeneratedCards",

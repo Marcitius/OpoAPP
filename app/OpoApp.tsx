@@ -135,6 +135,17 @@ import StudyPlanPage from "../components/study/StudyPlanPage";
 import LibraryToStudySheet from "../components/library/LibraryToStudySheet";
 import SessionStatus from "../components/review/SessionStatus";
 import CardActionsSheet from "../components/library/CardActionsSheet";
+import CardNotesSheet from "../components/cards/CardNotesSheet";
+import CardConnections from "../components/cards/CardConnections";
+import DeleteCardSheet from "../components/cards/DeleteCardSheet";
+import { cardNotes, saveCardNote, changeCardNote } from "../lib/cards/notes";
+import {
+  saveDerivedCard,
+  sourceNeedsReview,
+  acknowledgeDerivedSource,
+} from "../lib/cards/derived";
+import { canSelfAcceptTable } from "../lib/cards/selfReview";
+import { deleteCards } from "../lib/cards/delete";
 import { fitPersonalMemoryModel, predictPersonalRecall } from "./memoryModel";
 
 import StudyPreferences from "../components/account/StudyPreferences";
@@ -337,6 +348,17 @@ export default function OpoApp() {
   const [progressNodeIds, setProgressNodeIds] = useState<string[]>([]);
   const [libraryBridgeOpen, setLibraryBridgeOpen] = useState(false);
   const [cardActionsId, setCardActionsId] = useState<string | null>(null);
+  const [notesTarget, setNotesTarget] = useState<{
+    cardId: string;
+    sessionId?: string;
+  } | null>(null);
+  const [connectionsId, setConnectionsId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deriveDraft, setDeriveDraft] = useState<{
+    source: Card;
+    sessionId?: string;
+    noteId?: string;
+  } | null>(null);
   const [orthographySession, setOrthographySession] =
     useState<OrthographySessionState | null>(null);
   const [orthographySelected, setOrthographySelected] = useState<string[]>([]);
@@ -357,6 +379,10 @@ export default function OpoApp() {
   const orthographyGroupStartedAtRef = useRef(Date.now());
 
   useEffect(() => {
+    setNotesTarget(null);
+    setConnectionsId(null);
+    setDeleteTargetId(null);
+    setDeriveDraft(null);
     const update = () => {
       const loaded = normalizeAndSeed({
         ...engine.state,
@@ -539,10 +565,70 @@ export default function OpoApp() {
         `¿Eliminar ${ids.length} tarjetas? Esta acción no se puede deshacer.`,
       )
     )
-      void updateState((c) => ({
-        ...c,
-        cards: c.cards.filter((card) => !ids.includes(card.id)),
-      }));
+      void updateState((c) => deleteCards(c, ids, nowIso()));
+  }
+  function openCardNotes(id: string) {
+    setNotesTarget({
+      cardId: id,
+      ...(sessionOpen && displayedSessionRef.current
+        ? { sessionId: displayedSessionRef.current }
+        : {}),
+    });
+  }
+  function beginDerivedCard(id: string, noteId?: string) {
+    const source = stateRef.current?.cards.find((c) => c.id === id);
+    if (!source || reviewBusyRef.current) return;
+    setDeriveDraft({
+      source,
+      noteId,
+      ...(sessionOpen && displayedSessionRef.current
+        ? { sessionId: displayedSessionRef.current }
+        : {}),
+    });
+    setNotesTarget(null);
+    setEditingCard(null);
+    setModal("card");
+  }
+  async function deleteCardFromStudy(id: string) {
+    if (reviewBusyRef.current) return false;
+    if (sessionOpen && !(await flushCheckpoint())) return false;
+    const session = displayedCardSession(stateRef.current);
+    if (sessionOpen && session && !matchesDisplayed(session)) return false;
+    reviewBusyRef.current = true;
+    setReviewSaving(true);
+    const saved = await updateState((c) => deleteCards(c, [id], nowIso()));
+    reviewBusyRef.current = false;
+    setReviewSaving(false);
+    if (!saved) return false;
+    setDeleteTargetId(null);
+    const next = displayedCardSession(stateRef.current);
+    if (sessionOpen && next) {
+      displayedTurnRef.current = next.turn;
+      presentationKeyRef.current = "";
+      if (orthographySession) {
+        const groupIds = orthographySession.groupIds.filter((v) => v !== id);
+        setOrthographySelected((v) => v.filter((v) => v !== id));
+        if (groupIds.length)
+          setOrthographySession({
+            ...orthographySession,
+            groupIds,
+            results:
+              orthographySession.results?.filter((r) => r.cardId !== id) ??
+              null,
+          });
+        else {
+          setOrthographySession(null);
+          showSessionNext(next, stateRef.current!.cards);
+        }
+      } else if (currentCard?.id === id) {
+        const queue = reviewQueue.filter((q) => q.cardId !== id);
+        displayQueue(queue, queue.length);
+        showSessionNext(next, stateRef.current!.cards);
+      }
+      setSessionClock(Date.now());
+    }
+    notify("Tarjeta eliminada. Historial y notas conservados.");
+    return true;
   }
   function reorderStudyNode(id: string, direction: -1 | 1) {
     void updateState((c) => ({
@@ -1971,7 +2057,10 @@ export default function OpoApp() {
     recordCurrentReview(score, writtenEvaluation, true, "rated");
   }
 
-  function gradeCurrentTable(evaluation: TableEvaluation) {
+  function gradeCurrentTable(
+    evaluation: TableEvaluation,
+    selfAccepted = false,
+  ) {
     if (reviewBusyRef.current || !currentCard) return;
     void recordCurrentReview(
       evaluation.score,
@@ -1979,6 +2068,7 @@ export default function OpoApp() {
       true,
       "rated",
       evaluation,
+      selfAccepted,
     );
   }
 
@@ -1988,6 +2078,7 @@ export default function OpoApp() {
     advance: boolean,
     outcome: ReviewQueueOutcome,
     tableEvaluation?: TableEvaluation,
+    selfAccepted = false,
   ) {
     const current = stateRef.current,
       session = displayedCardSession(current);
@@ -2018,21 +2109,40 @@ export default function OpoApp() {
       }
     }
     if (tableEvaluation && card.type !== "table") return;
+    if (
+      selfAccepted &&
+      !(card.type === "table"
+        ? canSelfAcceptTable(reviewInput.current.tableAttempt)
+        : isWrittenCard(card) &&
+          !!writtenEvaluation &&
+          !!reviewInput.current.writtenAnswer.trim())
+    )
+      return;
     reviewBusyRef.current = true;
     setReviewSaving(true);
     const now = new Date();
-    const score = tableEvaluation
-      ? tableEvaluation.score
-      : isMultipleChoiceCard(card) && !currentSelectionIsCorrect(card)
-        ? Math.min(4, requestedScore)
-        : requestedScore;
+    const score = selfAccepted
+      ? 10
+      : tableEvaluation
+        ? tableEvaluation.score
+        : isMultipleChoiceCard(card) && !currentSelectionIsCorrect(card)
+          ? Math.min(4, requestedScore)
+          : requestedScore;
     const effective =
       tableEvaluation && score < 1 ? "again" : scoreRating(score);
-    const kind = scoreKind(card, gradeIndex(current.reviews), session.id);
+    const guidedPractice = item.guidedPractice === true;
+    const kind = guidedPractice
+      ? "reinforcement"
+      : scoreKind(card, gradeIndex(current.reviews), session.id);
     const reinforcement = kind === "reinforcement";
-    const scheduled = applyFsrsReview(card, effective, now, reinforcement);
+    const scheduled = guidedPractice
+      ? card
+      : applyFsrsReview(card, effective, now, reinforcement);
     const updated =
-      writtenEvaluation && isWrittenCard(card)
+      !guidedPractice &&
+      !selfAccepted &&
+      writtenEvaluation &&
+      isWrittenCard(card)
         ? applyWrittenStats(scheduled, writtenEvaluation)
         : scheduled;
     const review: Review = {
@@ -2041,17 +2151,31 @@ export default function OpoApp() {
       rating: effective,
       score,
       scoreKind: kind,
+      ...(guidedPractice ? { learningContext: "derived-guided" as const } : {}),
       scoreGroup: scoreGroup(score),
-      scoreSource: tableEvaluation
-        ? "table-objective"
-        : outcome === "unknown"
-          ? "explicit-unknown"
-          : score !== requestedScore
-            ? "objective-cap"
-            : "category-midpoint",
+      scoreSource: selfAccepted
+        ? "self-reviewed"
+        : tableEvaluation
+          ? "table-objective"
+          : outcome === "unknown"
+            ? "explicit-unknown"
+            : score !== requestedScore
+              ? "objective-cap"
+              : "category-midpoint",
       cardSessionId: session.id,
       cardSnapshot: snapshotCard(current, card),
       answerEvidence: {
+        ...(selfAccepted
+          ? {
+              selfReview: {
+                acceptedAt: now.toISOString(),
+                automaticScore:
+                  tableEvaluation?.score ??
+                  (writtenEvaluation?.accuracy ?? 0) / 10,
+                source: "student-confirmed" as const,
+              },
+            }
+          : {}),
         ...(tableEvaluation
           ? {
               table: tableEvaluation,
@@ -3797,7 +3921,14 @@ export default function OpoApp() {
           }}
           onReorder={(direction) => reorderCard(cardActionsId, direction)}
           onSave={() => setSaveReviewIds([cardActionsId])}
-          onDelete={() => removeLibraryCards([cardActionsId])}
+          onEdit={() => {
+            setEditingCard(cardActionsId);
+            setModal("card");
+          }}
+          onNotes={() => openCardNotes(cardActionsId)}
+          onDerive={() => beginDerivedCard(cardActionsId)}
+          onConnections={() => setConnectionsId(cardActionsId)}
+          onDelete={() => setDeleteTargetId(cardActionsId)}
         />
       )}
       {preferencesOpen && (
@@ -3851,6 +3982,7 @@ export default function OpoApp() {
         <OrthographyStudy
           queueControl={queueControl}
           queueOpen={queueIsOpen}
+          onCardActions={setCardActionsId}
           cards={orthographySession.groupIds
             .map((id) => state.cards.find((card) => card.id === id))
             .filter((card): card is Card =>
@@ -3879,6 +4011,18 @@ export default function OpoApp() {
           <ReviewSession
             queueControl={queueControl}
             queueOpen={queueIsOpen}
+            onNotes={() => openCardNotes(currentCard.id)}
+            noteCount={cardNotes(state.settings, currentCard.id).length}
+            onDerive={() => beginDerivedCard(currentCard.id)}
+            onDelete={() => setDeleteTargetId(currentCard.id)}
+            onConnections={
+              currentCard.derivation ||
+              state.cards.some(
+                (c) => c.derivation?.sourceCardId === currentCard.id,
+              )
+                ? () => setConnectionsId(currentCard.id)
+                : undefined
+            }
             key={savedCardSession?.id + ":" + reviewIndex + ":" + inputVersion}
             card={currentCard}
             folder={
@@ -3924,6 +4068,16 @@ export default function OpoApp() {
               reviewInput.current.tableAttempt = attempt;
               flushCheckpoint.stage({ tableAttempt: attempt });
             }}
+            onAcceptWritten={() =>
+              void recordCurrentReview(
+                10,
+                displayedWrittenResult,
+                true,
+                "rated",
+                undefined,
+                true,
+              )
+            }
             onTableGrade={gradeCurrentTable}
             onExit={pauseCardSession}
             onReveal={() => setRevealed(true)}
@@ -3949,10 +4103,18 @@ export default function OpoApp() {
             averageScore={grades.get(currentCard.id)?.average ?? null}
             latestScore={grades.get(currentCard.id)?.latestRecall ?? null}
             gradeHint={
-              scoreKind(currentCard, grades, savedCardSession?.id ?? "") ===
-              "recall"
-                ? "Este primer intento contará para tu nota media de recuerdo."
-                : "Refuerzo: esta nota no modifica tu media de recuerdo."
+              savedCardSession?.items.find((i) => i.id === currentCard.id)
+                ?.guidedPractice
+                ? "Práctica guiada: no modifica tu media ni tu próximo repaso."
+                : sourceNeedsReview(currentCard, state.cards)
+                  ? "El origen ha cambiado: revisa esta tarjeta derivada."
+                  : scoreKind(
+                        currentCard,
+                        grades,
+                        savedCardSession?.id ?? "",
+                      ) === "recall"
+                    ? "Este primer intento contará para tu nota media de recuerdo."
+                    : "Refuerzo: esta nota no modifica tu media de recuerdo."
             }
             onNext={goToNextCard}
             onPrevious={goToPreviousCard}
@@ -4069,6 +4231,9 @@ export default function OpoApp() {
             key={engine.user}
             cards={state.cards}
             folders={state.folders}
+            onNotes={openCardNotes}
+            onDerive={beginDerivedCard}
+            onConnections={setConnectionsId}
             onClose={() => setGlobalSearchOpen(false)}
             onStudy={(id) => {
               setGlobalSearchOpen(false);
@@ -4170,18 +4335,114 @@ export default function OpoApp() {
           </button>
         </BottomSheet>
       )}
+      {notesTarget && state.cards.some((c) => c.id === notesTarget.cardId) && (
+        <CardNotesSheet
+          key={engine.user + ":" + notesTarget.cardId}
+          card={state.cards.find((c) => c.id === notesTarget.cardId)!}
+          notes={cardNotes(state.settings, notesTarget.cardId)}
+          onClose={() => setNotesTarget(null)}
+          onSave={(id, text) =>
+            updateState((c) =>
+              saveCardNote(
+                c,
+                {
+                  id: id ?? uid(),
+                  cardId: notesTarget.cardId,
+                  text,
+                  sessionId: notesTarget.sessionId,
+                },
+                uid(),
+                nowIso(),
+              ),
+            )
+          }
+          onChange={(id, action) =>
+            updateState((c) => changeCardNote(c, id, action, uid(), nowIso()))
+          }
+          onDerive={(noteId) => beginDerivedCard(notesTarget.cardId, noteId)}
+        />
+      )}
+      {connectionsId && state.cards.some((c) => c.id === connectionsId) && (
+        <CardConnections
+          key={connectionsId}
+          card={state.cards.find((c) => c.id === connectionsId)!}
+          cards={state.cards}
+          onClose={() => setConnectionsId(null)}
+          onAcknowledge={(id) =>
+            updateState((c) => acknowledgeDerivedSource(c, id))
+          }
+          onEdit={(id) => {
+            setConnectionsId(null);
+            setEditingCard(id);
+            setModal("card");
+          }}
+        />
+      )}
+      {deleteTargetId && state.cards.some((c) => c.id === deleteTargetId) && (
+        <DeleteCardSheet
+          card={state.cards.find((c) => c.id === deleteTargetId)!}
+          studying={sessionOpen}
+          onClose={() => setDeleteTargetId(null)}
+          onDelete={() => deleteCardFromStudy(deleteTargetId)}
+        />
+      )}
       {modal === "card" && (
         <CardModal
           folders={state.folders}
-          defaultFolder={selectedFolder}
-          key={openCard?.id ?? "new"}
+          defaultFolder={deriveDraft?.source.folderId ?? selectedFolder}
+          creation={
+            deriveDraft
+              ? {
+                  source: deriveDraft.source,
+                  note: cardNotes(state.settings, deriveDraft.source.id).find(
+                    (n) => n.id === deriveDraft.noteId,
+                  )?.text,
+                  canPractice:
+                    !!deriveDraft.sessionId &&
+                    savedCardSessions(state.settings).some(
+                      (v) =>
+                        v.id === deriveDraft.sessionId &&
+                        v.format !== "orthography",
+                    ),
+                }
+              : undefined
+          }
+          key={openCard?.id ?? deriveDraft?.source.id ?? "new"}
           lockType={sessionOpen && !!openCard}
           initialCard={openCard}
           onClose={() => {
             setModal(null);
+            setDeriveDraft(null);
             setEditingCard(null);
           }}
-          onSave={async (card) => {
+          onSave={async (card, practice) => {
+            if (deriveDraft) {
+              if (reviewBusyRef.current) return false;
+              if (sessionOpen && !(await flushCheckpoint())) return false;
+              const saved = await updateState((c) =>
+                saveDerivedCard(
+                  c,
+                  card,
+                  deriveDraft.source.id,
+                  nowIso(),
+                  deriveDraft.sessionId,
+                  practice,
+                  deriveDraft.noteId,
+                  deriveDraft.source,
+                ),
+              );
+              if (!saved) return false;
+              setModal(null);
+              setDeriveDraft(null);
+              setEditingCard(null);
+              setSessionClock(Date.now());
+              notify(
+                practice
+                  ? "Derivada guardada para practicar después de otras tarjetas."
+                  : "Tarjeta derivada guardada en Biblioteca.",
+              );
+              return true;
+            }
             const editing = !!openCard;
             const saved = await updateState((current) => ({
               ...current,

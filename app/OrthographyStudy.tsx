@@ -17,6 +17,7 @@ export interface OrthographyStudyResult {
 interface Props {
   queueControl?: ReactNode;
   queueOpen?: boolean;
+  onCardActions?: (id: string) => void;
   cards: OrthographyStudyCard[];
   selectedIds: string[];
   results: OrthographyStudyResult[] | null;
@@ -53,23 +54,37 @@ export default function OrthographyStudy(p: Props) {
               const r = p.results?.find((r) => r.cardId === c.id),
                 selected = p.selectedIds.includes(c.id);
               return (
-                <button
-                  className={`orthography-option ${selected ? "selected" : ""} ${r ? (r.correct ? "result-correct" : "result-wrong") : ""}`}
-                  key={c.id}
-                  disabled={!!p.results || p.busy}
-                  aria-pressed={selected}
-                  onClick={() => p.onToggle(c.id)}
-                >
-                  <span className="orthography-checkbox">
-                    {selected ? "✓" : ""}
-                  </span>
-                  <strong>{c.word}</strong>
-                  {r && (
-                    <span className="orthography-result-icon">
-                      {r.correct ? "✓" : "×"}
+                <div key={c.id} className="orthography-option-wrap">
+                  <button
+                    className={`orthography-option ${selected ? "selected" : ""} ${r ? (r.correct ? "result-correct" : "result-wrong") : ""}`}
+                    key={c.id}
+                    disabled={!!p.results || p.busy}
+                    aria-pressed={selected}
+                    onClick={() => p.onToggle(c.id)}
+                  >
+                    <span className="orthography-checkbox">
+                      {selected ? "✓" : ""}
                     </span>
+                    <strong>{c.word}</strong>
+                    {r && (
+                      <span className="orthography-result-icon">
+                        {r.correct ? "✓" : "×"}
+                      </span>
+                    )}
+                  </button>
+                  {p.onCardActions && (
+                    <div className="orthography-word-actions">
+                      <button
+                        className="ux-link"
+                        aria-label={`Opciones de ${c.word}`}
+                        disabled={p.busy}
+                        onClick={() => p.onCardActions!(c.id)}
+                      >
+                        ···
+                      </button>
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>

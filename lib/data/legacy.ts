@@ -208,7 +208,15 @@ export function validateState(s: LegacyState) {
   }
   if (
     s.cards.some((c) => !folders.has(c.folderId)) ||
-    s.reviews.some((r) => !cards.has(r.cardId)) ||
+    s.reviews.some(
+      (r) =>
+        !cards.has(r.cardId) &&
+        !(
+          s.settings["deletedCard:" + r.cardId]?.version === 1 &&
+          s.settings["deletedCard:" + r.cardId]?.card?.id === r.cardId &&
+          typeof s.settings["deletedCard:" + r.cardId]?.card?.front === "string"
+        ),
+    ) ||
     s.studyTasks.some((t) => !nodes.has(t.nodeId))
   )
     throw new Error(

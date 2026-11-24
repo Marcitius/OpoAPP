@@ -57,6 +57,12 @@ export default function TableReview(props: ReviewSessionProps) {
       onCommit={(attempt) =>
         props.onTableGrade?.(prepareTableGrade(props.card, attempt).evaluation)
       }
+      onSelfAccept={(attempt) =>
+        props.onTableGrade?.(
+          prepareTableGrade(props.card, attempt).evaluation,
+          true,
+        )
+      }
       onSkip={props.onNext}
       busy={props.busy}
       readOnly={props.completed}

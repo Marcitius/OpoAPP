@@ -1,3 +1,14 @@
+## 15.5.0 — 2026-11-23
+
+- Notas opcionales por flashcard, con edición, resolución, acceso en estudio/Biblioteca/buscador y eventos diarios para ChatGPT incluso sin calificación.
+- Tarjetas derivadas en la misma organización, relación de origen, aviso al cambiar la original y revisión explícita. Calificaciones independientes.
+- Práctica derivada voluntaria dentro de la sesión con separación entre tarjetas; excluida de media y programación FSRS por ser práctica guiada.
+- Eliminar tarjeta mientras se estudia, con confirmación y continuidad; limpieza de colecciones y todas las sesiones abiertas, sin borrar sus notas, historial ni derivadas.
+- Copias compatibles con historial de tarjetas eliminadas: referencias históricas restauradas como registros eliminados, sin SQL nuevo.
+- Creación manual de respuestas escritas con respuesta modelo y rúbrica editable, conservando JSON/prompts actuales.
+- Aceptación manual como correcta tras revisar respuestas escritas/tablas; guarda 10/10 con procedencia explícita y conserva la evaluación automática.
+- Componentes separados en `components/cards/` y funciones puras en `lib/cards/`; sin dependencias nuevas ni cambios de autenticación/transporte/PWA.
+
 # v15.4.0 — Cola visible y buscador
 
 - Botón de tres líneas Cola dentro de las sesiones, incluidas las tablas mudas y los grupos de ortografía. Panel lateral desde 768 px y hoja móvil por debajo; la sesión conserva su contenido y borrador al abrirlo.

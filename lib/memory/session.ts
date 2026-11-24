@@ -10,6 +10,7 @@ import type {
 } from "../study/legacy";
 
 export interface SessionItem {
+  guidedPractice?: boolean;
   tablePercentage?: import("../tables/model").TablePercentage;
   lastScore?: number;
   priorityScore?: number;

@@ -98,6 +98,7 @@ export type Folder = {
 };
 
 export type Card = {
+  derivation?: import("../cards/derived").CardDerivation;
   table?: import("../tables/model").StudyTable;
   sortOrder?: number;
   fsrsState?: import("ts-fsrs").State;
@@ -132,13 +133,15 @@ export type Card = {
 };
 
 export type Review = {
+  learningContext?: "derived-guided";
   score?: number;
   scoreGroup?: import("../memory/grades").ScoreGroup;
   scoreSource?:
     | "category-midpoint"
     | "explicit-unknown"
     | "objective-cap"
-    | "table-objective";
+    | "table-objective"
+    | "self-reviewed";
   scoreKind?: "recall" | "reinforcement";
   cardSessionId?: string;
   cardSnapshot?: {
@@ -150,6 +153,11 @@ export type Review = {
     correctOptions: number[];
   };
   answerEvidence?: {
+    selfReview?: {
+      acceptedAt: string;
+      automaticScore: number;
+      source: "student-confirmed";
+    };
     table?: import("../tables/learning").TableEvaluation;
     tablePracticeChecks?: number;
     text?: string;

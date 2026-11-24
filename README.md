@@ -1,3 +1,40 @@
+# OpoGC v15.5 — Notas y refuerzo personal
+
+Esta actualización añade notas opcionales por tarjeta, tarjetas derivadas y borrado durante el estudio. También permite crear respuestas escritas sin ChatGPT y aceptar explícitamente una respuesta escrita o tabla muda tras revisar la corrección.
+
+## Actualizar desde v15.4
+
+El ZIP es un **parche: solo archivos nuevos/modificados sobre v15.4**. Copia el **contenido de `actualizar/`** a la raíz del proyecto, conservando rutas y sustituyendo archivos. Incluye `package.json` y `package-lock.json` juntos. No borres el proyecto ni subas la carpeta `actualizar` como contenedor. El manifiesto de la raíz enumera cada archivo. No hay archivos que eliminar.
+
+Cloudflare Pages: comando **`npm run build`**, directorio de salida **`out`**. Conserva tus variables actuales. No ejecutes `npm run deploy`: este proyecto no utiliza ese comando. No hay dependencias nuevas, migraciones SQL ni nueva configuración de Supabase. Después del despliegue, acepta la actualización de la PWA cuando la ofrezca la aplicación.
+
+## Cómo se utiliza
+
+- Durante el estudio: **Añadir nota** abre un panel sin activar el teclado. Guarda qué concepto olvidas sin revelar ni calificar la tarjeta. Puedes editar, resolver o eliminar tus notas; seguirán vinculadas a la tarjeta entre sesiones.
+- En **··· → Crear tarjeta derivada** redactas una pregunta más concreta con el editor habitual. Se propone el mismo tema/subtema y puedes cambiarlo. La original mantiene sus datos; la derivada tiene identidad, notas y calificaciones independientes.
+- **Guardar y continuar** conserva la derivada para sesiones posteriores. **Guardar y practicar en esta sesión** la intercala después de otras tarjetas, si la separación es posible. No aparece inmediatamente por haberla creado ni por esperar unos minutos. Si ya no quedan otras tarjetas, queda pendiente para una ronda voluntaria o una sesión posterior.
+- Esa práctica inmediata se identifica como **práctica guiada**: conserva su intento en el historial e informe, pero no aumenta la media ni modifica FSRS. En otra sesión, la primera valoración de la derivada cuenta normalmente.
+- **Tarjetas relacionadas** permite consultar origen y derivadas. Si cambia el contenido original se indica que revises las derivadas. No se sobrescriben sus respuestas. Tras revisarlas puedes confirmar que ya las has revisado.
+- **··· → Eliminar tarjeta → Eliminar y continuar** elimina la tarjeta de Biblioteca, colecciones y sesiones abiertas, conservando intentos ya registrados, notas e informes. No elimina sus derivadas. Hay confirmación previa.
+- En Biblioteca, el menú **···** ofrece las mismas acciones; el buscador global permite consultar notas y relaciones desde la vista previa. Ortografía dispone de opciones por palabra.
+- Para crear una **Respuesta escrita**, utiliza **Biblioteca → Tarjeta → Respuesta escrita**. Escribe pregunta y respuesta modelo. El criterio inicial vacío utiliza automáticamente esa respuesta al guardar. Puedes concretar criterios, alternativas, puntos y condiciones como en las tarjetas importadas. Las importaciones JSON y sus prompts siguen disponibles.
+- Al corregir una respuesta escrita o tabla aparece **«Después de revisar mi respuesta, considero que es correcta»**. La acción guarda **10/10 como revisión manual y continúa**. Se conserva la respuesta introducida y la evaluación automática en el informe, diferenciadas de tu decisión. En tablas solo se ofrece para el primer intento con todos los huecos contestados y sin respuestas reveladas; un reintento posterior no puede convertir el primer fallo en un acierto independiente.
+- **Progreso → Informe diario para ChatGPT** incluye notas creadas/editadas/resueltas/eliminadas durante el día, incluso sin calificación, y derivadas creadas con sus referencias. Las notas actuales de tarjetas estudiadas se etiquetan como contexto actual, no como estado histórico del día.
+
+## Datos y compatibilidad
+
+Se reutilizan los registros JSON existentes: notas y eventos independientes en ajustes; relación opcional de origen en la tarjeta; procedencia de práctica guiada y revisión manual en el intento. No cambian IDs existentes, esquema SQL, Auth, RLS, transporte de sincronización, Realtime, IndexedDB, cola offline, Service Worker, manifest ni FSRS.
+
+El borrado expuso un caso previo: una copia podía contener intentos de una tarjeta eliminada sin su referencia SQL. Ahora el borrado conserva una referencia histórica sin adjuntos; al restaurar se reproduce exclusivamente como registro eliminado, sin devolver la tarjeta a Biblioteca. Se ha probado con las restricciones reales del SQL existente. El archivo de validación de copias y la proyección se ajustan únicamente para esta referencia; no se modifica el transporte de sincronización.
+
+Los eventos de notas y creación de derivadas conservan el contenido relevante para informes posteriores. Las notas borradas desaparecen de la vista habitual; el registro de su creación y eliminación permanece en los informes. Eliminar una tarjeta no equivale a borrar todo su historial.
+
+## Validación de v15.5
+
+Los comandos, recuentos, límites y manifestación de integridad de esta entrega figuran en `docs/RESULTADOS-V15.5.json` y `docs/V15.5-NOTAS-Y-REFUERZO.md`. Las pruebas de sincronización/offline son locales y de base de datos de pruebas. No se ha conectado a tu Supabase real ni probado físicamente Safari/iPhone/iPad; no se ha desplegado la aplicación.
+
+---
+
 # OpoGC v15.4 — Cola visible y buscador
 
 - **Cola de la sesión:** pulsa el botón de tres líneas **Cola** junto al apartado de la tarjeta. En iPad/ordenador se abre un panel lateral para seguir respondiendo mientras ves el orden previsto; en móvil se abre una hoja desplegable. Se actualiza al valorar, muestra movimientos, pendientes de refuerzo y aprobadas.

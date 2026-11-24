@@ -1,32 +1,13 @@
-OpoGC v15.4 - COLA VISIBLE Y BUSCADOR
+OpoGC v15.5 - NOTAS Y REFUERZO PERSONAL
 
-PARCHE SOBRE v15.3.1. Contiene solo archivos nuevos/modificados.
+PARCHE SOBRE v15.4. Contiene solo archivos nuevos/modificados.
 
-1. Descomprime el ZIP y abre actualizar.
-2. Copia TODO SU CONTENIDO a la raiz del repositorio de v15.3.1,
-   conservando rutas y sustituyendo archivos.
-   No subas otra carpeta contenedora llamada actualizar.
-3. Incluye package.json y package-lock.json juntos.
-4. Cloudflare Pages: npm run build; directorio de salida out.
-5. Conserva las variables de Supabase. No ejecutes SQL.
-6. Actualiza la PWA en tus dispositivos.
+1. Descomprime el ZIP y abre la carpeta actualizar.
+2. Copia TODO SU CONTENIDO a la raíz del repositorio v15.4, conservando rutas y sustituyendo archivos. No borres el proyecto ni subas la carpeta actualizar como contenedor.
+3. Actualiza package.json y package-lock.json juntos. No hay dependencias nuevas.
+4. Cloudflare Pages: npm run build; salida: out. Conserva las variables actuales. No uses npm run deploy.
+5. Tras el despliegue, acepta la actualización de la PWA cuando se ofrezca.
 
-COLA DE LA SESION
-- Durante el estudio, pulsa el boton de tres lineas Cola.
-- En iPad/PC queda a un lado y puedes seguir respondiendo.
-- En movil abre una hoja que puedes cerrar para seguir estudiando.
-- Veras la tarjeta actual, las proximas, pendientes y aprobadas.
-- El orden es una prevision y cambia con tus valoraciones reales.
-- Abrir la cola no cambia el algoritmo ni escribe notas.
-
-BUSCADOR
-- En Hoy, pulsa la lupa de la cabecera.
-- Busca por palabras de la pregunta o la respuesta de cualquier tema.
-- Toca un resultado para consultar, estudiar o editar la tarjeta.
-- Buscar y consultar no registra una valoracion.
-
-Se conservan los seis tipos, prompts de importacion, medias, sesiones,
-FSRS, datos y sincronizacion. Sin dependencias nuevas ni archivos que borrar.
-Detalles: actualizar/docs/COLA-BUSCADOR-V15.4.md
-Pruebas: actualizar/docs/RESULTADOS-V15.4.json
-Archivos: ARCHIVOS-DEL-PARCHE.json
+No hay SQL ni ajustes nuevos de Supabase. No hay archivos que eliminar.
+El ZIP no incluye node_modules, .next, out, secretos ni datos de usuarios.
+README.md explica los nuevos controles. docs/RESULTADOS-V15.5.json documenta las pruebas realmente ejecutadas y sus límites.

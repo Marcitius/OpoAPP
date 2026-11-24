@@ -18,6 +18,10 @@ import {
   type TableAttempt,
 } from "../../lib/tables/learning";
 import { formatScore, scoreGroups, scoreGroup } from "../../lib/memory/grades";
+import {
+  canSelfAcceptTable,
+  selfReviewLabel,
+} from "../../lib/cards/selfReview";
 import BottomSheet from "../sheets/BottomSheet";
 import { RichContent } from "../../app/RichTextEditor";
 import TableContent from "./TableContent";
@@ -29,6 +33,7 @@ export default function TableExercise({
   percentage,
   onChange,
   onCommit,
+  onSelfAccept,
   onSkip,
   readOnly = false,
   busy = false,
@@ -41,6 +46,7 @@ export default function TableExercise({
   percentage?: TablePercentage;
   onChange?: (attempt: TableAttempt) => void;
   onCommit?: (attempt: TableAttempt) => void;
+  onSelfAccept?: (attempt: TableAttempt) => void;
   onSkip?: () => void;
   readOnly?: boolean;
   busy?: boolean;
@@ -228,6 +234,22 @@ export default function TableExercise({
                     ? "Guardando…"
                     : `Guardar ${formatScore(first?.score)} y continuar`}
                 </button>
+              )}
+              {!preview && onSelfAccept && canSelfAcceptTable(attempt) && (
+                <div className="self-review-action">
+                  <button
+                    type="button"
+                    className="secondary-button full"
+                    disabled={busy}
+                    onClick={() => onSelfAccept(current.current)}
+                  >
+                    {selfReviewLabel}
+                  </button>
+                  <small>
+                    Guarda 10/10 como revisión manual y continúa. El resultado
+                    automático se conserva.
+                  </small>
+                </div>
               )}
               <div className="table-secondary-controls">
                 <button

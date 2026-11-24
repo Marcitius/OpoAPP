@@ -11,11 +11,18 @@ import { RichContent, plainRichText } from "../../app/RichTextEditor";
 import { AnnotatedCardImage } from "../../app/CardImage";
 import Icon from "../shared/Icon";
 import { formatScore } from "../../lib/memory/grades";
+import { selfReviewLabel } from "../../lib/cards/selfReview";
 import ScorePicker from "./ScorePicker";
 import BottomSheet from "../sheets/BottomSheet";
 const CardContent = memo(RichContent);
 export interface ReviewSessionProps {
   queueControl?: ReactNode;
+  onNotes?: () => void;
+  noteCount?: number;
+  onDerive?: () => void;
+  onConnections?: () => void;
+  onDelete?: () => void;
+  onAcceptWritten?: () => void;
   queueOpen?: boolean;
   tableAttempt?: import("../../lib/tables/learning").TableAttempt | null;
   tablePercentage?: import("../../lib/tables/model").TablePercentage;
@@ -24,6 +31,7 @@ export interface ReviewSessionProps {
   ) => void;
   onTableGrade?: (
     evaluation: import("../../lib/tables/learning").TableEvaluation,
+    selfAccepted?: boolean,
   ) => void;
   exercise?: ReactNode;
   controls?: ReactNode;
@@ -159,6 +167,22 @@ export default function ReviewSessionView(props: ReviewSessionProps) {
             Quitar de «{p.collectionName}» y continuar
           </button>
         )}
+        <div className="review-card-tools">
+          {p.onNotes && (
+            <button className="ux-link" disabled={p.busy} onClick={p.onNotes}>
+              {p.noteCount ? `Notas · ${p.noteCount}` : "Añadir nota"}
+            </button>
+          )}
+          {p.onConnections && (
+            <button
+              className="ux-link"
+              disabled={p.busy}
+              onClick={p.onConnections}
+            >
+              Tarjetas relacionadas
+            </button>
+          )}
+        </div>
         <article
           className={`review-question ${p.revealed ? "answer-side" : "question-side"}`}
         >
@@ -267,6 +291,23 @@ export default function ReviewSessionView(props: ReviewSessionProps) {
                           </div>
                         ))}
                       </div>
+                      {!p.completed &&
+                        p.onAcceptWritten &&
+                        !!p.writtenAnswer.trim() && (
+                          <div className="self-review-action">
+                            <button
+                              className="secondary-button full"
+                              disabled={p.busy}
+                              onClick={p.onAcceptWritten}
+                            >
+                              {selfReviewLabel}
+                            </button>
+                            <small>
+                              Guarda 10/10 como revisión manual y continúa. La
+                              corrección automática se conserva en el informe.
+                            </small>
+                          </div>
+                        )}
                       {plainRichText(p.card.back) && (
                         <details className="review-detail">
                           <summary>Respuesta modelo</summary>
@@ -382,6 +423,33 @@ export default function ReviewSessionView(props: ReviewSessionProps) {
           >
             Editar tarjeta
           </button>
+          {p.onDerive && (
+            <button
+              className="sheet-action"
+              disabled={p.busy}
+              onClick={() => action(p.onDerive!)}
+            >
+              Crear tarjeta derivada
+            </button>
+          )}
+          {p.onNotes && (
+            <button
+              className="sheet-action"
+              disabled={p.busy}
+              onClick={() => action(p.onNotes!)}
+            >
+              Notas de la tarjeta
+            </button>
+          )}
+          {p.onDelete && (
+            <button
+              className="sheet-action danger-text"
+              disabled={p.busy}
+              onClick={() => action(p.onDelete!)}
+            >
+              Eliminar tarjeta
+            </button>
+          )}
           {p.onRemove && (
             <button
               className="sheet-action"
